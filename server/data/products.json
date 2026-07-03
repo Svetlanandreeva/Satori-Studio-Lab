@@ -1,0 +1,120 @@
+[
+  {
+    "id": 1,
+    "name": "Геодезическая сфера",
+    "nameEn": "Geodesic",
+    "category": "Декор",
+    "price": 4800,
+    "img": "https://images.unsplash.com/photo-1763198461823-3eab41cd33f5?w=900&h=1100&fit=crop&auto=format",
+    "imgs": [
+      "https://images.unsplash.com/photo-1763198461823-3eab41cd33f5?w=900&h=1100&fit=crop&auto=format",
+      "https://images.unsplash.com/photo-1645378198905-bca326a21167?w=900&h=1100&fit=crop&auto=format",
+      "https://images.unsplash.com/photo-1771788042401-34e21e5640be?w=900&h=1100&fit=crop&auto=format",
+      "https://images.unsplash.com/photo-1670509624628-bbe8efe126a1?w=900&h=1100&fit=crop&auto=format"
+    ],
+    "badge": "Хит",
+    "inStock": true,
+    "material": "PLA+",
+    "dims": "Ø 18 см",
+    "weight": "320 г",
+    "watt": "—",
+    "colors": 4,
+    "description": "Авторский объект из Nomad Sculpt. Точные треугольные грани создают бесконечную игру тени и света."
+  },
+  {
+    "id": 2,
+    "name": "Органическая ваза",
+    "nameEn": "Nusumi",
+    "category": "Декор",
+    "price": 6200,
+    "img": "https://images.unsplash.com/photo-1777810831320-db7dc5fef0c4?w=900&h=1100&fit=crop&auto=format",
+    "imgs": [
+      "https://images.unsplash.com/photo-1777810831320-db7dc5fef0c4?w=900&h=1100&fit=crop&auto=format",
+      "https://images.unsplash.com/photo-1763198461823-3eab41cd33f5?w=900&h=1100&fit=crop&auto=format",
+      "https://images.unsplash.com/photo-1750069685747-527e0c246ef1?w=900&h=1100&fit=crop&auto=format"
+    ],
+    "inStock": true,
+    "material": "PLA",
+    "dims": "Ø12 × 28 см",
+    "weight": "480 г",
+    "colors": 3,
+    "description": "Форма вдохновлена органическими природными структурами. Матовая поверхность близка к керамике."
+  },
+  {
+    "id": 3,
+    "name": "Подвесной светильник",
+    "nameEn": "Lumeno",
+    "category": "Лампы",
+    "price": 9500,
+    "img": "https://images.unsplash.com/photo-1777471031837-a4c55991e638?w=900&h=1100&fit=crop&auto=format",
+    "imgs": [
+      "https://images.unsplash.com/photo-1777471031837-a4c55991e638?w=900&h=1100&fit=crop&auto=format",
+      "https://images.unsplash.com/photo-1777471031830-ea949300b13a?w=900&h=1100&fit=crop&auto=format",
+      "https://images.unsplash.com/photo-1758983304673-5a2d091e43e2?w=900&h=1100&fit=crop&auto=format",
+      "https://images.unsplash.com/photo-1654282850361-f82520db49e1?w=900&h=1100&fit=crop&auto=format"
+    ],
+    "badge": "Новинка",
+    "inStock": false,
+    "lead": "14 дней",
+    "material": "PETG",
+    "dims": "Ø24 × 30 см",
+    "weight": "680 г",
+    "watt": "40W",
+    "colors": 2,
+    "description": "Геометрический плафон печатается под заказ. Внутри — патрон E27. Свет рассеивается через полупрозрачные грани."
+  },
+  {
+    "id": 4,
+    "name": "Абстрактная скульптура",
+    "nameEn": "Mugen",
+    "category": "Декор",
+    "price": 7800,
+    "img": "https://images.unsplash.com/photo-1771788042401-34e21e5640be?w=900&h=1100&fit=crop&auto=format",
+    "imgs": [
+      "https://images.unsplash.com/photo-1771788042401-34e21e5640be?w=900&h=1100&fit=crop&auto=format",
+      "https://images.unsplash.com/photo-1670509624628-bbe8efe126a1?w=900&h=1100&fit=crop&auto=format"
+    ],
+    "inStock": true,
+    "material": "Смола",
+    "dims": "8×8×26 см",
+    "weight": "560 г",
+    "colors": 5,
+    "description": "Течение форм, застывших в моменте. Каждый экземпляр уникален по текстуре."
+  },
+  {
+    "id": 5,
+    "name": "Ритуальные свечи",
+    "nameEn": "Tama",
+    "category": "Декор",
+    "price": 2400,
+    "img": "https://images.unsplash.com/photo-1750069685747-527e0c246ef1?w=900&h=1100&fit=crop&auto=format",
+    "imgs": [
+      "https://images.unsplash.com/photo-1750069685747-527e0c246ef1?w=900&h=1100&fit=crop&auto=format"
+    ],
+    "inStock": true,
+    "material": "Биопластик",
+    "dims": "сет 3 шт.",
+    "weight": "210 г",
+    "colors": 2,
+    "description": "Авторские формы из биопластика. Декоративные объекты или формы для заливки воска."
+  },
+  {
+    "id": 6,
+    "name": "Абстрактная форма №7",
+    "nameEn": "Katachi",
+    "category": "Украшения",
+    "price": 3600,
+    "img": "https://images.unsplash.com/photo-1645378198905-bca326a21167?w=900&h=1100&fit=crop&auto=format",
+    "imgs": [
+      "https://images.unsplash.com/photo-1645378198905-bca326a21167?w=900&h=1100&fit=crop&auto=format",
+      "https://images.unsplash.com/photo-1670509624628-bbe8efe126a1?w=900&h=1100&fit=crop&auto=format"
+    ],
+    "badge": "Лимит",
+    "inStock": true,
+    "material": "Смола UV",
+    "dims": "4×4×8 см",
+    "weight": "45 г",
+    "colors": 3,
+    "description": "UV-смола с латунной фурнитурой. Носится как pendant или стоит как настольный объект. Лимит 12 шт."
+  }
+]
