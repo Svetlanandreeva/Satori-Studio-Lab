@@ -20,7 +20,8 @@ function withWriteLock(fn) {
 }
 
 export async function listProducts() {
-  return readProducts();
+  const products = await readProducts();
+  return [...products].sort((a, b) => (b.createdAt ?? 0) - (a.createdAt ?? 0));
 }
 
 export async function getProduct(id) {
@@ -32,7 +33,7 @@ export async function createProduct(data) {
   return withWriteLock(async () => {
     const products = await readProducts();
     const nextId = products.reduce((max, p) => Math.max(max, p.id), 0) + 1;
-    const product = { ...data, id: nextId };
+    const product = { ...data, id: nextId, createdAt: Date.now() };
     products.push(product);
     await writeFile(PRODUCTS_FILE, JSON.stringify(products, null, 2), "utf-8");
     return product;

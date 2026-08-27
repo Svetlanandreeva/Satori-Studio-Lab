@@ -28,6 +28,12 @@ export async function getOrder(id) {
   return orders.find((o) => o.id === id) || null;
 }
 
+export async function findOrderByCode(code) {
+  const orders = await readOrders();
+  const lower = code.toLowerCase();
+  return orders.find((o) => o.id.toLowerCase().startsWith(lower)) || null;
+}
+
 export async function createOrder(order) {
   return withWriteLock(async () => {
     const orders = await readOrders();

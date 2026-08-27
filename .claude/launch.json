@@ -6,6 +6,12 @@
       "runtimeExecutable": "/Users/svetlanaandreeva/.nvm/versions/node/v24.18.0/bin/npm",
       "runtimeArgs": ["run", "dev"],
       "port": 5173
+    },
+    {
+      "name": "satori-backend",
+      "runtimeExecutable": "/Users/svetlanaandreeva/.nvm/versions/node/v24.18.0/bin/npm",
+      "runtimeArgs": ["run", "server"],
+      "port": 3001
     }
   ]
 }

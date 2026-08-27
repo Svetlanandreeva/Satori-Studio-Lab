@@ -1,22 +1,96 @@
 
   <!DOCTYPE html>
-  <html lang="en">
+  <html lang="ru">
     <head>
-      
+
       <meta charset="UTF-8" />
       <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+
+      <!-- Preload the hero image (first limited-edition product — currently
+           "Ария", /uploads/33acce5b-...). If the limited-edition lineup
+           changes and a different product becomes heroCollage[0] in App.tsx,
+           update this hash to match or the preload just wastes a request. -->
+      <link rel="preload" as="image" type="image/avif" media="(min-width: 768px)"
+            href="/uploads/33acce5b-c596-469c-8a25-ce50fee6ec36.jpeg?w=960&fmt=avif"
+            imagesrcset="/uploads/33acce5b-c596-469c-8a25-ce50fee6ec36.jpeg?w=640&fmt=avif 640w,
+                         /uploads/33acce5b-c596-469c-8a25-ce50fee6ec36.jpeg?w=960&fmt=avif 960w,
+                         /uploads/33acce5b-c596-469c-8a25-ce50fee6ec36.jpeg?w=1280&fmt=avif 1280w"
+            imagesizes="46vw" fetchpriority="high">
+      <link rel="preload" as="image" type="image/avif" media="(max-width: 767px)"
+            href="/uploads/33acce5b-c596-469c-8a25-ce50fee6ec36.jpeg?w=480&fmt=avif"
+            imagesrcset="/uploads/33acce5b-c596-469c-8a25-ce50fee6ec36.jpeg?w=320&fmt=avif 320w,
+                         /uploads/33acce5b-c596-469c-8a25-ce50fee6ec36.jpeg?w=480&fmt=avif 480w,
+                         /uploads/33acce5b-c596-469c-8a25-ce50fee6ec36.jpeg?w=640&fmt=avif 640w"
+            imagesizes="38vw" fetchpriority="high">
+
       <title>3D-магазин Сатори</title>
-      <meta name="description" content="Explore a curated 3D product catalog featuring custom designs, easy navigation, and seamless checkout, perfect for art and decor enthusiasts." />
-      <meta name="robots" content="noindex, nofollow" />
+      <meta name="description" content="Авторские 3D-печатные предметы декора, светильники и украшения ручной работы из студии Satori в Екатеринбурге. Изготовление на заказ, доставка по всей России." />
+
+      <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+      <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
+      <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
+      <link rel="icon" href="/favicon.ico" sizes="any" />
+      <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+
+      <meta property="og:type" content="website" />
+      <meta property="og:site_name" content="Satori" />
+      <meta property="og:title" content="Satori — авторский 3D-печатный декор ручной работы" />
+      <meta property="og:description" content="Авторские 3D-печатные предметы декора, светильники и украшения ручной работы из студии Satori в Екатеринбурге. Изготовление на заказ, доставка по всей России." />
+      <meta property="og:image" content="https://satorilabural.ru/og-image.png" />
+      <meta property="og:image:width" content="1200" />
+      <meta property="og:image:height" content="630" />
+      <meta property="og:url" content="https://satorilabural.ru/" />
+      <meta property="og:locale" content="ru_RU" />
+      <meta name="twitter:card" content="summary_large_image" />
+      <meta name="twitter:title" content="Satori — авторский 3D-печатный декор ручной работы" />
+      <meta name="twitter:description" content="Авторские 3D-печатные предметы декора, светильники и украшения ручной работы из студии Satori в Екатеринбурге." />
+      <meta name="twitter:image" content="https://satorilabural.ru/og-image.png" />
+
       <style>html, body { height: 100%; margin: 0; } #root { height: 100%; }</style>
-      
+      <!-- dataLayer must exist before the Metrika tag reads ecommerce:"dataLayer" -->
+      <script type="text/javascript">
+          window.dataLayer = window.dataLayer || [];
+      </script>
+      <!-- Yandex.Metrika counter -->
+      <script type="text/javascript">
+          (function(m,e,t,r,i,k,a){
+              m[i]=m[i]||function(){(m[i].a=m[i].a||[]).push(arguments)};
+              m[i].l=1*new Date();
+              for (var j = 0; j < document.scripts.length; j++) {if (document.scripts[j].src === r) { return; }}
+              k=e.createElement(t),a=e.getElementsByTagName(t)[0],k.async=1,k.src=r,a.parentNode.insertBefore(k,a)
+          })(window, document,'script','https://mc.yandex.ru/metrika/tag.js?id=110458266', 'ym');
+
+          ym(110458266, 'init', {ssr:true, webvisor:true, clickmap:true, ecommerce:"dataLayer", referrer: document.referrer, url: location.href, accurateTrackBounce:true, trackLinks:true, trackHash:true});
+      </script>
+      <!-- /Yandex.Metrika counter -->
+
+      <!-- Top.Mail.Ru counter (VK Реклама pixel) -->
+      <script type="text/javascript">
+          var _tmr = window._tmr || (window._tmr = []);
+          _tmr.push({id: "3786706", type: "pageView", start: (new Date()).getTime()});
+          (function (d, w, id) {
+          if (d.getElementById(id)) return;
+          var ts = d.createElement("script"); ts.type = "text/javascript"; ts.async = true; ts.id = id;
+          ts.src = "https://top-fwz1.mail.ru/js/code.js";
+          var f = function () {var s = d.getElementsByTagName("script")[0]; s.parentNode.insertBefore(ts, s);};
+          if (w.opera == "[object Opera]") { d.addEventListener("DOMContentLoaded", f, false); } else { f(); }
+          })(document, window, "tmr-code");
+      </script>
+      <!-- /Top.Mail.Ru counter -->
+
+      <!-- BotFaqtor anti-fraud counter -->
+      <script type="text/javascript">window._ab_id_=184489</script>
+      <script src="https://cdn.botfaqtor.ru/one.js" defer></script>
+      <!-- /BotFaqtor -->
+
     </head>
 
     <body>
-      
+      <noscript><div><img src="https://mc.yandex.ru/watch/110458266" style="position:absolute; left:-9999px;" alt="" /></div></noscript>
+      <noscript><div><img src="https://top-fwz1.mail.ru/counter?id=3786706;js=na" style="position:absolute;left:-9999px;" alt="" /></div></noscript>
       <div id="root"></div>
       <script type="module" src="/src/main.tsx"></script>
-      
+
     </body>
   </html>
   

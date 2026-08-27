@@ -1,0 +1,28 @@
+/* Base interactive states — applied once, site-wide, instead of per-element. */
+
+@keyframes fadeSlideDown {
+  from { opacity: 0; transform: translateY(-6px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes pageFade {
+  from { opacity: 0; transform: translateY(8px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+
+:focus-visible {
+  outline: 2px solid #E07A34;
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+/* Respect the system's reduced-motion preference: keep opacity/color
+   transitions that aid comprehension, drop movement. */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}

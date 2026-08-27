@@ -1,0 +1,115 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<yml_catalog date="2026-08-10 13:08">
+  <shop>
+    <name>Satori</name>
+    <company>Белоглазова Светлана Андреевна</company>
+    <url>https://satorilabural.ru/</url>
+    <currencies>
+      <currency id="RUB" rate="1"/>
+    </currencies>
+    <categories>
+    <category id="1">Лампы</category>
+    <category id="2">Декор</category>
+    </categories>
+    <offers>
+  <offer id="1" available="true">
+    <url>https://satorilabural.ru/?p=1</url>
+    <price>3800</price>
+    <currencyId>RUB</currencyId>
+    <categoryId>1</categoryId>
+    <picture>https://satorilabural.ru/uploads/fa49f94f-a7c7-45f7-a18a-15cd4794d6d8.jpg</picture>
+    <picture>https://satorilabural.ru/uploads/5a85f315-25ec-45f2-b4a6-2fe8b7c02777.jpg</picture>
+    <picture>https://satorilabural.ru/uploads/5e04250c-abdd-4503-8836-a0e85c1cf583.png</picture>
+    <picture>https://satorilabural.ru/uploads/de5b6068-0a5f-4fb2-86c6-fa6a424aba07.jpg</picture>
+    <picture>https://satorilabural.ru/uploads/b6051ead-5041-4620-892c-d770213c0d6b.png</picture>
+    <picture>https://satorilabural.ru/uploads/fd3e40e9-ecec-4d20-aaea-7a16a34edb8b.png</picture>
+    <picture>https://satorilabural.ru/uploads/44c26585-019a-4ad8-803f-e52236d9b837.png</picture>
+    <name>Аида</name>
+    <description>Монолит из рифлёного стекловидного пластика, который выглядит собранным — а потом вы сдвигаете верх, и по диагонали проходит трещина света.</description>
+  </offer>
+  <offer id="2" available="true">
+    <url>https://satorilabural.ru/?p=2</url>
+    <price>5400</price>
+    <currencyId>RUB</currencyId>
+    <categoryId>1</categoryId>
+    <picture>https://satorilabural.ru/uploads/3fee8770-9d18-40f7-9425-fcf12f88c5fb.jpg</picture>
+    <picture>https://satorilabural.ru/uploads/2694139b-2191-4b17-8232-73e5629358a3.jpg</picture>
+    <picture>https://satorilabural.ru/uploads/29521cf3-de03-402f-9d2b-4948500bc88e.jpg</picture>
+    <picture>https://satorilabural.ru/uploads/31f1276e-f40c-4ba5-8f9f-f2790eaa7cdf.jpg</picture>
+    <name>Затмение</name>
+    <description>Светильник, у которого нет одного состояния.</description>
+  </offer>
+  <offer id="3" available="true">
+    <url>https://satorilabural.ru/?p=3</url>
+    <price>3500</price>
+    <currencyId>RUB</currencyId>
+    <categoryId>1</categoryId>
+    <picture>https://satorilabural.ru/uploads/b02b74e6-3d42-4537-a550-218c79ecd85f.jpg</picture>
+    <picture>https://satorilabural.ru/uploads/dcb993fb-491b-4fe3-9e15-3341a6811d4a.jpg</picture>
+    <picture>https://satorilabural.ru/uploads/16e19e22-f3de-499a-a636-bfa3b5c26b7e.jpg</picture>
+    <picture>https://satorilabural.ru/uploads/1f795b94-62fe-4b73-b183-cc768ab27253.jpg</picture>
+    <name>КАИРН</name>
+    <description>Кайрны складывают в горах и на берегу — камень на камень, без раствора, на глаз, по балансу. Это не постройка, а жест: отметить путь, остановиться, побыть в моменте.</description>
+  </offer>
+  <offer id="4" available="true">
+    <url>https://satorilabural.ru/?p=4</url>
+    <price>6000</price>
+    <currencyId>RUB</currencyId>
+    <categoryId>1</categoryId>
+    <picture>https://satorilabural.ru/uploads/90e02bbf-d7ec-4a9e-b561-21070333a00f.jpg</picture>
+    <picture>https://satorilabural.ru/uploads/1e98a97e-91a9-476c-982c-5e4772495f3e.jpg</picture>
+    <picture>https://satorilabural.ru/uploads/877e9abc-e3ac-423d-9ec7-6f213a5dd08f.jpg</picture>
+    <picture>https://satorilabural.ru/uploads/e61f5b06-7010-4973-9cf9-eff30d899937.jpg</picture>
+    <picture>https://satorilabural.ru/uploads/91273d45-9b1b-4860-8493-5653ec8266de.jpg</picture>
+    <name>Анемона</name>
+    <description>Анемона — и цветок, что раскрывается на рассвете, и морское существо, чьи лепестки-щупальца плавно колышутся в толще воды. На стыке этих двух образов родилась форма.</description>
+  </offer>
+  <offer id="5" available="true">
+    <url>https://satorilabural.ru/?p=5</url>
+    <price>2000</price>
+    <currencyId>RUB</currencyId>
+    <categoryId>2</categoryId>
+    <picture>https://satorilabural.ru/uploads/c0101081-516a-4d84-b0e9-9eda6242b9f4.jpg</picture>
+    <picture>https://satorilabural.ru/uploads/5838ea34-7898-4851-91ab-ed131c57f8b0.jpg</picture>
+    <picture>https://satorilabural.ru/uploads/47a1c4b6-4fc8-414a-b33d-6f698875ef69.jpg</picture>
+    <picture>https://satorilabural.ru/uploads/3f440945-69f5-4ec6-90cb-d559e103dd2a.jpg</picture>
+    <picture>https://satorilabural.ru/uploads/13b70040-2101-4bd1-8986-293a51754885.jpg</picture>
+    <name>ОКО</name>
+    <description>Сфера, будто закрытые веки — плотная, ровная, вся в тонких вертикальных рёбрах, как радужка под сомкнутым взглядом. Единственный разрез миндалевидной формы — и через него наружу выходит сфокусированный свет, будто сфера на секунду приоткрыла глаз.</description>
+  </offer>
+  <offer id="6" available="true">
+    <url>https://satorilabural.ru/?p=6</url>
+    <price>3495</price>
+    <currencyId>RUB</currencyId>
+    <categoryId>2</categoryId>
+    <picture>https://satorilabural.ru/uploads/9bdc3053-45a4-4566-9e34-54321d808e43.jpg</picture>
+    <picture>https://satorilabural.ru/uploads/6512bf71-be0a-40e9-8165-b782ba2b0b28.jpg</picture>
+    <picture>https://satorilabural.ru/uploads/b7c92942-e173-42d4-b8c5-db3d7024e785.jpg</picture>
+    <name>Капитолий</name>
+    <description>Ряд вертикальных ламелей, плотно поставленных друг к другу, как колонны портика — строгий ритм, повторяющийся без сбоя, квадратное основание, ощущение постройки, а не предмета.</description>
+  </offer>
+  <offer id="7" available="true">
+    <url>https://satorilabural.ru/?p=7</url>
+    <price>2500</price>
+    <currencyId>RUB</currencyId>
+    <categoryId>2</categoryId>
+    <picture>https://satorilabural.ru/uploads/80b2064f-f78c-4b55-8e9a-096aaa682654.jpg</picture>
+    <picture>https://satorilabural.ru/uploads/80b2064f-f78c-4b55-8e9a-096aaa682654.jpg</picture>
+    <name>Ember</name>
+    <description>Ember — это сочетание выразительного дизайна и теплого, насыщенного света. Полупрозрачный плафон с волнообразной текстурой создает эффект живого свечения, напоминая тлеющие угли или потоки раскаленной лавы. Благодаря этому лампа наполняет пространство уютной атмосферой и становится ярким акцентом в </description>
+  </offer>
+  <offer id="8" available="true">
+    <url>https://satorilabural.ru/?p=8</url>
+    <price>2300</price>
+    <currencyId>RUB</currencyId>
+    <categoryId>2</categoryId>
+    <picture>https://satorilabural.ru/uploads/26f37728-3386-4b4b-93c9-29f4b1759e7b.jpg</picture>
+    <picture>https://satorilabural.ru/uploads/2d83ee6a-c3c3-4cf3-9876-dd9db33e15f6.jpg</picture>
+    <picture>https://satorilabural.ru/uploads/3ea249ba-fa4e-48cc-991b-094fe9225f9f.jpg</picture>
+    <picture>https://satorilabural.ru/uploads/7559bf00-ade8-4cfa-b065-d2f69e1e9361.jpg</picture>
+    <name>Sora</name>
+    <description>Sora — это гармония современного дизайна и мягкого теплого света. Плавные линии основания и волнообразный абажур вдохновлены природными формами, создавая ощущение спокойствия и уюта. Лампа становится не просто источником света, а стильным акцентом, который преображает пространство.</description>
+  </offer>
+    </offers>
+  </shop>
+</yml_catalog>

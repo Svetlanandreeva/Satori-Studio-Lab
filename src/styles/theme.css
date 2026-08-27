@@ -2,19 +2,19 @@
 
 :root {
   --font-size: 16px;
-  --background: #15120D;
+  --background: #181411;
   --foreground: #ECE6DF;
-  --card: #1C1812;
+  --card: #201C18;
   --card-foreground: #ECE6DF;
-  --popover: #1C1812;
+  --popover: #201C18;
   --popover-foreground: #ECE6DF;
-  --primary: #E8782A;
+  --primary: #E07A34;
   --primary-foreground: #ffffff;
   --secondary: #26211A;
   --secondary-foreground: #ECE6DF;
-  --muted: #1A1713;
-  --muted-foreground: #8A7F72;
-  --accent: #E8782A;
+  --muted: #201C18;
+  --muted-foreground: #B3A89A;
+  --accent: #E07A34;
   --accent-foreground: #ffffff;
   --destructive: #c0392b;
   --destructive-foreground: #ECE6DF;
