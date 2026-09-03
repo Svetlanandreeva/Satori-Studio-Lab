@@ -1,0 +1,45 @@
+name: Deploy to production
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+      - run: npm run build
+
+      - uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.DEPLOY_SSH_KEY }}
+
+      - name: Trust the server's host key
+        run: ssh-keyscan -H 194.226.97.103 >> ~/.ssh/known_hosts
+
+      # Frontend is a full rebuild every time — safe to mirror exactly.
+      - name: Deploy frontend
+        run: rsync -az --delete dist/ root@194.226.97.103:/var/www/satori/frontend/
+
+      # Backend: only sync code. Never touch data/ (live products, orders,
+      # leads, promocodes — edited through the admin panel, not git) or
+      # uploads/ (product photos) or .env (secrets, not in this repo).
+      - name: Deploy backend
+        run: |
+          rsync -az \
+            --exclude 'data/' \
+            --exclude 'uploads/' \
+            --exclude '.env' \
+            server/ root@194.226.97.103:/var/www/satori/backend/
+
+      - name: Restart backend service
+        run: ssh root@194.226.97.103 'systemctl restart satori-backend'
