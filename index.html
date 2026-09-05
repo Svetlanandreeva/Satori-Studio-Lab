@@ -6,22 +6,15 @@
       <meta charset="UTF-8" />
       <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-      <!-- Preload the hero image (first limited-edition product — currently
-           "Ария", /uploads/33acce5b-...). If the limited-edition lineup
-           changes and a different product becomes heroCollage[0] in App.tsx,
-           update this hash to match or the preload just wastes a request. -->
-      <link rel="preload" as="image" type="image/avif" media="(min-width: 768px)"
-            href="/uploads/33acce5b-c596-469c-8a25-ce50fee6ec36.jpeg?w=960&fmt=avif"
-            imagesrcset="/uploads/33acce5b-c596-469c-8a25-ce50fee6ec36.jpeg?w=640&fmt=avif 640w,
-                         /uploads/33acce5b-c596-469c-8a25-ce50fee6ec36.jpeg?w=960&fmt=avif 960w,
-                         /uploads/33acce5b-c596-469c-8a25-ce50fee6ec36.jpeg?w=1280&fmt=avif 1280w"
-            imagesizes="46vw" fetchpriority="high">
-      <link rel="preload" as="image" type="image/avif" media="(max-width: 767px)"
-            href="/uploads/33acce5b-c596-469c-8a25-ce50fee6ec36.jpeg?w=480&fmt=avif"
-            imagesrcset="/uploads/33acce5b-c596-469c-8a25-ce50fee6ec36.jpeg?w=320&fmt=avif 320w,
-                         /uploads/33acce5b-c596-469c-8a25-ce50fee6ec36.jpeg?w=480&fmt=avif 480w,
-                         /uploads/33acce5b-c596-469c-8a25-ce50fee6ec36.jpeg?w=640&fmt=avif 640w"
-            imagesizes="38vw" fetchpriority="high">
+      <!-- Preload the hero background photo (server/data/hero.json → /api/hero).
+           If someone changes the hero photo via the admin panel, update this
+           hash to match or the preload just wastes a request. Full-bleed at
+           w=1600 sizes="100vw" — matches the <Picture> call in HomePage's hero. -->
+      <link rel="preload" as="image" type="image/avif"
+            href="/uploads/33acce5b-c596-469c-8a25-ce50fee6ec36.jpeg?w=1600&fmt=avif"
+            imagesrcset="/uploads/33acce5b-c596-469c-8a25-ce50fee6ec36.jpeg?w=1280&fmt=avif 1280w,
+                         /uploads/33acce5b-c596-469c-8a25-ce50fee6ec36.jpeg?w=1600&fmt=avif 1600w"
+            imagesizes="100vw" fetchpriority="high">
 
       <title>3D-магазин Сатори</title>
       <meta name="description" content="Авторские 3D-печатные предметы декора, светильники и украшения ручной работы из студии Satori в Екатеринбурге. Изготовление на заказ, доставка по всей России." />

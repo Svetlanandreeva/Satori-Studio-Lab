@@ -96,6 +96,12 @@ app.post("/api/checkout", async (req, res) => {
     if (!customer?.name || !customer?.phone) {
       return res.status(400).json({ error: "Укажите имя и телефон" });
     }
+    // Quick-buy orders have no `delivery` field at all (courier arranged by
+    // call later) — only the full checkout form, which always sets one, needs
+    // an address, and only when it's not self-pickup.
+    if (customer.delivery && !String(customer.delivery).startsWith("Самовывоз") && !customer.address) {
+      return res.status(400).json({ error: "Укажите адрес доставки" });
+    }
 
     const subtotal = items.reduce((sum, i) => sum + i.price * i.qty, 0);
     let amount = subtotal;
@@ -224,10 +230,10 @@ app.post("/api/leads", async (req, res) => {
     if (type !== "custom" && type !== "business") {
       return res.status(400).json({ error: "Некорректный тип заявки" });
     }
-    if (type === "custom" && !fields.name) {
-      return res.status(400).json({ error: "Укажите имя" });
+    if (type === "custom" && (!fields.name || !fields.phone)) {
+      return res.status(400).json({ error: "Укажите имя и телефон" });
     }
-    if (type === "business" && (!fields.company || !fields.name || !fields.contact)) {
+    if (type === "business" && (!fields.company || !fields.name || !fields.phone)) {
       return res.status(400).json({ error: "Заполните обязательные поля" });
     }
     const lead = await createLead({ type, ...fields });

@@ -56,6 +56,8 @@ const MUTED_LIGHT = "#6B6255"; // secondary text on light cards (LIGHT)
 
 const JK  = "'Plus Jakarta Sans', sans-serif";  // headings & display
 const MONO = "'IBM Plex Mono', monospace";
+const SERIF = "'Playfair Display', serif";  // large display headings — matches Figma concept
+const LABEL = "'Inter', sans-serif";  // small-caps section labels — matches Figma concept
 
 // ── First-order promo — single source, referenced everywhere it's mentioned in UI ──
 const FIRST_ORDER_PROMO_CODE = "SATORI30";
@@ -74,7 +76,7 @@ const EMAIL = "studiosatori@yandex.com";
 const PHONE = "+7 993 519-51-41";
 const PHONE_HREF = "+79935195141";
 const WHATSAPP_URL = "https://wa.me/79935195141";
-const BODY = "'Onest', sans-serif";
+const BODY = "'Inter', sans-serif";
 
 // ── Ecommerce dataLayer (Yandex Metrika, ecommerce:"dataLayer") ────────────────
 function pushEcommerce(payload: Record<string, unknown>) {
@@ -261,7 +263,7 @@ function NavBar({ page, setPage, cartCount, onCartOpen }: {
             const labels: Record<string, string> = { catalog: "Каталог", limited: "Лимит. серия", about: "О студии", custom: "На заказ", business: "Бизнесу", faq: "FAQ" };
             return (
               <button key={p} onClick={() => setPage(p)}
-                style={{ fontFamily: BODY, fontSize: 13, color: page === p ? OG : `${CREAM}80`, transition: "color 0.2s" }}
+                style={{ fontFamily: BODY, fontSize: 13, color: page === p ? CREAM : `${CREAM}80`, transition: "color 0.2s" }}
                 onMouseEnter={(e) => { if (page !== p) (e.currentTarget as HTMLElement).style.color = CREAM; }}
                 onMouseLeave={(e) => { if (page !== p) (e.currentTarget as HTMLElement).style.color = `${CREAM}80`; }}>
                 {labels[p]}
@@ -275,8 +277,8 @@ function NavBar({ page, setPage, cartCount, onCartOpen }: {
             className="relative active:scale-90 transition-transform duration-150" style={{ color: MUTED }}>
             <ShoppingBag size={19} />
             {cartCount > 0 && (
-              <span className="absolute -top-1.5 -right-1.5 w-4 h-4 flex items-center justify-center text-[9px] font-bold text-white"
-                style={{ backgroundColor: OG, borderRadius: 99 }}>{cartCount}</span>
+              <span className="absolute -top-1.5 -right-1.5 w-4 h-4 flex items-center justify-center text-[9px] font-bold"
+                style={{ backgroundColor: CREAM, color: "#1A1412", borderRadius: 99 }}>{cartCount}</span>
             )}
           </button>
           {(scrolled || page !== "home") && (
@@ -335,16 +337,18 @@ async function validatePromoCode(code: string, amount: number) {
 }
 
 // ── Согласие на обработку персональных данных (переиспользуется в формах) ───
-function ConsentCheckbox({ checked, onChange, onOpenPolicy }: {
-  checked: boolean; onChange: (v: boolean) => void; onOpenPolicy: () => void;
+function ConsentCheckbox({ checked, onChange, onOpenPolicy, onLight }: {
+  checked: boolean; onChange: (v: boolean) => void; onOpenPolicy: () => void; onLight?: boolean;
 }) {
+  const textColor = onLight ? MUTED_LIGHT : MUTED;
+  const linkColor = onLight ? "#1A1412" : OG;
   return (
     <label className="flex items-start gap-2.5 cursor-pointer">
       <input type="checkbox" required checked={checked} onChange={(e) => onChange(e.target.checked)}
-        className="mt-0.5 shrink-0" style={{ accentColor: OG, width: 15, height: 15 }} />
-      <span style={{ fontFamily: BODY, fontSize: 11, color: MUTED, lineHeight: 1.5 }}>
+        className="mt-0.5 shrink-0" style={{ accentColor: onLight ? "#1A1412" : OG, width: 15, height: 15 }} />
+      <span style={{ fontFamily: BODY, fontSize: 11, color: textColor, lineHeight: 1.5 }}>
         Согласен(на) с{" "}
-        <button type="button" onClick={onOpenPolicy} style={{ color: OG, textDecoration: "underline" }}>
+        <button type="button" onClick={onOpenPolicy} style={{ color: linkColor, textDecoration: "underline" }}>
           политикой обработки персональных данных
         </button>
       </span>
@@ -602,7 +606,7 @@ function CartDrawer({ open, onClose, items, onQtyChange, onRemove, onNavigate }:
               <>
                 <div>
                   <label style={{ fontFamily: MONO, fontSize: 9, color: MUTED, letterSpacing: "0.15em", display: "block", marginBottom: 8 }}>АДРЕС</label>
-                  <input value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })}
+                  <input required value={form.address} onChange={(e) => setForm({ ...form, address: e.target.value })}
                     placeholder="Город, улица, дом" className="w-full px-4 py-3 text-sm outline-none" style={inputStyle} />
                 </div>
                 <div className="flex gap-3">
@@ -754,7 +758,7 @@ function FloatingCTA() {
     <a href={TELEGRAM_URL} target="_blank" rel="noopener noreferrer"
       onMouseEnter={() => setH(true)} onMouseLeave={() => setH(false)}
       className="fixed bottom-6 right-6 z-50 flex items-center gap-2 text-white shadow-2xl transition-[padding,transform] duration-200 hover:scale-105"
-      style={{ backgroundColor: OG, borderRadius: 99, padding: h ? "12px 18px" : "12px 14px" }}>
+      style={{ backgroundColor: "#1A1412", borderRadius: 99, padding: h ? "12px 18px" : "12px 14px" }}>
       <Send size={15} />
       {h && <span style={{ fontFamily: MONO, fontSize: 10, letterSpacing: "0.1em" }}>Telegram</span>}
     </a>
@@ -762,41 +766,6 @@ function FloatingCTA() {
 }
 
 // ── Category card — cycles through real product photos ─────────────────────────
-function CategoryCard({ name, products, onClick }: { name: string; products: Product[]; onClick: () => void }) {
-  const [idx, setIdx] = useState(0);
-  const hasProducts = products.length > 0;
-  useEffect(() => {
-    if (products.length < 2) return;
-    const t = setInterval(() => setIdx((i) => (i + 1) % products.length), 2600);
-    return () => clearInterval(t);
-  }, [products.length]);
-
-  return (
-    <button onClick={onClick} className="relative overflow-hidden group text-left"
-      style={{ aspectRatio: "1/1", borderRadius: 16, backgroundColor: CARD }}>
-      {hasProducts ? (
-        products.map((p, i) => (
-          <Picture key={p.id} src={p.img} w={500} h={500} alt={p.name} loading="lazy"
-            sizes="(max-width: 767px) 50vw, 25vw"
-            className="absolute inset-0 w-full h-full object-cover transition-opacity duration-700 group-hover:scale-105"
-            style={{ opacity: i === idx ? 1 : 0, objectPosition: "center 20%" }} />
-        ))
-      ) : (
-        <div className="absolute inset-0 flex items-center justify-center">
-          <span style={{ fontFamily: MONO, fontSize: 10, color: FAINT, letterSpacing: "0.15em" }}>В ОБРАБОТКЕ</span>
-        </div>
-      )}
-      <div className="absolute inset-0" style={{ background: `linear-gradient(to top, ${BG}d0 0%, transparent 55%)` }} />
-      <div className="absolute bottom-0 left-0 right-0 p-4">
-        <p style={{ fontFamily: JK, fontWeight: 700, fontSize: 15, color: CREAM }}>{name}</p>
-        <p style={{ fontFamily: MONO, fontSize: 9, color: OG, marginTop: 2 }}>
-          {hasProducts ? `${products.length} изделий` : "скоро"}
-        </p>
-      </div>
-    </button>
-  );
-}
-
 // ── HomePage ───────────────────────────────────────────────────────────────────
 function HomePage({ products, setPage, onSelect, onAdd }: {
   products: Product[]; setPage: (p: Page) => void; onSelect: (p: Product) => void; onAdd: (p: Product) => void;
@@ -825,208 +794,305 @@ function HomePage({ products, setPage, onSelect, onAdd }: {
   }, []);
   const enter = (delay: number) => revealStyle(entered, delay);
 
-  const revealCategories = useReveal<HTMLElement>();
+  const revealFeatures1 = useReveal<HTMLElement>();
+  const revealSpotlight = useReveal<HTMLElement>();
+  const revealFeatures2 = useReveal<HTMLElement>();
+  const revealCta = useReveal<HTMLElement>();
   const revealProducts = useReveal<HTMLElement>();
-  const revealWhy = useReveal<HTMLElement>();
-  const revealHow = useReveal<HTMLElement>();
+  const revealCategories = useReveal<HTMLElement>();
+  const revealTrust = useReveal<HTMLElement>();
   const revealAbout = useReveal<HTMLElement>();
   const revealGallery = useReveal<HTMLElement>();
+  const bestseller = products.find((p) => p.badge === "Хит") ?? products[0];
 
   return (
-    <div style={{ backgroundColor: BG }}>
+    <div style={{ backgroundColor: LIGHT }}>
 
       {/* ── HERO ── */}
-      <section style={{ position: "relative", height: "100svh", display: "flex", flexDirection: "column", overflow: "hidden", backgroundColor: "#221E18" }}>
+      <section className="px-6 md:px-14 xl:px-[clamp(56px,6vw,120px)] pt-20 md:pt-24 pb-10">
+        <div className="relative" style={{ borderRadius: 28, overflow: "hidden", minHeight: isMobile ? 520 : 620 }}>
+          {/* Постер — фото/видео на весь блок */}
+          <div className="absolute inset-0">
+            {heroMedia.type === "video" && heroMedia.url ? (
+              <video src={heroMedia.url} autoPlay muted loop playsInline
+                style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+            ) : heroMedia.type === "image" && heroMedia.url ? (
+              <Picture src={heroMedia.url} w={1600} h={1200} alt="" loading="eager" fetchPriority="high"
+                sizes="100vw"
+                style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
+            ) : (
+              <div style={{ width: "100%", height: "100%", background: "linear-gradient(120deg, #4A3A29 0%, #8A6F52 60%, #B79B78 100%)" }} />
+            )}
+            <div className="absolute inset-0" style={{
+              background: isMobile
+                ? `linear-gradient(180deg, #221E18ee 0%, #221E1899 45%, #221E18cc 100%)`
+                : `linear-gradient(100deg, #221E18f0 0%, #221E18cc 30%, #221E1855 56%, #221E1815 100%)`,
+            }} />
+          </div>
 
-        {/* Фоновое медиа — фото или видео из админ-панели */}
-        <div style={{ position: "absolute", inset: 0 }}>
-          {heroMedia.type === "video" && heroMedia.url ? (
-            <video src={heroMedia.url} autoPlay muted loop playsInline
-              style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
-          ) : heroMedia.type === "image" && heroMedia.url ? (
-            <Picture src={heroMedia.url} w={1600} h={1200} alt="" loading="eager" fetchPriority="high"
-              sizes="100vw"
-              style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
-          ) : null}
-          {/* Затемнение — для читаемости текста */}
-          <div style={{
-            position: "absolute", inset: 0,
-            background: isMobile
-              ? `linear-gradient(180deg, ${BG}cc 0%, ${BG}77 45%, ${BG}99 100%)`
-              : `linear-gradient(100deg, ${BG}ee 0%, ${BG}bb 32%, ${BG}55 58%, ${BG}22 100%)`,
-          }} />
-        </div>
-
-        {/* Отступ под фиксированный навбар */}
-        <div style={{ height: 56, flexShrink: 0, position: "relative" }} />
-
-        {/* Текст интро */}
-        <div style={{
-          position: "relative", flex: 1, minHeight: 0,
-          display: "flex", flexDirection: "column",
-          justifyContent: isMobile ? "flex-start" : "center",
-          padding: isMobile ? "32px 24px 24px" : "20px clamp(56px, 6vw, 120px)",
-        }}>
-          <div style={{ maxWidth: 480 }}>
-            {/* Логотип */}
-            <div style={{ marginBottom: 20, ...enter(0) }}>
-              <Logo height={isMobile ? 84 : 96} style={{ background: "transparent" }} />
-            </div>
-
-            {/* Линия-акцент */}
-            <div style={{ width: 32, height: 2, backgroundColor: OG, borderRadius: 2, marginBottom: 20, ...enter(70) }} />
-
-            {/* Промо-плашка */}
-            <motion.div
-              initial={false}
-              animate={entered ? { boxShadow: [`0 0 0 0px ${OG}55`, `0 0 0 10px ${OG}00`, `0 0 0 0px ${OG}00`] } : {}}
-              transition={{ duration: 1.4, repeat: 2, repeatDelay: 0.6, delay: 0.9, ease: "easeOut" }}
-              style={{
-                display: "inline-flex", alignItems: "center", gap: 6, whiteSpace: "nowrap",
-                backgroundColor: `${OG}18`, border: `1px solid ${OG}40`, borderRadius: 99,
-                padding: isMobile ? "5px 12px" : "6px 14px", marginBottom: 16,
-                width: "fit-content",
-                ...enter(140),
-              }}>
-              <span style={{ fontFamily: JK, fontWeight: 800, fontSize: 12, color: OG }}>−30%</span>
-              <span style={{ fontFamily: MONO, fontSize: isMobile ? 9 : 10, color: MUTED }}>
-                {isMobile ? "на первый заказ" : `на первый заказ · промокод ${FIRST_ORDER_PROMO_CODE}`}
-              </span>
-            </motion.div>
-
-            {/* Слоган */}
-            <h1 style={{
-              fontFamily: JK, fontWeight: 800,
-              fontSize: isMobile ? 30 : "clamp(32px, 4.5vw, 52px)",
-              color: CREAM, lineHeight: 1.1,
-              marginBottom: 14, letterSpacing: "-0.02em",
-              ...enter(210),
-            }}>
-              Предметы,<br />которые<br />остаются
-            </h1>
-
-            {/* Описание */}
-            <p style={{
-              fontFamily: BODY,
-              fontSize: isMobile ? 13 : 14,
-              color: MUTED,
-              lineHeight: 1.65,
-              marginBottom: isMobile ? 18 : 24,
-              maxWidth: 320,
-              ...enter(280),
-            }}>
-              {isMobile
-                ? "Авторские 3D-объекты из студии в Екатеринбурге."
-                : "Авторские 3D-объекты из студии в Екатеринбурге — декор, светильники, украшения и изделия на заказ."}
+          {/* Текст поверх постера */}
+          <div className="relative flex flex-col justify-center h-full" style={{ padding: isMobile ? "36px 24px" : "56px clamp(32px,4vw,64px)", minHeight: isMobile ? 520 : 620 }}>
+            <p style={{ fontFamily: LABEL, fontWeight: 600, fontSize: 10, color: MUTED, letterSpacing: "0.15em", marginBottom: 22, ...enter(0) }}>
+              ПРЕДМЕТНЫЙ ДИЗАЙН • СОБСТВЕННОЕ ПРОИЗВОДСТВО
             </p>
-
-            {/* CTA */}
-            <div style={{ display: "flex", gap: 10, flexWrap: "wrap", ...enter(350) }}>
+            <h1 style={{
+              fontFamily: SERIF, fontWeight: 500,
+              fontSize: isMobile ? 34 : "clamp(34px, 3.6vw, 48px)",
+              color: CREAM, lineHeight: 1.15,
+              marginBottom: 20, letterSpacing: "-0.01em", maxWidth: 560,
+              ...enter(90),
+            }}>
+              Предметы, которые создают атмосферу
+            </h1>
+            <p style={{
+              fontFamily: BODY, fontSize: 14, color: MUTED, lineHeight: 1.65,
+              marginBottom: 28, maxWidth: 340, ...enter(170),
+            }}>
+              Декор, светильники, украшения и изделия на заказ — созданы в нашей мастерской в Екатеринбурге.
+            </p>
+            <div style={{ display: "flex", gap: 10, flexWrap: "wrap", ...enter(250) }}>
               <button onClick={() => setPage("catalog")}
-                style={{ fontFamily: JK, fontWeight: 700, fontSize: 13, backgroundColor: OG, color: "#fff", borderRadius: 99, padding: "11px 24px", border: "none" }}
-                className="hover:brightness-110 hover:-translate-y-0.5 hover:shadow-[0_8px_20px_-6px_rgba(224,122,52,0.6)] active:scale-95 active:translate-y-0 transition-[filter,transform,box-shadow] duration-150">
-                Смотреть изделия
+                style={{ fontFamily: JK, fontWeight: 700, fontSize: 13, backgroundColor: "#171310", color: CREAM, border: `1px solid ${CREAM}25`, borderRadius: 99, padding: "12px 26px" }}
+                className="hover:brightness-125 active:scale-95 transition-[filter,transform] duration-150">
+                Смотреть коллекцию
               </button>
-              <button onClick={() => setPage("about")}
-                style={{ fontFamily: JK, fontWeight: 600, fontSize: 13, color: MUTED, border: `1px solid ${CREAM}18`, borderRadius: 99, padding: "11px 20px", backgroundColor: "transparent" }}
-                className="active:scale-95 transition-transform duration-150">
-                О студии
+              <button onClick={() => setPage("catalog")}
+                style={{ fontFamily: JK, fontWeight: 700, fontSize: 13, backgroundColor: CREAM, color: "#1A1412", borderRadius: 99, padding: "12px 26px", border: "none" }}
+                className="hover:brightness-95 active:scale-95 transition-[filter,transform] duration-150">
+                Новинки
               </button>
             </div>
           </div>
-        </div>
 
-      </section>
-
-      {/* ── Categories ── */}
-      <section ref={revealCategories.ref} style={revealStyle(revealCategories.inView)}
-        className="px-6 md:px-14 xl:px-[clamp(56px,6vw,120px)] pb-16">
-        <p style={{ fontFamily: MONO, fontSize: 9, color: OG, letterSpacing: "0.3em", marginBottom: 6 }}>— АССОРТИМЕНТ</p>
-        <h2 style={{ fontFamily: JK, fontWeight: 800, fontSize: 28, color: CREAM, marginBottom: 28 }}>Категории</h2>
-        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-          {CATEGORIES.filter((cat) => products.some((p) => p.category === cat)).map((cat) => (
-            <CategoryCard key={cat} name={cat} products={products.filter((p) => p.category === cat)}
-              onClick={() => setPage("catalog")} />
-          ))}
-          {products.some((p) => p.limitedEdition) && (
-            <CategoryCard name="Лимит. серия" products={products.filter((p) => p.limitedEdition)}
-              onClick={() => setPage("limited")} />
-          )}
-          <button onClick={() => setPage("custom")}
-            className="relative overflow-hidden group text-left"
-            style={{ aspectRatio: "1/1", borderRadius: 16, backgroundColor: CARD }}>
-            <div className="absolute inset-0 flex items-center justify-center">
-              <Sparkles size={28} style={{ color: `${OG}80` }} />
-            </div>
-            <div className="absolute inset-0" style={{ background: `linear-gradient(to top, ${BG}d0 0%, transparent 55%)` }} />
-            <div className="absolute bottom-0 left-0 right-0 p-4">
-              <p style={{ fontFamily: JK, fontWeight: 700, fontSize: 15, color: CREAM }}>На заказ</p>
-              <p style={{ fontFamily: MONO, fontSize: 9, color: OG, marginTop: 2 }}>Ваша идея</p>
-            </div>
-          </button>
-        </div>
-      </section>
-
-      {/* ── Bestsellers grid ── */}
-      <section ref={revealProducts.ref} className="px-6 md:px-14 xl:px-[clamp(56px,6vw,120px)] py-16">
-        <div className="flex items-center justify-between mb-8" style={revealStyle(revealProducts.inView)}>
-          <div>
-            <p style={{ fontFamily: MONO, fontSize: 9, color: OG, letterSpacing: "0.3em", marginBottom: 6 }}>— КОЛЛЕКЦИЯ</p>
-            <h2 style={{ fontFamily: JK, fontWeight: 800, fontSize: 28, color: CREAM }}>Изделия</h2>
+          <div className="absolute bottom-5 right-6 flex items-center gap-1.5">
+            <span style={{ fontFamily: LABEL, fontSize: 11, color: CREAM, opacity: 0.9 }}>Смотреть видео о бренде</span>
+            <ArrowRight size={13} style={{ color: CREAM, opacity: 0.9 }} />
           </div>
+        </div>
+      </section>
+
+      {/* ── Категории — витрина ── */}
+      <section ref={revealFeatures1.ref} style={revealStyle(revealFeatures1.inView)}
+        className="px-6 md:px-14 xl:px-[clamp(56px,6vw,120px)] py-16">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+          {[
+            { cat: "Лампы", copy: "Скульптурный свет для любого пространства" },
+            { cat: "Декор", copy: "Предметы с характером и смыслом" },
+            { cat: "Украшения", copy: "Лимитированные формы и акцентные объекты" },
+          ].map((row, i) => {
+            const catProducts = products.filter((p) => p.category === row.cat);
+            const img = catProducts[0]?.img ?? products[i % Math.max(products.length, 1)]?.img;
+            if (!img) return null;
+            return (
+              <button key={row.cat} onClick={() => setPage("catalog")}
+                className="relative overflow-hidden group text-left" style={{ aspectRatio: "4/3", borderRadius: 18, backgroundColor: CARD }}>
+                <Picture src={img} w={400} h={300} alt={row.cat} loading="lazy"
+                  sizes="(max-width: 767px) 45vw, 22vw"
+                  className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                <div className="absolute inset-0" style={{ background: `linear-gradient(to top, ${BG}e8 0%, ${BG}30 55%, transparent 80%)` }} />
+                <div className="absolute bottom-0 left-0 right-0 p-4">
+                  <p style={{ fontFamily: LABEL, fontSize: 9, color: `${CREAM}b0`, letterSpacing: "0.15em", marginBottom: 8 }}>{row.cat.toUpperCase()}</p>
+                  <p style={{ fontFamily: BODY, fontSize: 14, color: CREAM, lineHeight: 1.3 }}>{row.copy}</p>
+                  <ArrowRight size={14} className="mt-2 group-hover:translate-x-1 transition-transform duration-200" style={{ color: CREAM }} />
+                </div>
+              </button>
+            );
+          })}
           <button onClick={() => setPage("catalog")}
-            className="hidden md:flex items-center gap-1.5 text-xs hover:brightness-125 active:scale-95 transition-[filter,transform] duration-150"
-            style={{ fontFamily: MONO, color: OG }}>
-            Все изделия <ArrowRight size={12} />
-          </button>
-        </div>
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-          {products.map((p, i) => (
-            <div key={p.id} style={revealStyle(revealProducts.inView, Math.min(i, 7) * 60)}>
-              <GridCard product={p} onSelect={onSelect} onAdd={onAdd} />
+            className="relative overflow-hidden group text-left" style={{ aspectRatio: "4/3", borderRadius: 18, backgroundColor: CARD }}>
+            {products[0] && (
+              <Picture src={products[0].img} w={400} h={300} alt="Новинки" loading="lazy"
+                sizes="(max-width: 767px) 45vw, 22vw"
+                className="absolute inset-0 w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+            )}
+            <div className="absolute inset-0" style={{ background: `linear-gradient(to top, ${BG}e8 0%, ${BG}30 55%, transparent 80%)` }} />
+            <div className="absolute bottom-0 left-0 right-0 p-4">
+              <p style={{ fontFamily: LABEL, fontSize: 9, color: `${CREAM}b0`, letterSpacing: "0.15em", marginBottom: 8 }}>НОВИНКИ</p>
+              <p style={{ fontFamily: BODY, fontSize: 14, color: CREAM, lineHeight: 1.3 }}>Свежие предметы в коллекции</p>
+              <ArrowRight size={14} className="mt-2 group-hover:translate-x-1 transition-transform duration-200" style={{ color: CREAM }} />
             </div>
-          ))}
+          </button>
         </div>
       </section>
 
-      {/* ── Почему Satori ── */}
-      <section ref={revealWhy.ref} className="px-6 md:px-14 xl:px-[clamp(56px,6vw,120px)] py-16"
-        style={{ borderTop: `1px solid ${CREAM}0c`, ...revealStyle(revealWhy.inView) }}>
-        <p style={{ fontFamily: MONO, fontSize: 9, color: OG, letterSpacing: "0.3em", marginBottom: 6 }}>— ПОЧЕМУ SATORI</p>
-        <h2 style={{ fontFamily: JK, fontWeight: 800, fontSize: 28, color: CREAM, marginBottom: 32 }}>Молодая студия, честный подход</h2>
+      {/* ── Витрина товара — хит продаж ── */}
+      {bestseller && (
+        <section ref={revealSpotlight.ref} style={revealStyle(revealSpotlight.inView)}
+          className="px-6 md:px-14 xl:px-[clamp(56px,6vw,120px)] pb-16">
+          <div className="md:flex gap-0 items-stretch" style={{ backgroundColor: "#EBE3D8", borderRadius: 24, overflow: "hidden" }}>
+            <div className="md:flex-1 cursor-pointer" onClick={() => onSelect(bestseller)}
+              style={{ aspectRatio: "4/3", overflow: "hidden", backgroundColor: CARD }}>
+              <Picture src={bestseller.img} w={700} h={560} alt={bestseller.name} loading="lazy"
+                sizes="(max-width: 767px) 88vw, 44vw"
+                className="w-full h-full object-cover hover:scale-105 transition-transform duration-500" />
+            </div>
+            <div className="md:flex-1 relative p-8 md:p-12">
+              <div className="absolute top-8 right-8 flex flex-col items-end gap-2">
+                {["01", "02", "03"].map((n) => (
+                  <span key={n} style={{ fontFamily: LABEL, fontSize: 9, color: MUTED_LIGHT }}>{n}</span>
+                ))}
+              </div>
+              <p style={{ fontFamily: LABEL, fontSize: 10, fontWeight: 600, color: MUTED_LIGHT, letterSpacing: "0.15em", marginBottom: 14 }}>ХИТ</p>
+              <h2 style={{ fontFamily: SERIF, fontWeight: 600, fontSize: 28, color: "#1A1412", marginBottom: 16, maxWidth: 380 }}>{bestseller.name.toUpperCase()}</h2>
+              <p style={{ fontFamily: BODY, fontSize: 13, color: MUTED_LIGHT, lineHeight: 1.7, marginBottom: 20, maxWidth: 380 }}>
+                {bestseller.description || `${bestseller.category} ручной работы из студии Satori в Екатеринбурге.`}
+              </p>
+              <p style={{ fontFamily: SERIF, fontSize: 22, color: "#1A1412", marginBottom: 20 }}>{fmt(bestseller.price)}</p>
+              <button onClick={() => onSelect(bestseller)}
+                style={{ fontFamily: LABEL, fontWeight: 700, fontSize: 13, backgroundColor: "#1A1412", color: CREAM, borderRadius: 99, padding: "12px 28px", border: "none" }}
+                className="hover:brightness-125 active:scale-95 transition-[filter,transform] duration-150">
+                Подробнее
+              </button>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* ── Feature strip 2 — производство ── */}
+      <section ref={revealFeatures2.ref} style={revealStyle(revealFeatures2.inView)}
+        className="px-6 md:px-14 xl:px-[clamp(56px,6vw,120px)] pb-16">
         <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
           {[
-            { t: "-30% на первый заказ", b: "Мы только набираем первых покупателей — дарим скидку 30% на первый заказ, чтобы вы могли оценить качество без риска." },
-            { t: "Один мастер, весь процесс", b: "От 3D-модели в Nomad Sculpt до финишной обработки в руках — делаю каждое изделие лично, поэтому отвечаю за качество." },
-            { t: "3+ года в 3D-печати", b: "Опыта достаточно, чтобы не экспериментировать на ваших заказах — печатаю то, что уже отработано и проверено." },
+            { l: "СОБСТВЕННОЕ ПРОИЗВОДСТВО", t: "Полный цикл создания от идеи до предмета" },
+            { l: "МАТЕРИАЛЫ", t: "Материалы под задачу, форму и фактуру" },
+            { l: "ДЛЯ ПРОФЕССИОНАЛОВ", t: "Индивидуальные решения для ваших проектов" },
           ].map((r, i) => (
-            <div key={i} className="p-6" style={{ backgroundColor: CARD, borderRadius: 16, border: `1px solid ${CREAM}08` }}>
-              <p style={{ fontFamily: JK, fontWeight: 700, fontSize: 16, color: OG, marginBottom: 10 }}>{r.t}</p>
-              <p style={{ fontFamily: BODY, fontSize: 13, color: MUTED, lineHeight: 1.6 }}>{r.b}</p>
+            <div key={i} onClick={() => setPage("custom")} className="p-6 cursor-pointer group"
+              style={{ background: "linear-gradient(150deg, #2A2118 0%, #4A3A29 100%)", borderRadius: 16 }}>
+              <p style={{ fontFamily: LABEL, fontSize: 9, color: `${CREAM}90`, letterSpacing: "0.15em", marginBottom: 14 }}>{r.l}</p>
+              <p style={{ fontFamily: SERIF, fontWeight: 500, fontSize: 20, color: CREAM, lineHeight: 1.3, marginBottom: 18 }}>{r.t}</p>
+              <span className="inline-flex items-center gap-1.5 text-xs group-hover:gap-2.5 transition-[gap] duration-200"
+                style={{ fontFamily: LABEL, color: `${CREAM}b0` }}>
+                Подробнее <ArrowRight size={12} />
+              </span>
             </div>
           ))}
         </div>
       </section>
 
-      {/* ── How it works — 3-step strip ── */}
-      <section ref={revealHow.ref}
-        style={{ borderTop: `1px solid ${CREAM}0c`, borderBottom: `1px solid ${CREAM}0c`, ...revealStyle(revealHow.inView) }}
-        className="px-6 md:px-14 xl:px-[clamp(56px,6vw,120px)] py-10">
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
-          {[
-            { icon: <Palette size={16} />, n: "01", title: "Выбираете", text: "Из каталога или описываете идею. Консультация бесплатно." },
-            { icon: <Layers size={16} />, n: "02", title: "Создаём", text: "От 3D-модели в Nomad Sculpt до готового авторского объекта." },
-            { icon: <Truck size={16} />, n: "03", title: "Доставляем", text: "В фирменной упаковке СДЭК или Почтой России по всей стране." },
-          ].map((s) => (
-            <div key={s.n} className="flex items-start gap-4">
-              <div className="shrink-0 flex items-center justify-center"
-                style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: `${OG}20`, color: OG }}>
-                {s.icon}
+      {/* ── CTA — изделие на заказ ── */}
+      <section ref={revealCta.ref} style={revealStyle(revealCta.inView)}
+        className="px-6 md:px-14 xl:px-[clamp(56px,6vw,120px)] pb-16">
+        <div className="md:flex gap-8 items-center p-8 md:p-12" style={{ backgroundColor: "#171310", borderRadius: 24 }}>
+          <div className="md:flex-1">
+            <p style={{ fontFamily: LABEL, fontSize: 10, fontWeight: 600, color: `${CREAM}90`, letterSpacing: "0.15em", marginBottom: 10 }}>ИНДИВИДУАЛЬНОЕ ПРОИЗВОДСТВО</p>
+            <h2 style={{ fontFamily: SERIF, fontWeight: 500, fontSize: 26, color: CREAM, marginBottom: 14, maxWidth: 480 }}>
+              Нужен объект, которого нет в каталоге?
+            </h2>
+            <p style={{ fontFamily: BODY, fontSize: 13, color: MUTED, lineHeight: 1.6, marginBottom: 24, maxWidth: 420 }}>
+              Разработаем и произведём предмет интерьера под ваш проект — светильник, декор, малую мебель или другую форму.
+            </p>
+            <div className="flex items-center gap-4 flex-wrap">
+              <button onClick={() => setPage("custom")}
+                style={{ fontFamily: LABEL, fontWeight: 700, fontSize: 13, backgroundColor: CREAM, color: "#1A1412", borderRadius: 99, padding: "12px 28px", border: "none" }}
+                className="hover:brightness-95 active:scale-95 transition-[filter,transform] duration-150">
+                Обсудить объект
+              </button>
+              <span style={{ fontFamily: BODY, fontSize: 12, color: MUTED }}>Для частных клиентов и дизайнеров</span>
+            </div>
+          </div>
+          <div className="mt-8 md:mt-0 md:flex-1 relative p-6" style={{ backgroundColor: "#221E18", borderRadius: 16 }}>
+            <div className="flex flex-col gap-5">
+              {[
+                { n: "01", t: "Расскажите идею", d: "Эскиз, референс, размеры или просто задача." },
+                { n: "02", t: "Мы предложим решение", d: "Форма, материал, конструкция и вариант производства." },
+              ].map((s) => (
+                <div key={s.n} className="flex gap-3">
+                  <span style={{ fontFamily: LABEL, fontSize: 9, color: MUTED, marginTop: 3 }}>{s.n}</span>
+                  <div>
+                    <p style={{ fontFamily: JK, fontWeight: 600, fontSize: 14, color: CREAM, marginBottom: 4 }}>{s.t}</p>
+                    <p style={{ fontFamily: BODY, fontSize: 12, color: MUTED }}>{s.d}</p>
+                  </div>
+                </div>
+              ))}
+            </div>
+            <button onClick={() => setPage("custom")} aria-label="Обсудить объект"
+              className="absolute bottom-5 right-5 active:scale-90 transition-transform duration-150" style={{ color: CREAM }}>
+              <ArrowRight size={16} />
+            </button>
+          </div>
+        </div>
+      </section>
+
+      {/* ── Хиты продаж ── */}
+      <section ref={revealProducts.ref} className="px-6 md:px-14 xl:px-[clamp(56px,6vw,120px)] py-16">
+        <div className="flex items-center justify-between mb-8" style={revealStyle(revealProducts.inView)}>
+          <h2 style={{ fontFamily: SERIF, fontWeight: 800, fontSize: 28, color: "#1A1412" }}>Хиты продаж</h2>
+          <button onClick={() => setPage("catalog")}
+            className="hidden md:flex items-center gap-1.5 text-xs hover:opacity-70 active:scale-95 transition-[opacity,transform] duration-150"
+            style={{ fontFamily: MONO, color: MUTED_LIGHT }}>
+            Смотреть всё <ArrowRight size={12} />
+          </button>
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+          {products.slice(0, 6).map((p, i) => (
+            <div key={p.id} style={revealStyle(revealProducts.inView, Math.min(i, 5) * 60)}
+              className="cursor-pointer group" onClick={() => onSelect(p)}>
+              <div className="relative overflow-hidden" style={{ aspectRatio: "4/3", borderRadius: 18, backgroundColor: CARD }}>
+                <Picture src={p.img} w={400} h={300} loading="lazy"
+                  sizes="(max-width: 640px) 45vw, (max-width: 1024px) 30vw, 400px" alt={p.name}
+                  className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105" />
               </div>
+              <div className="pt-3">
+                <p style={{ fontFamily: LABEL, fontWeight: 600, fontSize: 12, color: "#1A1412", letterSpacing: "0.03em", marginBottom: 6 }}>{p.name.toUpperCase()}</p>
+                <p style={{ fontFamily: SERIF, fontSize: 17, color: "#1A1412" }}>{fmt(p.price)}</p>
+              </div>
+            </div>
+          ))}
+        </div>
+      </section>
+
+      {/* ── Вдохновение для вашего пространства ── */}
+      <section ref={revealCategories.ref} style={revealStyle(revealCategories.inView)}
+        className="px-6 md:px-14 xl:px-[clamp(56px,6vw,120px)] pb-16">
+        <h2 style={{ fontFamily: SERIF, fontWeight: 500, fontSize: 26, color: "#1A1412", marginBottom: 28 }}>Вдохновение для вашего пространства</h2>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+          {[
+            { n: "01", t: "Тихий свет" },
+            { n: "02", t: "Объекты и фактуры" },
+            { n: "03", t: "Малые формы" },
+            { n: "04", t: "Детали пространства" },
+          ].map((s, i) => {
+            const img = products[(i * 2) % Math.max(products.length, 1)]?.img;
+            return (
+              <button key={s.n} onClick={() => setPage("catalog")} className="relative overflow-hidden group text-left"
+                style={{ aspectRatio: "1/1", borderRadius: 16, backgroundColor: CARD }}>
+                {img && (
+                  <Picture src={img} w={400} h={400} alt={s.t} loading="lazy"
+                    sizes="(max-width: 767px) 45vw, 22vw"
+                    className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover:scale-105" />
+                )}
+                <div className="absolute inset-0" style={{ background: `linear-gradient(to top, #221E18e0 0%, #221E1840 55%, transparent 80%)` }} />
+                <div className="absolute top-4 left-4">
+                  <span style={{ fontFamily: LABEL, fontSize: 9, color: `${CREAM}b0` }}>{s.n}</span>
+                </div>
+                <div className="absolute bottom-0 left-0 right-0 p-4 flex items-center justify-between">
+                  <p style={{ fontFamily: JK, fontWeight: 600, fontSize: 14, color: CREAM }}>{s.t}</p>
+                  <ArrowRight size={14} className="group-hover:translate-x-1 transition-transform duration-200" style={{ color: CREAM }} />
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </section>
+
+      {/* ── Trust strip ── */}
+      <section ref={revealTrust.ref}
+        style={{ borderTop: `1px solid rgba(0,0,0,0.08)`, borderBottom: `1px solid rgba(0,0,0,0.08)`, ...revealStyle(revealTrust.inView) }}
+        className="px-6 md:px-14 xl:px-[clamp(56px,6vw,120px)] py-10">
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-6">
+          {[
+            { n: "01", t: "Собственное производство", d: "Создаём предметы сами" },
+            { n: "02", t: "Материалы под задачу", d: "Подбираем материал под форму и задачу" },
+            { n: "03", t: "Ручная сборка", d: "Внимание к деталям" },
+            { n: "04", t: "Бережная доставка", d: "Яндекс · СДЭК · Почта России" },
+            { n: "05", t: "Поддержка и сервис", d: "Остаёмся на связи после покупки" },
+          ].map((s) => (
+            <div key={s.n} className="flex gap-3">
+              <span style={{ fontFamily: LABEL, fontSize: 9, color: MUTED_LIGHT, marginTop: 3 }}>{s.n}</span>
               <div>
-                <p style={{ fontFamily: MONO, fontSize: 9, color: `${OG}90`, marginBottom: 3 }}>{s.n}</p>
-                <p style={{ fontFamily: JK, fontWeight: 700, fontSize: 14, color: CREAM, marginBottom: 4 }}>{s.title}</p>
-                <p style={{ fontFamily: BODY, fontSize: 12, color: MUTED, lineHeight: 1.5 }}>{s.text}</p>
+                <p style={{ fontFamily: JK, fontWeight: 700, fontSize: 13, color: "#1A1412", lineHeight: 1.3, marginBottom: 4 }}>{s.t}</p>
+                <p style={{ fontFamily: BODY, fontSize: 11, color: MUTED_LIGHT, lineHeight: 1.4 }}>{s.d}</p>
               </div>
             </div>
           ))}
@@ -1041,18 +1107,18 @@ function HomePage({ products, setPage, onSelect, onAdd }: {
               sizes="(max-width: 767px) 100vw, 50vw"
               alt="Студия" className="w-full h-full object-cover absolute inset-0" style={{ backgroundColor: CARD }} />
             <div className="absolute inset-0" style={{ backgroundColor: `${BG}40` }} />
-            <div className="absolute top-6 left-6" style={{ backgroundColor: OG, borderRadius: 8, padding: "6px 12px" }}>
-              <span style={{ fontFamily: MONO, fontSize: 9, color: "#fff", letterSpacing: "0.2em" }}>3D-СТУДИЯ · ЕКАТЕРИНБУРГ</span>
+            <div className="absolute top-6 left-6" style={{ backgroundColor: "#1A1412", borderRadius: 8, padding: "6px 12px" }}>
+              <span style={{ fontFamily: MONO, fontSize: 9, color: CREAM, letterSpacing: "0.2em" }}>3D-СТУДИЯ · ЕКАТЕРИНБУРГ</span>
             </div>
             <div className="absolute bottom-6 right-6 p-4 text-right"
               style={{ backgroundColor: `${BG}bb`, backdropFilter: "blur(8px)", borderRadius: 12, border: `1px solid ${CREAM}15` }}>
-              <p style={{ fontFamily: JK, fontWeight: 800, fontSize: 28, color: OG }}>-30%</p>
+              <p style={{ fontFamily: JK, fontWeight: 800, fontSize: 28, color: CREAM }}>-30%</p>
               <p style={{ fontFamily: MONO, fontSize: 9, color: MUTED }}>на первый заказ</p>
             </div>
           </div>
           <div className="px-8 md:px-12 py-14 flex flex-col justify-center" style={{ backgroundColor: "#111009" }}>
-            <p style={{ fontFamily: MONO, fontSize: 9, color: OG, letterSpacing: "0.3em", marginBottom: 14 }}>— О СТУДИИ</p>
-            <h2 style={{ fontFamily: JK, fontWeight: 800, fontSize: 26, color: CREAM, lineHeight: 1.2, marginBottom: 18 }}>
+            <p style={{ fontFamily: LABEL, fontSize: 10, fontWeight: 600, color: `${CREAM}90`, letterSpacing: "0.3em", marginBottom: 14 }}>— О СТУДИИ</p>
+            <h2 style={{ fontFamily: SERIF, fontWeight: 800, fontSize: 26, color: CREAM, lineHeight: 1.2, marginBottom: 18 }}>
               Момент, когда идея<br />становится предметом
             </h2>
             <p style={{ fontFamily: BODY, fontSize: 13, color: MUTED, lineHeight: 1.7, marginBottom: 24 }}>
@@ -1060,7 +1126,7 @@ function HomePage({ products, setPage, onSelect, onAdd }: {
             </p>
             <button onClick={() => setPage("about")}
               className="flex items-center gap-2 self-start text-xs hover:gap-3 transition-[gap] duration-200"
-              style={{ fontFamily: MONO, color: OG }}>
+              style={{ fontFamily: MONO, color: CREAM }}>
               Узнать больше <ArrowRight size={12} />
             </button>
           </div>
@@ -1091,111 +1157,90 @@ function HomePage({ products, setPage, onSelect, onAdd }: {
 }
 
 // ── Grid product card ──────────────────────────────────────────────────────────
-function GridCard({ product, onSelect, onAdd }: {
+function GridCard({ product, onSelect }: {
   product: Product; onSelect: (p: Product) => void; onAdd: (p: Product) => void;
 }) {
+  const [liked, setLiked] = useState(false);
   return (
     <div className="relative cursor-pointer group"
       onClick={() => onSelect(product)}>
-      <div className="relative overflow-hidden" style={{ aspectRatio: "3/4", borderRadius: 14, backgroundColor: CARD }}>
-        <Picture src={product.img} w={450} h={600} loading="lazy"
+      <div className="relative overflow-hidden" style={{ aspectRatio: "4/5", borderRadius: 16, backgroundColor: CARD }}>
+        <Picture src={product.img} w={450} h={560} loading="lazy"
           sizes="(max-width: 640px) 45vw, (max-width: 1024px) 30vw, 400px" alt={product.name}
           className="w-full h-full object-cover transition-transform duration-700 group-hover:scale-105"
           style={{ backgroundColor: "#2A2118", filter: "brightness(1.25) contrast(1.05)" }} />
-        <div className="absolute inset-0" style={{ background: `linear-gradient(to top, ${BG}cc 0%, transparent 55%)` }} />
         {product.badge && (
           <div className="absolute top-3 left-3">
             <span style={{
-              fontFamily: MONO, fontSize: 9, letterSpacing: "0.15em",
-              backgroundColor: product.badge === "Хит" ? OG : product.badge === "Новинка" ? CREAM : "transparent",
-              color: product.badge === "Лимит" ? OG : "#13100C",
-              border: product.badge === "Лимит" ? `1px solid ${OG}` : "none",
-              padding: "3px 8px", borderRadius: 6,
-            }}>{product.badge}</span>
+              fontFamily: LABEL, fontWeight: 600, fontSize: 9, letterSpacing: "0.1em",
+              backgroundColor: CREAM, color: "#13100C",
+              padding: "4px 9px", borderRadius: 99,
+            }}>{product.badge.toUpperCase()}</span>
           </div>
         )}
-        {product.limitedEdition && product.editionNumber && product.editionTotal && (
-          <div className="absolute top-3 right-3">
-            <span style={{
-              fontFamily: MONO, fontSize: 9, letterSpacing: "0.05em",
-              backgroundColor: `${BG}cc`, color: OG, border: `1px solid ${OG}`,
-              padding: "3px 8px", borderRadius: 6,
-            }}>№{product.editionNumber}/{product.editionTotal}</span>
-          </div>
-        )}
+        <button onClick={(e) => { e.stopPropagation(); setLiked((v) => !v); }} aria-label={liked ? "Убрать из избранного" : "В избранное"}
+          className="absolute top-3 right-3 active:scale-90 transition-transform duration-150">
+          <Heart size={17} style={{ color: "#1A1412" }} fill={liked ? "#1A1412" : "none"} />
+        </button>
         {!product.inStock && (
           <div className="absolute inset-0 flex items-center justify-center backdrop-blur-[1px]"
             style={{ backgroundColor: `${BG}b3` }}>
-            <span style={{ fontFamily: MONO, fontSize: 10, fontWeight: 600, color: CREAM, border: `1px solid ${CREAM}40`, backgroundColor: `${BG}90`, padding: "6px 14px", borderRadius: 8, whiteSpace: "nowrap" }}>
+            <span style={{ fontFamily: LABEL, fontWeight: 600, fontSize: 10, color: CREAM, border: `1px solid ${CREAM}40`, backgroundColor: `${BG}90`, padding: "6px 14px", borderRadius: 8, whiteSpace: "nowrap" }}>
               Под заказ · {product.lead}
             </span>
           </div>
         )}
-        <div className="absolute bottom-0 left-0 right-0 p-3">
-          <p style={{ fontFamily: MONO, fontSize: 9, color: MUTED, marginBottom: 2 }}>{product.category}</p>
-          <p style={{ fontFamily: JK, fontWeight: 600, fontSize: 13, color: CREAM, lineHeight: 1.25, marginBottom: 3 }}>{product.name}</p>
-          <div className="flex items-center gap-2">
-            <span style={{ fontFamily: MONO, fontSize: 12, color: OG, fontWeight: 600 }}>{fmt(product.price)}</span>
-            {product.inStock && (
-              <span style={{ fontFamily: MONO, fontSize: 9, color: MUTED }}>· 1–3 дня</span>
-            )}
-          </div>
-        </div>
       </div>
-      <button onClick={(e) => { e.stopPropagation(); onAdd(product); toast.success(`«${product.name}» добавлен в корзину`); }} aria-label={`Добавить «${product.name}» в корзину`}
-        className="w-full mt-2 py-2.5 text-white text-xs tracking-widest uppercase opacity-100 md:opacity-0 md:group-hover:opacity-100 hover:brightness-110 active:scale-[0.97] transition-[opacity,filter,transform] duration-200"
-        style={{ backgroundColor: OG, borderRadius: 10, fontFamily: MONO }}>
-        В корзину
-      </button>
+      <div className="pt-3">
+        <p style={{ fontFamily: LABEL, fontSize: 9, color: MUTED_LIGHT, letterSpacing: "0.1em", marginBottom: 4 }}>{product.category.toUpperCase()}</p>
+        <p style={{ fontFamily: JK, fontWeight: 700, fontSize: 14, color: "#1A1412", lineHeight: 1.25, marginBottom: 6 }}>{product.name}</p>
+        <span style={{ fontFamily: SERIF, fontSize: 15, color: "#1A1412" }}>{fmt(product.price)}</span>
+      </div>
     </div>
   );
 }
 
 // ── Catalog Page ───────────────────────────────────────────────────────────────
-function CatalogPage({ products, onSelect, onAdd }: { products: Product[]; onSelect: (p: Product) => void; onAdd: (p: Product) => void }) {
+function CatalogPage({ products, onSelect, onAdd, setPage }: { products: Product[]; onSelect: (p: Product) => void; onAdd: (p: Product) => void; setPage: (p: Page) => void }) {
   const [cat, setCat] = useState("Все");
-  const [sort, setSort] = useState("popular");
-  const [inStock, setInStock] = useState(false);
-  const cats = ["Все", ...CATEGORIES];
+  const [sort, setSort] = useState("new");
+  const cats = ["Все", ...CATEGORIES, "Новинки"];
   const filtered = products
-    .filter((p) => cat === "Все" || p.category === cat)
-    .filter((p) => !inStock || p.inStock)
+    .filter((p) => cat === "Все" || (cat === "Новинки" ? p.badge === "Новинка" : p.category === cat))
     .sort((a, b) => sort === "price_asc" ? a.price - b.price : sort === "price_desc" ? b.price - a.price : 0);
 
   return (
-    <div style={{ backgroundColor: BG }} className="pt-14 min-h-screen">
+    <div style={{ backgroundColor: LIGHT }} className="pt-14 min-h-screen">
       <div className="px-6 md:px-14 xl:px-[clamp(56px,6vw,120px)] py-12">
-        <p style={{ fontFamily: MONO, fontSize: 9, color: OG, letterSpacing: "0.3em", marginBottom: 6 }}>— ВСЕ ИЗДЕЛИЯ</p>
-        <h1 style={{ fontFamily: JK, fontWeight: 800, fontSize: 36, color: CREAM, marginBottom: 36 }}>Каталог</h1>
+        <div className="flex items-start justify-between mb-3">
+          <h1 style={{ fontFamily: SERIF, fontWeight: 500, fontSize: 34, color: "#1A1412" }}>КАТАЛОГ</h1>
+          <span style={{ fontFamily: LABEL, fontSize: 11, color: MUTED_LIGHT, marginTop: 10 }}>{products.length} предметов</span>
+        </div>
+        <p style={{ fontFamily: BODY, fontSize: 13, color: MUTED_LIGHT, lineHeight: 1.6, marginBottom: 32 }}>
+          Лампы, декор, украшения и изделия на заказ.<br />Созданы в собственной мастерской SATORI.
+        </p>
 
         <div className="flex flex-wrap items-center justify-between gap-4 mb-8 pb-5"
-          style={{ borderBottom: `1px solid ${CREAM}0c` }}>
+          style={{ borderBottom: `1px solid rgba(0,0,0,0.08)` }}>
           <div className="flex flex-wrap gap-2">
             {cats.map((c) => (
               <button key={c} onClick={() => setCat(c)}
-                className="px-4 py-1.5 text-xs transition-colors"
+                className="px-4 py-2 text-xs transition-colors"
                 style={{
-                  fontFamily: MONO, borderRadius: 8,
-                  backgroundColor: cat === c ? OG : `${CREAM}08`,
-                  border: `1px solid ${cat === c ? OG : `${CREAM}12`}`,
-                  color: cat === c ? "#fff" : `${CREAM}55`,
+                  fontFamily: LABEL, fontWeight: 600, borderRadius: 99,
+                  backgroundColor: cat === c ? "#1A1412" : "transparent",
+                  border: `1px solid ${cat === c ? "#1A1412" : "rgba(0,0,0,0.15)"}`,
+                  color: cat === c ? CREAM : MUTED_LIGHT,
                 }}>{c}</button>
             ))}
           </div>
-          <div className="flex items-center gap-4">
-            <label className="flex items-center gap-2 cursor-pointer">
-              <div onClick={() => setInStock(!inStock)} className="relative cursor-pointer"
-                style={{ width: 32, height: 16, backgroundColor: inStock ? OG : `${CREAM}18`, borderRadius: 99 }}>
-                <div style={{ position: "absolute", top: 2, width: 12, height: 12, backgroundColor: BG, borderRadius: 99, transition: "transform 0.2s", transform: inStock ? "translateX(18px)" : "translateX(2px)" }} />
-              </div>
-              <span style={{ fontFamily: MONO, fontSize: 9, color: MUTED }}>В наличии</span>
-            </label>
+          <div className="flex items-center gap-3">
             <select value={sort} onChange={(e) => setSort(e.target.value)}
-              className="bg-transparent text-xs px-3 py-1.5 outline-none cursor-pointer"
-              style={{ fontFamily: MONO, border: `1px solid ${CREAM}15`, borderRadius: 8, color: MUTED }}>
-              <option value="popular" style={{ background: BG }}>Популярное</option>
-              <option value="price_asc" style={{ background: BG }}>Цена ↑</option>
-              <option value="price_desc" style={{ background: BG }}>Цена ↓</option>
+              className="bg-transparent text-xs px-4 py-2 outline-none cursor-pointer"
+              style={{ fontFamily: LABEL, fontWeight: 600, border: `1px solid rgba(0,0,0,0.15)`, borderRadius: 99, color: MUTED_LIGHT }}>
+              <option value="new" style={{ background: LIGHT }}>Сначала новые</option>
+              <option value="price_asc" style={{ background: LIGHT }}>Цена ↑</option>
+              <option value="price_desc" style={{ background: LIGHT }}>Цена ↓</option>
             </select>
           </div>
         </div>
@@ -1204,8 +1249,43 @@ function CatalogPage({ products, onSelect, onAdd }: { products: Product[]; onSel
           {filtered.map((p) => <GridCard key={p.id} product={p} onSelect={onSelect} onAdd={onAdd} />)}
         </div>
         {filtered.length === 0 && (
-          <div className="text-center py-24" style={{ fontFamily: MONO, fontSize: 11, color: MUTED }}>Нет изделий</div>
+          <div className="text-center py-24" style={{ fontFamily: MONO, fontSize: 11, color: MUTED_LIGHT }}>Нет изделий</div>
         )}
+
+        {/* ── CTA — изделие на заказ ── */}
+        <div className="md:flex gap-8 items-center p-8 md:p-12 mt-16" style={{ backgroundColor: "#171310", borderRadius: 24 }}>
+          <div className="md:flex-1">
+            <p style={{ fontFamily: LABEL, fontSize: 10, fontWeight: 600, color: `${CREAM}90`, letterSpacing: "0.15em", marginBottom: 10 }}>ИНДИВИДУАЛЬНОЕ ПРОИЗВОДСТВО</p>
+            <h2 style={{ fontFamily: SERIF, fontWeight: 500, fontSize: 26, color: CREAM, marginBottom: 14, maxWidth: 480 }}>
+              Не нашли нужный объект?
+            </h2>
+            <p style={{ fontFamily: BODY, fontSize: 13, color: MUTED, lineHeight: 1.6, marginBottom: 24, maxWidth: 420 }}>
+              Пришлите референс, эскиз или просто опишите задачу. Мы предложим форму, материал и вариант производства.
+            </p>
+            <button onClick={() => setPage("custom")}
+              style={{ fontFamily: LABEL, fontWeight: 700, fontSize: 13, backgroundColor: CREAM, color: "#1A1412", borderRadius: 99, padding: "12px 28px", border: "none" }}
+              className="hover:brightness-95 active:scale-95 transition-[filter,transform] duration-150">
+              Обсудить объект
+            </button>
+          </div>
+          <div className="mt-8 md:mt-0 md:flex-1 relative p-6" style={{ backgroundColor: "#221E18", borderRadius: 16 }}>
+            <div className="flex flex-col gap-5">
+              {[
+                { n: "01", t: "Расскажите, что нужно" },
+                { n: "02", t: "Получите предложение" },
+              ].map((s) => (
+                <div key={s.n} className="flex gap-3 items-center">
+                  <span style={{ fontFamily: LABEL, fontSize: 9, color: MUTED }}>{s.n}</span>
+                  <p style={{ fontFamily: JK, fontWeight: 600, fontSize: 14, color: CREAM }}>{s.t}</p>
+                </div>
+              ))}
+            </div>
+            <button onClick={() => setPage("custom")} aria-label="Обсудить объект"
+              className="absolute bottom-5 right-5 active:scale-90 transition-transform duration-150" style={{ color: CREAM }}>
+              <ArrowRight size={16} />
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   );
@@ -1217,11 +1297,11 @@ function LimitedPage({ products, onSelect, onAdd }: {
 }) {
   const limited = products.filter((p) => p.limitedEdition);
   return (
-    <div style={{ backgroundColor: BG }} className="pt-14 min-h-screen">
+    <div style={{ backgroundColor: LIGHT }} className="pt-14 min-h-screen">
       <div className="px-6 md:px-14 xl:px-[clamp(56px,6vw,120px)] py-12">
-        <p style={{ fontFamily: MONO, fontSize: 9, color: OG, letterSpacing: "0.3em", marginBottom: 6 }}>— ОГРАНИЧЕННАЯ СЕРИЯ</p>
-        <h1 style={{ fontFamily: JK, fontWeight: 800, fontSize: 36, color: CREAM, marginBottom: 16 }}>Лимитированная серия</h1>
-        <p style={{ fontFamily: BODY, fontSize: 14, color: MUTED, lineHeight: 1.7, maxWidth: 560, marginBottom: 36 }}>
+        <p style={{ fontFamily: LABEL, fontSize: 10, fontWeight: 600, color: MUTED_LIGHT, letterSpacing: "0.3em", marginBottom: 6 }}>— ОГРАНИЧЕННАЯ СЕРИЯ</p>
+        <h1 style={{ fontFamily: SERIF, fontWeight: 800, fontSize: 36, color: "#1A1412", marginBottom: 16 }}>Лимитированная серия</h1>
+        <p style={{ fontFamily: BODY, fontSize: 14, color: MUTED_LIGHT, lineHeight: 1.7, maxWidth: 560, marginBottom: 36 }}>
           Каждое изделие этой серии выпущено ограниченным тиражом и пронумеровано вручную. Когда экземпляры закончатся — повтора не будет.
         </p>
         {limited.length > 0 ? (
@@ -1229,7 +1309,7 @@ function LimitedPage({ products, onSelect, onAdd }: {
             {limited.map((p) => <GridCard key={p.id} product={p} onSelect={onSelect} onAdd={onAdd} />)}
           </div>
         ) : (
-          <div className="text-center py-24" style={{ fontFamily: MONO, fontSize: 11, color: MUTED }}>Пока нет изделий в этой серии</div>
+          <div className="text-center py-24" style={{ fontFamily: MONO, fontSize: 11, color: MUTED_LIGHT }}>Пока нет изделий в этой серии</div>
         )}
       </div>
     </div>
@@ -1267,163 +1347,206 @@ function ProductPage({ product, products, onBack, onAdd, onSelect, onCartOpen }:
     setTimeout(() => setAdded(false), 2000);
   }
 
+  const specs = [
+    { l: "Размеры", v: product.dims },
+    { l: "Материал", v: product.material },
+    { l: "Вес", v: product.weight },
+    { l: "Цвета", v: product.colors ? `${product.colors} ${product.colors === 1 ? "вариант" : "варианта"}` : undefined },
+  ].filter((s) => s.v);
+
   return (
-    <div style={{ backgroundColor: BG }} className="pt-14 min-h-screen">
-      <div className="md:flex md:gap-10 md:items-stretch md:max-w-6xl md:mx-auto md:px-10 md:pt-10 md:h-[calc(100vh-170px)] md:max-h-[620px]">
-      {/* Image top — like reference right screen top half */}
-      <div className="relative overflow-hidden md:mx-0 md:flex-shrink-0 rounded-t-[20px] md:rounded-3xl md:!h-full md:!max-h-none md:!min-h-0 md:aspect-[3/4]" style={{ height: "58vh", minHeight: 340, maxHeight: 640 }}>
-        <Picture src={colorOverrideImg ?? imgs[activeImg]} w={700} h={900}
-          loading="eager" fetchPriority="high"
-          sizes="(max-width: 768px) 100vw, 600px" alt={product.name}
-          className="w-full h-full object-cover transition-opacity duration-300"
-          style={{ backgroundColor: CARD, objectPosition: "center 20%" }} />
-        <div className="absolute inset-0" style={{ background: `linear-gradient(to bottom, ${BG}70 0%, transparent 40%, ${BG}90 100%)` }} />
-        <button onClick={onBack} className="absolute top-4 left-5 flex items-center gap-1.5 transition-colors"
-          style={{ color: MUTED }}>
+    <div style={{ backgroundColor: LIGHT }} className="pt-14 min-h-screen">
+      <div className="max-w-6xl mx-auto px-6 md:px-10 py-8 md:py-10">
+        <button onClick={onBack} className="flex items-center gap-1.5 mb-6 transition-colors" style={{ color: MUTED_LIGHT }}>
           <ChevronLeft size={16} />
-          <span style={{ fontFamily: MONO, fontSize: 9, letterSpacing: "0.1em" }}>НАЗАД</span>
+          <span style={{ fontFamily: LABEL, fontSize: 10, letterSpacing: "0.1em" }}>НАЗАД</span>
         </button>
-        {product.badge && (
-          <div className="absolute top-4 right-5">
-            <span style={{ fontFamily: MONO, fontSize: 9, backgroundColor: OG, color: "#fff", padding: "4px 10px", borderRadius: 8 }}>
-              {product.badge}
-            </span>
+
+        <div className="md:flex md:gap-8 md:items-stretch">
+          {/* Image left */}
+          <div className="relative overflow-hidden md:flex-1" style={{ aspectRatio: "1/1", borderRadius: 24, backgroundColor: CARD }}>
+            <Picture src={colorOverrideImg ?? imgs[activeImg]} w={800} h={800}
+              loading="eager" fetchPriority="high"
+              sizes="(max-width: 768px) 100vw, 600px" alt={product.name}
+              className="w-full h-full object-cover transition-opacity duration-300"
+              style={{ objectPosition: "center 20%" }} />
+            {product.badge && (
+              <div className="absolute top-4 left-4">
+                <span style={{ fontFamily: LABEL, fontWeight: 600, fontSize: 9, letterSpacing: "0.1em", backgroundColor: CREAM, color: "#1A1412", padding: "5px 12px", borderRadius: 99 }}>
+                  {product.badge.toUpperCase()}
+                </span>
+              </div>
+            )}
+            {imgs.length > 1 && (
+              <>
+                <button onClick={() => { setActiveImg((activeImg - 1 + imgs.length) % imgs.length); setColorOverrideImg(null); }}
+                  aria-label="Предыдущее фото"
+                  className="absolute left-4 top-1/2 -translate-y-1/2 w-10 h-10 flex items-center justify-center rounded-full active:scale-90 transition-transform"
+                  style={{ backgroundColor: LIGHT, color: "#1A1412" }}>
+                  <ChevronLeft size={16} />
+                </button>
+                <button onClick={() => { setActiveImg((activeImg + 1) % imgs.length); setColorOverrideImg(null); }}
+                  aria-label="Следующее фото"
+                  className="absolute right-4 top-1/2 -translate-y-1/2 w-10 h-10 flex items-center justify-center rounded-full active:scale-90 transition-transform"
+                  style={{ backgroundColor: LIGHT, color: "#1A1412" }}>
+                  <ArrowRight size={16} />
+                </button>
+              </>
+            )}
+          </div>
+
+          {/* Info right */}
+          <div className="mt-6 md:mt-0 md:flex-1 p-6 md:p-8" style={{ backgroundColor: "#fff", borderRadius: 24, border: `1px solid rgba(0,0,0,0.06)` }}>
+            <p style={{ fontFamily: LABEL, fontWeight: 600, fontSize: 10, color: MUTED_LIGHT, letterSpacing: "0.1em", marginBottom: 12 }}>{product.category.toUpperCase()}</p>
+            <h1 style={{ fontFamily: SERIF, fontWeight: 600, fontSize: 32, lineHeight: 1.15, color: "#1A1412", marginBottom: 6 }}>{product.name}</h1>
+            <p style={{ fontFamily: SERIF, fontSize: 22, color: "#1A1412", marginBottom: 16 }}>{fmt(product.price)}</p>
+
+            {product.limitedEdition && product.editionNumber && product.editionTotal && (
+              <div className="flex items-center gap-2 mb-4 px-3.5 py-2.5" style={{ backgroundColor: "rgba(0,0,0,0.05)", borderRadius: 10 }}>
+                <Sparkles size={14} style={{ color: "#1A1412", flexShrink: 0 }} />
+                <p style={{ fontFamily: BODY, fontSize: 11, color: "#1A1412", lineHeight: 1.5 }}>
+                  Экземпляр №{product.editionNumber} из {product.editionTotal} · ограниченная серия, повтора не будет
+                </p>
+              </div>
+            )}
+
+            <p style={{ fontFamily: BODY, fontSize: 13, color: MUTED_LIGHT, lineHeight: 1.65, marginBottom: descIsLong ? 4 : 20 }}>
+              {descShown}
+            </p>
+            {descIsLong && (
+              <button type="button" onClick={() => setDescExpanded((v) => !v)}
+                className="mb-5 block" style={{ fontFamily: LABEL, fontSize: 11, color: "#1A1412", fontWeight: 600 }}>
+                {descExpanded ? "Свернуть" : "Читать полностью"}
+              </button>
+            )}
+
+            {specs.length > 0 && (
+              <div className="mb-5">
+                <p style={{ fontFamily: LABEL, fontWeight: 600, fontSize: 10, color: MUTED_LIGHT, letterSpacing: "0.1em", marginBottom: 10 }}>ХАРАКТЕРИСТИКИ</p>
+                {specs.map((s) => (
+                  <div key={s.l} className="flex items-center justify-between py-2" style={{ borderBottom: `1px solid rgba(0,0,0,0.07)` }}>
+                    <span style={{ fontFamily: BODY, fontSize: 12, color: MUTED_LIGHT }}>{s.l}</span>
+                    <span style={{ fontFamily: BODY, fontSize: 12, color: "#1A1412", fontWeight: 500 }}>{s.v}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            <div className="grid grid-cols-2 gap-4 mb-6">
+              {product.colorSwatches && product.colorSwatches.length > 0 && (
+                <div>
+                  <p style={{ fontFamily: LABEL, fontWeight: 600, fontSize: 10, color: MUTED_LIGHT, letterSpacing: "0.1em", marginBottom: 10 }}>ЦВЕТ / ВАРИАНТ</p>
+                  <div className="flex items-center gap-2.5">
+                    {product.colorSwatches.map((c, i) => (
+                      <button key={i} type="button" onClick={() => c.img && setColorOverrideImg(c.img)}
+                        style={{
+                          width: 24, height: 24, borderRadius: 99, backgroundColor: c.color,
+                          cursor: c.img ? "pointer" : "default",
+                          boxShadow: colorOverrideImg === c.img && c.img
+                            ? `0 0 0 2px #fff, 0 0 0 4px #1A1412`
+                            : "0 0 0 1px rgba(0,0,0,0.15)",
+                        }} />
+                    ))}
+                  </div>
+                </div>
+              )}
+              <div>
+                <p style={{ fontFamily: LABEL, fontWeight: 600, fontSize: 10, color: MUTED_LIGHT, letterSpacing: "0.1em", marginBottom: 10 }}>ДОСТАВКА</p>
+                <p style={{ fontFamily: BODY, fontSize: 12, color: "#1A1412" }}>СДЭК · Почта России · Самовывоз</p>
+              </div>
+            </div>
+
+            {/* Qty row */}
+            <div className="flex gap-3 mb-3">
+              <div className="flex items-center" style={{ border: `1px solid rgba(0,0,0,0.15)`, borderRadius: 10 }}>
+                <button onClick={() => setQty(Math.max(1, qty - 1))} aria-label="Уменьшить количество"
+                  className="w-10 h-12 flex items-center justify-center active:scale-90 transition-transform duration-150" style={{ color: MUTED_LIGHT }}><Minus size={11} /></button>
+                <span style={{ fontFamily: BODY, fontSize: 13, color: "#1A1412", width: 28, textAlign: "center" }}>{qty}</span>
+                <button onClick={() => setQty(qty + 1)} aria-label="Увеличить количество"
+                  className="w-10 h-12 flex items-center justify-center active:scale-90 transition-transform duration-150" style={{ color: MUTED_LIGHT }}><Plus size={11} /></button>
+              </div>
+              <button onClick={handleAdd} disabled={added}
+                className="flex-1 text-xs tracking-widest uppercase font-bold hover:brightness-125 active:scale-[0.97] transition-[filter,transform] duration-150"
+                style={{ backgroundColor: added ? "#1f7a4d" : "#1A1412", color: CREAM, borderRadius: 12, fontFamily: LABEL, fontSize: 13, fontWeight: 700 }}>
+                {added ? "✓ Добавлено" : "В корзину"}
+              </button>
+            </div>
+            <button onClick={() => { onAdd(product); onCartOpen(); }}
+              className="w-full py-3 text-xs font-semibold active:scale-[0.98] transition-[color,transform] duration-150"
+              style={{ border: `1px solid rgba(0,0,0,0.15)`, borderRadius: 12, fontFamily: LABEL, color: MUTED_LIGHT }}>
+              Купить в 1 клик
+            </button>
+          </div>
+        </div>
+
+        {/* Thumbnail row */}
+        {imgs.length > 1 && (
+          <div className="flex gap-3 mt-4 overflow-x-auto">
+            {imgs.map((img, i) => (
+              <button key={i} onClick={() => { setActiveImg(i); setColorOverrideImg(null); }}
+                className="overflow-hidden transition-[box-shadow,opacity] duration-200 shrink-0"
+                style={{ width: 96, aspectRatio: "1/1", borderRadius: 14,
+                  boxShadow: i === activeImg && !colorOverrideImg ? `0 0 0 2px #1A1412` : "0 0 0 1px rgba(0,0,0,0.08)",
+                  opacity: i === activeImg && !colorOverrideImg ? 1 : 0.6 }}>
+                <Picture loading="lazy" src={img} w={192} h={192} alt="" className="w-full h-full object-cover" style={{ backgroundColor: CARD }} />
+              </button>
+            ))}
           </div>
         )}
-        {/* Photo strip bottom-left — "Photos 1/N" like reference */}
-        <div className="absolute bottom-8 left-5 flex items-center gap-2">
-          <span style={{ fontFamily: MONO, fontSize: 9, color: MUTED, marginRight: 4 }}>
-            Фото {activeImg + 1}/{imgs.length}
-          </span>
-          {imgs.map((img, i) => (
-            <button key={i} onClick={() => { setActiveImg(i); setColorOverrideImg(null); }}
-              className="overflow-hidden transition-[box-shadow,opacity] duration-200"
-              style={{ width: 42, aspectRatio: "3/4", borderRadius: 8,
-                boxShadow: i === activeImg && !colorOverrideImg ? `inset 0 0 0 2px ${OG}` : "inset 0 0 0 2px transparent",
-                opacity: i === activeImg && !colorOverrideImg ? 1 : 0.45 }}>
-              <Picture loading="lazy" src={img} w={84} h={112} alt="" className="w-full h-full object-cover" style={{ backgroundColor: CARD }} />
-            </button>
+
+        {/* Handmade / care / warranty strip */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-8 p-6 md:p-8" style={{ backgroundColor: "#fff", borderRadius: 24, border: `1px solid rgba(0,0,0,0.06)` }}>
+          <div>
+            <p style={{ fontFamily: LABEL, fontWeight: 600, fontSize: 10, color: MUTED_LIGHT, letterSpacing: "0.1em", marginBottom: 8 }}>О РУЧНОЙ РАБОТЕ</p>
+            <p style={{ fontFamily: BODY, fontSize: 13, color: "#1A1412", lineHeight: 1.6 }}>Каждый объект создаётся вручную в нашей мастерской с вниманием к деталям и материалам.</p>
+          </div>
+          <div>
+            <p style={{ fontFamily: LABEL, fontWeight: 600, fontSize: 10, color: MUTED_LIGHT, letterSpacing: "0.1em", marginBottom: 8 }}>УХОД</p>
+            <p style={{ fontFamily: BODY, fontSize: 13, color: "#1A1412", lineHeight: 1.6 }}>Протирайте сухой мягкой тканью. Не используйте абразивные средства.</p>
+          </div>
+          <div>
+            <p style={{ fontFamily: LABEL, fontWeight: 600, fontSize: 10, color: MUTED_LIGHT, letterSpacing: "0.1em", marginBottom: 8 }}>ГАРАНТИЯ</p>
+            <p style={{ fontFamily: BODY, fontSize: 13, color: "#1A1412", lineHeight: 1.6 }}>{product.watt ? "1 год на электрическую часть изделия." : "Гарантия качества изготовления."}</p>
+          </div>
+        </div>
+
+        {/* Related — horizontal cards */}
+        {related.length > 0 && (
+          <div className="mt-14">
+            <div className="flex items-center justify-between mb-6">
+              <h2 style={{ fontFamily: SERIF, fontWeight: 600, fontSize: 24, color: "#1A1412" }}>Сочетается с</h2>
+              <button onClick={() => onSelect(related[0])} className="hidden md:flex items-center gap-1.5 text-xs hover:opacity-70 transition-opacity"
+                style={{ fontFamily: LABEL, color: MUTED_LIGHT }}>
+                Смотреть всё <ArrowRight size={12} />
+              </button>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              {related.map((p) => (
+                <div key={p.id} onClick={() => onSelect(p)} className="flex items-center gap-4 p-4 cursor-pointer group"
+                  style={{ backgroundColor: "#fff", borderRadius: 18, border: `1px solid rgba(0,0,0,0.06)` }}>
+                  <div className="shrink-0 overflow-hidden" style={{ width: 64, height: 64, borderRadius: 12, backgroundColor: CARD }}>
+                    <Picture src={p.img} w={128} h={128} loading="lazy" alt={p.name} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-500" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p style={{ fontFamily: LABEL, fontWeight: 600, fontSize: 10, color: "#1A1412", letterSpacing: "0.05em", marginBottom: 4 }} className="truncate">{p.name.toUpperCase()}</p>
+                    <p style={{ fontFamily: BODY, fontSize: 13, color: MUTED_LIGHT }}>{fmt(p.price)}</p>
+                  </div>
+                  <ArrowRight size={14} className="shrink-0 group-hover:translate-x-1 transition-transform duration-200" style={{ color: MUTED_LIGHT }} />
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Trust bar */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-8 p-6" style={{ backgroundColor: "#fff", borderRadius: 18, border: `1px solid rgba(0,0,0,0.06)` }}>
+          {[
+            { t: "БЕЗОПАСНАЯ ОПЛАТА" }, { t: "ВОЗВРАТ В ТЕЧЕНИЕ 7 ДНЕЙ" }, { t: "ПОДДЕРЖКА В TELEGRAM" },
+          ].map((s) => (
+            <p key={s.t} className="text-center" style={{ fontFamily: LABEL, fontWeight: 600, fontSize: 10, color: MUTED_LIGHT, letterSpacing: "0.1em" }}>{s.t}</p>
           ))}
         </div>
       </div>
-
-      {/* Light card slides up on mobile — sits beside image on desktop */}
-      <div className="relative z-10 -mt-5 md:mt-0 md:flex-1 md:h-full md:flex md:flex-col md:justify-start md:overflow-y-auto rounded-t-[20px] md:rounded-3xl" style={{ backgroundColor: LIGHT }}>
-        <div className="max-w-2xl mx-auto md:max-w-none px-6 md:px-8 pt-7 pb-10 md:py-8">
-
-          {/* Row 1: price + reviews + CART badge — like reference */}
-          <div className="flex items-center gap-3 mb-2">
-            <span style={{ fontFamily: JK, fontWeight: 800, fontSize: 26, color: OG }}>
-              {fmt(product.price)}
-            </span>
-            <span style={{ fontFamily: BODY, fontSize: 12, color: MUTED_LIGHT }}>
-              {product.inStock ? "В наличии" : `Под заказ · ${product.lead}`}
-            </span>
-            <div className="ml-auto">
-              <span style={{ fontFamily: MONO, fontSize: 9, backgroundColor: OG, color: "#fff", padding: "5px 12px", borderRadius: 99, letterSpacing: "0.1em" }}>
-                КОРЗИНА
-              </span>
-            </div>
-          </div>
-
-          <p className="mb-5" style={{ fontFamily: MONO, fontSize: 10, color: MUTED_LIGHT }}>
-            <span style={{ color: OG, fontWeight: 700 }}>Первый заказ</span> — {fmt(firstOrderPrice(product.price))} по промокоду <b style={{ color: "#1A1412" }}>{FIRST_ORDER_PROMO_CODE}</b>
-          </p>
-
-          {/* Row 2: spec icons — watt/material/size/colors like reference */}
-          <div className="flex gap-5 py-4 mb-5" style={{ borderTop: `1px solid rgba(0,0,0,0.08)`, borderBottom: `1px solid rgba(0,0,0,0.08)` }}>
-            {[
-              { icon: <Zap size={14} />, val: product.watt ?? "—", sub: "мощность" },
-              { icon: <Layers size={14} />, val: product.material?.split(",")[0] ?? "—", sub: "материал" },
-              { icon: <RotateCw size={14} />, val: product.dims ?? "—", sub: "размер" },
-              { icon: <Palette size={14} />, val: String(product.colors ?? 1), sub: "цвета" },
-            ].map((s) => (
-              <div key={s.sub} className="flex flex-col items-center gap-1 text-center flex-1">
-                <div style={{ color: OG }}>{s.icon}</div>
-                <p style={{ fontFamily: MONO, fontSize: 10, fontWeight: 500, color: "#1A1412" }} className="truncate w-full text-center">{s.val}</p>
-                <p style={{ fontFamily: MONO, fontSize: 9, color: MUTED_LIGHT }}>{s.sub}</p>
-              </div>
-            ))}
-          </div>
-
-          {product.limitedEdition && product.editionNumber && product.editionTotal && (
-            <div className="flex items-center gap-2 mb-4 px-3.5 py-2.5" style={{ backgroundColor: `${OG}14`, border: `1px solid ${OG}40`, borderRadius: 10 }}>
-              <Sparkles size={14} style={{ color: OG, flexShrink: 0 }} />
-              <p style={{ fontFamily: MONO, fontSize: 11, color: OG, lineHeight: 1.5 }}>
-                Экземпляр №{product.editionNumber} из {product.editionTotal} · ограниченная серия, повтора не будет
-              </p>
-            </div>
-          )}
-
-          {/* Product name */}
-          <h1 style={{ fontFamily: JK, fontWeight: 800, fontSize: 24, color: "#1A1412", marginBottom: 10 }}>{product.name}</h1>
-          <p style={{ fontFamily: BODY, fontSize: 13, color: MUTED_LIGHT, lineHeight: 1.65, marginBottom: descIsLong ? 4 : 20 }}>
-            {descShown}
-          </p>
-          {descIsLong && (
-            <button type="button" onClick={() => setDescExpanded((v) => !v)}
-              className="mb-5 block" style={{ fontFamily: MONO, fontSize: 11, color: OG, fontWeight: 600 }}>
-              {descExpanded ? "Свернуть" : "Читать полностью"}
-            </button>
-          )}
-
-          {product.colorSwatches && product.colorSwatches.length > 0 && (
-            <div className="flex items-center gap-2.5 mb-5">
-              {product.colorSwatches.map((c, i) => (
-                <button key={i} type="button" onClick={() => c.img && setColorOverrideImg(c.img)}
-                  style={{
-                    width: 26, height: 26, borderRadius: 99, backgroundColor: c.color,
-                    cursor: c.img ? "pointer" : "default",
-                    boxShadow: colorOverrideImg === c.img && c.img
-                      ? `0 0 0 2px ${LIGHT}, 0 0 0 4px ${OG}`
-                      : "0 0 0 1px rgba(0,0,0,0.15)",
-                  }} />
-              ))}
-            </div>
-          )}
-
-          {/* Customization note */}
-          <div className="flex gap-2.5 p-3.5 mb-6" style={{ backgroundColor: `${OG}15`, borderLeft: `3px solid ${OG}`, borderRadius: 8 }}>
-            <Sparkles size={13} style={{ color: OG, flexShrink: 0, marginTop: 1 }} />
-            <p style={{ fontFamily: BODY, fontSize: 12, color: MUTED_LIGHT }}>
-              Можно кастомизировать — цвет, размер, гравировка. Напишите в Telegram.
-            </p>
-          </div>
-
-          {/* Qty row */}
-          <div className="flex gap-3 mb-3">
-            <div className="flex items-center" style={{ border: `1px solid rgba(0,0,0,0.15)`, borderRadius: 10 }}>
-              <button onClick={() => setQty(Math.max(1, qty - 1))} aria-label="Уменьшить количество"
-                className="w-10 h-12 flex items-center justify-center active:scale-90 transition-transform duration-150" style={{ color: MUTED_LIGHT }}><Minus size={11} /></button>
-              <span style={{ fontFamily: MONO, fontSize: 13, color: "#1A1412", width: 28, textAlign: "center" }}>{qty}</span>
-              <button onClick={() => setQty(qty + 1)} aria-label="Увеличить количество"
-                className="w-10 h-12 flex items-center justify-center active:scale-90 transition-transform duration-150" style={{ color: MUTED_LIGHT }}><Plus size={11} /></button>
-            </div>
-            {/* BUY NOW — orange pill like reference */}
-            <button onClick={handleAdd} disabled={added}
-              className="flex-1 text-white text-xs tracking-widest uppercase font-bold hover:brightness-110 active:scale-[0.97] transition-[filter,transform] duration-150"
-              style={{ backgroundColor: added ? "#1f7a4d" : OG, borderRadius: 12, fontFamily: JK, fontSize: 13, fontWeight: 700 }}>
-              {added ? "✓ Добавлено" : "В корзину"}
-            </button>
-          </div>
-          <button onClick={() => { onAdd(product); onCartOpen(); }}
-            className="w-full py-3 text-xs font-semibold active:scale-[0.98] transition-[color,transform] duration-150"
-            style={{ border: `1px solid rgba(0,0,0,0.15)`, borderRadius: 12, fontFamily: JK, color: MUTED_LIGHT }}>
-            Купить в 1 клик
-          </button>
-        </div>
-      </div>
-      </div>
-
-      {/* Related */}
-      {related.length > 0 && (
-        <div className="px-6 md:px-14 xl:px-[clamp(56px,6vw,120px)] py-14" style={{ borderTop: `1px solid ${CREAM}0c` }}>
-          <h2 style={{ fontFamily: JK, fontWeight: 800, fontSize: 22, color: CREAM, marginBottom: 28 }}>С этим смотрят</h2>
-          <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-            {related.map((p) => <GridCard key={p.id} product={p} onSelect={onSelect} onAdd={onAdd} />)}
-          </div>
-        </div>
-      )}
     </div>
   );
 }
@@ -1431,36 +1554,36 @@ function ProductPage({ product, products, onBack, onAdd, onSelect, onCartOpen }:
 // ── About Page ─────────────────────────────────────────────────────────────────
 function AboutPage() {
   return (
-    <div style={{ backgroundColor: BG }} className="pt-14 min-h-screen">
+    <div style={{ backgroundColor: LIGHT }} className="pt-14 min-h-screen">
       <div className="relative h-64 md:h-80 overflow-hidden">
         <Picture loading="eager" fetchPriority="high" src="/uploads/808b2dea-fe9a-4a1d-a04c-b0df28a0947a.png" w={1280} h={320}
           sizes="100vw"
           alt="Студия" className="w-full h-full object-cover" style={{ backgroundColor: CARD }} />
         <div className="absolute inset-0" style={{ background: `linear-gradient(to bottom, transparent 30%, ${BG})` }} />
         <div className="absolute bottom-8 left-6 md:left-14">
-          <p style={{ fontFamily: MONO, fontSize: 9, color: OG, letterSpacing: "0.3em", marginBottom: 8 }}>— ИСТОРИЯ</p>
-          <h1 style={{ fontFamily: JK, fontWeight: 800, fontSize: 32, color: CREAM }}>О студии и мастере</h1>
+          <p style={{ fontFamily: LABEL, fontSize: 10, fontWeight: 600, color: `${CREAM}90`, letterSpacing: "0.3em", marginBottom: 8 }}>— ИСТОРИЯ</p>
+          <h1 style={{ fontFamily: SERIF, fontWeight: 800, fontSize: 32, color: CREAM }}>О студии и мастере</h1>
         </div>
       </div>
       <div className="px-6 md:px-14 xl:px-[clamp(56px,6vw,120px)] py-12 max-w-5xl">
         <div className="grid grid-cols-1 md:grid-cols-2 gap-12 mb-14">
-          <div style={{ fontFamily: BODY, fontSize: 13, lineHeight: 1.75, color: MUTED }}>
-            <p style={{ color: MUTED, fontSize: 15, marginBottom: 16 }}>«Сатори» — момент мгновенного озарения в дзен. Именно этот момент я пытаюсь поймать в каждом изделии.</p>
+          <div style={{ fontFamily: BODY, fontSize: 13, lineHeight: 1.75, color: MUTED_LIGHT }}>
+            <p style={{ color: "#1A1412", fontSize: 15, marginBottom: 16 }}>«Сатори» — момент мгновенного озарения в дзен. Именно этот момент я пытаюсь поймать в каждом изделии.</p>
             <p style={{ marginBottom: 12 }}>Студия началась с одного принтера и Nomad Sculpt на iPad. Хотелось создавать предметы с характером, историей, тактильностью.</p>
             <p>Три года спустя принтер тот же — но опыта и отточенных процессов стало гораздо больше.</p>
           </div>
           <div className="grid grid-cols-2 gap-3">
             {[{ n: "1", l: "принтер" }, { n: "3+", l: "года на рынке" }, { n: "100%", l: "ручная работа" }, { n: "-30%", l: "на первый заказ" }].map((s) => (
-              <div key={s.l} className="p-5 flex flex-col gap-1" style={{ backgroundColor: CARD, borderRadius: 14, border: `1px solid ${CREAM}08` }}>
-                <p style={{ fontFamily: JK, fontWeight: 800, fontSize: 26, color: OG }}>{s.n}</p>
-                <p style={{ fontFamily: MONO, fontSize: 9, color: MUTED }}>{s.l}</p>
+              <div key={s.l} className="p-5 flex flex-col gap-1" style={{ backgroundColor: BG, borderRadius: 14 }}>
+                <p style={{ fontFamily: JK, fontWeight: 800, fontSize: 26, color: CREAM }}>{s.n}</p>
+                <p style={{ fontFamily: MONO, fontSize: 9, color: `${CREAM}90` }}>{s.l}</p>
               </div>
             ))}
           </div>
         </div>
-        <div style={{ borderTop: `1px solid ${CREAM}0c`, paddingTop: 48 }}>
-          <p style={{ fontFamily: MONO, fontSize: 9, color: OG, letterSpacing: "0.3em", marginBottom: 8 }}>— ПРОЦЕСС</p>
-          <h2 style={{ fontFamily: JK, fontWeight: 800, fontSize: 26, color: CREAM, marginBottom: 28 }}>От идеи до вашего стола</h2>
+        <div style={{ borderTop: `1px solid rgba(0,0,0,0.08)`, paddingTop: 48 }}>
+          <p style={{ fontFamily: LABEL, fontSize: 10, fontWeight: 600, color: MUTED_LIGHT, letterSpacing: "0.3em", marginBottom: 8 }}>— ПРОЦЕСС</p>
+          <h2 style={{ fontFamily: SERIF, fontWeight: 800, fontSize: 26, color: "#1A1412", marginBottom: 28 }}>От идеи до вашего стола</h2>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             {[
               { n: "01", t: "Концепция в Nomad Sculpt", b: "Органическое 3D-лепление на iPad — как настоящая скульптура, только цифровая." },
@@ -1468,11 +1591,11 @@ function AboutPage() {
               { n: "03", t: "3D-печать", b: "FDM или смоляная печать в зависимости от объекта. Слой за слоем." },
               { n: "04", t: "Финишная обработка", b: "Шлифовка, грунтование, покраска. Здесь изделие получает свой финальный характер." },
             ].map((s) => (
-              <div key={s.n} className="p-5 flex gap-4" style={{ backgroundColor: CARD, borderRadius: 14, border: `1px solid ${CREAM}08` }}>
-                <p style={{ fontFamily: MONO, fontSize: 9, color: `${OG}70`, flexShrink: 0, marginTop: 2 }}>{s.n}</p>
+              <div key={s.n} className="p-5 flex gap-4" style={{ backgroundColor: BG, borderRadius: 14 }}>
+                <p style={{ fontFamily: MONO, fontSize: 9, color: `${CREAM}70`, flexShrink: 0, marginTop: 2 }}>{s.n}</p>
                 <div>
                   <p style={{ fontFamily: JK, fontWeight: 700, fontSize: 14, color: CREAM, marginBottom: 6 }}>{s.t}</p>
-                  <p style={{ fontFamily: BODY, fontSize: 12, color: MUTED, lineHeight: 1.6 }}>{s.b}</p>
+                  <p style={{ fontFamily: BODY, fontSize: 12, color: `${CREAM}b0`, lineHeight: 1.6 }}>{s.b}</p>
                 </div>
               </div>
             ))}
@@ -1485,7 +1608,7 @@ function AboutPage() {
 
 // ── Custom Order Page ──────────────────────────────────────────────────────────
 function CustomOrderPage({ setPage }: { setPage: (p: Page) => void }) {
-  const [form, setForm] = useState({ name: "", contact: "", idea: "", budget: "" });
+  const [form, setForm] = useState({ name: "", phone: "", contact: "", idea: "", budget: "" });
   const [consent, setConsent] = useState(false);
   const [sent, setSent] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -1513,63 +1636,69 @@ function CustomOrderPage({ setPage }: { setPage: (p: Page) => void }) {
     }
   }
 
+  const inputStyle = { fontFamily: BODY, backgroundColor: "#fff", border: `1px solid rgba(0,0,0,0.12)`, borderRadius: 10, color: "#1A1412" } as const;
+  const labelStyle = { fontFamily: MONO, fontSize: 9, color: MUTED_LIGHT, letterSpacing: "0.15em", display: "block", marginBottom: 8 } as const;
   return (
-    <div style={{ backgroundColor: BG }} className="pt-14 min-h-screen">
+    <div style={{ backgroundColor: LIGHT }} className="pt-14 min-h-screen">
       <div className="px-6 md:px-14 xl:px-[clamp(56px,6vw,120px)] py-16 max-w-2xl">
-        <p style={{ fontFamily: MONO, fontSize: 9, color: OG, letterSpacing: "0.3em", marginBottom: 8 }}>— НА ЗАКАЗ</p>
-        <h1 style={{ fontFamily: JK, fontWeight: 800, fontSize: 34, color: CREAM, marginBottom: 12 }}>Изделие на заказ</h1>
-        <p style={{ fontFamily: BODY, fontSize: 13, color: MUTED, lineHeight: 1.65, marginBottom: 36 }}>
+        <p style={{ fontFamily: LABEL, fontSize: 10, fontWeight: 600, color: MUTED_LIGHT, letterSpacing: "0.3em", marginBottom: 8 }}>— НА ЗАКАЗ</p>
+        <h1 style={{ fontFamily: SERIF, fontWeight: 800, fontSize: 34, color: "#1A1412", marginBottom: 12 }}>Изделие на заказ</h1>
+        <p style={{ fontFamily: BODY, fontSize: 13, color: MUTED_LIGHT, lineHeight: 1.65, marginBottom: 36 }}>
           Расскажите об идее — обсудим детали, согласуем 3D-модель до начала производства.
         </p>
         <div className="grid grid-cols-3 gap-3 mb-10">
           {["Бриф", "Согласование", "Производство"].map((s, i) => (
-            <div key={s} className="p-4 text-center" style={{ backgroundColor: CARD, borderRadius: 14, border: `1px solid ${CREAM}08` }}>
-              <div className="w-7 h-7 flex items-center justify-center text-white text-xs font-bold mx-auto mb-2"
-                style={{ backgroundColor: OG, borderRadius: 99, fontFamily: JK }}>
+            <div key={s} className="p-4 text-center" style={{ backgroundColor: "#fff", borderRadius: 14, border: `1px solid rgba(0,0,0,0.08)` }}>
+              <div className="w-7 h-7 flex items-center justify-center text-xs font-bold mx-auto mb-2"
+                style={{ backgroundColor: "#1A1412", color: CREAM, borderRadius: 99, fontFamily: JK }}>
                 {i + 1}
               </div>
-              <p style={{ fontFamily: JK, fontWeight: 600, fontSize: 12, color: CREAM }}>{s}</p>
+              <p style={{ fontFamily: JK, fontWeight: 600, fontSize: 12, color: "#1A1412" }}>{s}</p>
             </div>
           ))}
         </div>
         {sent ? (
-          <div className="p-10 text-center" style={{ border: `1px solid ${OG}40`, backgroundColor: `${OG}10`, borderRadius: 16 }}>
-            <Check size={28} className="mx-auto mb-4" style={{ color: OG }} />
-            <p style={{ fontFamily: JK, fontWeight: 700, fontSize: 18, color: CREAM, marginBottom: 8 }}>Бриф отправлен!</p>
-            <p style={{ fontFamily: BODY, fontSize: 13, color: MUTED }}>Напишем в течение 24 часов.</p>
+          <div className="p-10 text-center" style={{ border: `1px solid rgba(0,0,0,0.1)`, backgroundColor: "#fff", borderRadius: 16 }}>
+            <Check size={28} className="mx-auto mb-4" style={{ color: "#1A1412" }} />
+            <p style={{ fontFamily: JK, fontWeight: 700, fontSize: 18, color: "#1A1412", marginBottom: 8 }}>Бриф отправлен!</p>
+            <p style={{ fontFamily: BODY, fontSize: 13, color: MUTED_LIGHT }}>Напишем в течение 24 часов.</p>
           </div>
         ) : (
           <form onSubmit={handleSubmit} className="space-y-4">
-            {[{ k: "name", l: "Имя", ph: "Как вас зовут" }, { k: "contact", l: "Telegram или email", ph: "@username или email@mail.ru" }].map((f) => (
-              <div key={f.k}>
-                <label style={{ fontFamily: MONO, fontSize: 9, color: MUTED, letterSpacing: "0.15em", display: "block", marginBottom: 8 }}>{f.l.toUpperCase()}</label>
-                <input type="text" value={form[f.k as keyof typeof form]}
-                  onChange={(e) => setForm({ ...form, [f.k]: e.target.value })} placeholder={f.ph}
-                  className="w-full px-4 py-3 text-sm placeholder-opacity-30 outline-none transition-colors"
-                  style={{ fontFamily: BODY, backgroundColor: CARD, border: `1px solid ${CREAM}12`, borderRadius: 10, color: CREAM }} />
-              </div>
-            ))}
             <div>
-              <label style={{ fontFamily: MONO, fontSize: 9, color: MUTED, letterSpacing: "0.15em", display: "block", marginBottom: 8 }}>ИДЕЯ / ОПИСАНИЕ</label>
+              <label style={labelStyle}>ИМЯ</label>
+              <input required type="text" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })}
+                placeholder="Как вас зовут" className="w-full px-4 py-3 text-sm placeholder-opacity-30 outline-none transition-colors" style={inputStyle} />
+            </div>
+            <div>
+              <label style={labelStyle}>ТЕЛЕФОН</label>
+              <input required type="tel" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                placeholder="+7 900 000-00-00" className="w-full px-4 py-3 text-sm placeholder-opacity-30 outline-none transition-colors" style={inputStyle} />
+            </div>
+            <div>
+              <label style={labelStyle}>TELEGRAM ИЛИ EMAIL (НЕОБЯЗАТЕЛЬНО)</label>
+              <input type="text" value={form.contact} onChange={(e) => setForm({ ...form, contact: e.target.value })}
+                placeholder="@username или email@mail.ru" className="w-full px-4 py-3 text-sm placeholder-opacity-30 outline-none transition-colors" style={inputStyle} />
+            </div>
+            <div>
+              <label style={labelStyle}>ИДЕЯ / ОПИСАНИЕ</label>
               <textarea value={form.idea} onChange={(e) => setForm({ ...form, idea: e.target.value })}
                 placeholder="Опишите что хотите — материал, назначение, вдохновение..." rows={5}
-                className="w-full px-4 py-3 text-sm outline-none transition-colors resize-none"
-                style={{ fontFamily: BODY, backgroundColor: CARD, border: `1px solid ${CREAM}12`, borderRadius: 10, color: CREAM }} />
+                className="w-full px-4 py-3 text-sm outline-none transition-colors resize-none" style={inputStyle} />
             </div>
             <div>
-              <label style={{ fontFamily: MONO, fontSize: 9, color: MUTED, letterSpacing: "0.15em", display: "block", marginBottom: 8 }}>БЮДЖЕТ</label>
+              <label style={labelStyle}>БЮДЖЕТ</label>
               <select value={form.budget} onChange={(e) => setForm({ ...form, budget: e.target.value })}
-                className="w-full px-4 py-3 text-sm outline-none cursor-pointer"
-                style={{ fontFamily: BODY, backgroundColor: CARD, border: `1px solid ${CREAM}12`, borderRadius: 10, color: MUTED }}>
-                <option value="" style={{ background: BG }}>Выберите диапазон</option>
-                {["до 5 000 ₽","5 000 – 15 000 ₽","15 000 – 30 000 ₽","от 30 000 ₽"].map((o) => <option key={o} style={{ background: BG }}>{o}</option>)}
+                className="w-full px-4 py-3 text-sm outline-none cursor-pointer" style={{ ...inputStyle, color: form.budget ? "#1A1412" : MUTED_LIGHT }}>
+                <option value="" style={{ background: "#fff" }}>Выберите диапазон</option>
+                {["до 5 000 ₽","5 000 – 15 000 ₽","15 000 – 30 000 ₽","от 30 000 ₽"].map((o) => <option key={o} style={{ background: "#fff" }}>{o}</option>)}
               </select>
             </div>
-            <ConsentCheckbox checked={consent} onChange={setConsent} onOpenPolicy={() => setPage("privacy")} />
+            <ConsentCheckbox checked={consent} onChange={setConsent} onOpenPolicy={() => setPage("privacy")} onLight />
             {error && <p style={{ fontFamily: BODY, fontSize: 12, color: "#E05A5A" }}>{error}</p>}
             <button type="submit" disabled={loading}
-              className="text-white px-10 py-4 text-sm font-bold hover:brightness-110 active:scale-[0.98] transition-[filter,opacity,transform] duration-150 disabled:opacity-50"
-              style={{ backgroundColor: OG, borderRadius: 12, fontFamily: JK }}>
+              className="px-10 py-4 text-sm font-bold hover:brightness-125 active:scale-[0.98] transition-[filter,opacity,transform] duration-150 disabled:opacity-50"
+              style={{ backgroundColor: "#1A1412", color: CREAM, borderRadius: 12, fontFamily: JK }}>
               {loading ? "Отправляем…" : "Отправить бриф"}
             </button>
           </form>
@@ -1581,7 +1710,7 @@ function CustomOrderPage({ setPage }: { setPage: (p: Page) => void }) {
 
 // ── Business Page ────────────────────────────────────────────────────────────
 function BusinessPage({ setPage }: { setPage: (p: Page) => void }) {
-  const [form, setForm] = useState({ company: "", name: "", contact: "", type: "", volume: "", comment: "" });
+  const [form, setForm] = useState({ company: "", name: "", phone: "", email: "", type: "", volume: "", comment: "" });
   const [consent, setConsent] = useState(false);
   const [sent, setSent] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -1610,15 +1739,15 @@ function BusinessPage({ setPage }: { setPage: (p: Page) => void }) {
     }
   }
 
-  const inputStyle = { fontFamily: BODY, backgroundColor: CARD, border: `1px solid ${CREAM}12`, borderRadius: 10, color: CREAM } as const;
-  const labelStyle = { fontFamily: MONO, fontSize: 9, color: MUTED, letterSpacing: "0.15em", display: "block", marginBottom: 8 } as const;
+  const inputStyle = { fontFamily: BODY, backgroundColor: "#fff", border: `1px solid rgba(0,0,0,0.12)`, borderRadius: 10, color: "#1A1412" } as const;
+  const labelStyle = { fontFamily: MONO, fontSize: 9, color: MUTED_LIGHT, letterSpacing: "0.15em", display: "block", marginBottom: 8 } as const;
 
   return (
-    <div style={{ backgroundColor: BG }} className="pt-14 min-h-screen">
+    <div style={{ backgroundColor: LIGHT }} className="pt-14 min-h-screen">
       <div className="px-6 md:px-14 xl:px-[clamp(56px,6vw,120px)] py-16 max-w-5xl">
-        <p style={{ fontFamily: MONO, fontSize: 9, color: OG, letterSpacing: "0.3em", marginBottom: 8 }}>— ДЛЯ БИЗНЕСА</p>
-        <h1 style={{ fontFamily: JK, fontWeight: 800, fontSize: 34, color: CREAM, marginBottom: 12 }}>Опт и корпоративные подарки</h1>
-        <p style={{ fontFamily: BODY, fontSize: 13, color: MUTED, lineHeight: 1.65, marginBottom: 36, maxWidth: 560 }}>
+        <p style={{ fontFamily: LABEL, fontSize: 10, fontWeight: 600, color: MUTED_LIGHT, letterSpacing: "0.3em", marginBottom: 8 }}>— ДЛЯ БИЗНЕСА</p>
+        <h1 style={{ fontFamily: SERIF, fontWeight: 800, fontSize: 34, color: "#1A1412", marginBottom: 12 }}>Опт и корпоративные подарки</h1>
+        <p style={{ fontFamily: BODY, fontSize: 13, color: MUTED_LIGHT, lineHeight: 1.65, marginBottom: 36, maxWidth: 560 }}>
           Поставляем авторские 3D-объекты магазинам и шоурумам, а также делаем брендированные подарки
           для компаний — от небольшой партии до постоянного сотрудничества.
         </p>
@@ -1626,45 +1755,45 @@ function BusinessPage({ setPage }: { setPage: (p: Page) => void }) {
         {/* Trust stats */}
         <div className="grid grid-cols-2 md:grid-cols-4 gap-3 mb-14">
           {[{ n: "1", l: "принтер в студии" }, { n: "3+", l: "года на рынке" }, { n: "100%", l: "ручная работа" }, { n: "-30%", l: "на первый заказ" }].map((s) => (
-            <div key={s.l} className="p-4" style={{ backgroundColor: CARD, borderRadius: 14, border: `1px solid ${CREAM}08` }}>
-              <p style={{ fontFamily: JK, fontWeight: 800, fontSize: 22, color: OG, marginBottom: 2 }}>{s.n}</p>
-              <p style={{ fontFamily: MONO, fontSize: 9, color: MUTED }}>{s.l}</p>
+            <div key={s.l} className="p-4" style={{ backgroundColor: "#fff", borderRadius: 14, border: `1px solid rgba(0,0,0,0.08)` }}>
+              <p style={{ fontFamily: JK, fontWeight: 800, fontSize: 22, color: "#1A1412", marginBottom: 2 }}>{s.n}</p>
+              <p style={{ fontFamily: MONO, fontSize: 9, color: MUTED_LIGHT }}>{s.l}</p>
             </div>
           ))}
         </div>
 
         {/* Two tracks */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-16">
-          <div className="p-6" style={{ backgroundColor: CARD, borderRadius: 16, border: `1px solid ${CREAM}08` }}>
-            <div className="w-9 h-9 flex items-center justify-center mb-4" style={{ backgroundColor: `${OG}20`, borderRadius: 10, color: OG }}>
+          <div className="p-6" style={{ backgroundColor: "#fff", borderRadius: 16, border: `1px solid rgba(0,0,0,0.08)` }}>
+            <div className="w-9 h-9 flex items-center justify-center mb-4" style={{ backgroundColor: "#1A1412", borderRadius: 10, color: CREAM }}>
               <Package size={16} />
             </div>
-            <h2 style={{ fontFamily: JK, fontWeight: 700, fontSize: 18, color: CREAM, marginBottom: 10 }}>Опт — магазинам и шоурумам</h2>
-            <p style={{ fontFamily: BODY, fontSize: 13, color: MUTED, lineHeight: 1.6, marginBottom: 16 }}>
+            <h2 style={{ fontFamily: JK, fontWeight: 700, fontSize: 18, color: "#1A1412", marginBottom: 10 }}>Опт — магазинам и шоурумам</h2>
+            <p style={{ fontFamily: BODY, fontSize: 13, color: MUTED_LIGHT, lineHeight: 1.6, marginBottom: 16 }}>
               Поставляем готовые коллекции и позволяем формировать ассортимент под ваш формат.
             </p>
             <ul className="space-y-2.5">
               {["От 10 изделий — скидка 15%", "От 30 изделий — скидка 25%", "Индивидуальные условия для постоянных партнёров", "Отсрочка платежа обсуждается отдельно"].map((t) => (
                 <li key={t} className="flex items-start gap-2.5">
-                  <Check size={13} style={{ color: OG, flexShrink: 0, marginTop: 2 }} />
-                  <span style={{ fontFamily: BODY, fontSize: 13, color: MUTED, lineHeight: 1.5 }}>{t}</span>
+                  <Check size={13} style={{ color: "#1A1412", flexShrink: 0, marginTop: 2 }} />
+                  <span style={{ fontFamily: BODY, fontSize: 13, color: MUTED_LIGHT, lineHeight: 1.5 }}>{t}</span>
                 </li>
               ))}
             </ul>
           </div>
-          <div className="p-6" style={{ backgroundColor: CARD, borderRadius: 16, border: `1px solid ${CREAM}08` }}>
-            <div className="w-9 h-9 flex items-center justify-center mb-4" style={{ backgroundColor: `${OG}20`, borderRadius: 10, color: OG }}>
+          <div className="p-6" style={{ backgroundColor: "#fff", borderRadius: 16, border: `1px solid rgba(0,0,0,0.08)` }}>
+            <div className="w-9 h-9 flex items-center justify-center mb-4" style={{ backgroundColor: "#1A1412", borderRadius: 10, color: CREAM }}>
               <Sparkles size={16} />
             </div>
-            <h2 style={{ fontFamily: JK, fontWeight: 700, fontSize: 18, color: CREAM, marginBottom: 10 }}>Корпоративные подарки</h2>
-            <p style={{ fontFamily: BODY, fontSize: 13, color: MUTED, lineHeight: 1.6, marginBottom: 16 }}>
+            <h2 style={{ fontFamily: JK, fontWeight: 700, fontSize: 18, color: "#1A1412", marginBottom: 10 }}>Корпоративные подарки</h2>
+            <p style={{ fontFamily: BODY, fontSize: 13, color: MUTED_LIGHT, lineHeight: 1.6, marginBottom: 16 }}>
               Брендируем существующие изделия или разрабатываем индивидуальный дизайн под вашу компанию.
             </p>
             <ul className="space-y-2.5">
               {["Гравировка логотипа или имени", "Индивидуальный дизайн под бриф", "Единая упаковка для всей партии", "Сроки — от 2 недель в зависимости от тиража"].map((t) => (
                 <li key={t} className="flex items-start gap-2.5">
-                  <Check size={13} style={{ color: OG, flexShrink: 0, marginTop: 2 }} />
-                  <span style={{ fontFamily: BODY, fontSize: 13, color: MUTED, lineHeight: 1.5 }}>{t}</span>
+                  <Check size={13} style={{ color: "#1A1412", flexShrink: 0, marginTop: 2 }} />
+                  <span style={{ fontFamily: BODY, fontSize: 13, color: MUTED_LIGHT, lineHeight: 1.5 }}>{t}</span>
                 </li>
               ))}
             </ul>
@@ -1672,16 +1801,16 @@ function BusinessPage({ setPage }: { setPage: (p: Page) => void }) {
         </div>
 
         {/* Inquiry form */}
-        <div style={{ borderTop: `1px solid ${CREAM}0c`, paddingTop: 40 }}>
-          <h2 style={{ fontFamily: JK, fontWeight: 800, fontSize: 22, color: CREAM, marginBottom: 8 }}>Оставить заявку</h2>
-          <p style={{ fontFamily: BODY, fontSize: 13, color: MUTED, lineHeight: 1.6, marginBottom: 28, maxWidth: 480 }}>
+        <div style={{ borderTop: `1px solid rgba(0,0,0,0.08)`, paddingTop: 40 }}>
+          <h2 style={{ fontFamily: SERIF, fontWeight: 800, fontSize: 22, color: "#1A1412", marginBottom: 8 }}>Оставить заявку</h2>
+          <p style={{ fontFamily: BODY, fontSize: 13, color: MUTED_LIGHT, lineHeight: 1.6, marginBottom: 28, maxWidth: 480 }}>
             Расскажите о задаче — свяжемся в течение рабочего дня и обсудим условия.
           </p>
           {sent ? (
-            <div className="p-10 text-center max-w-lg" style={{ border: `1px solid ${OG}40`, backgroundColor: `${OG}10`, borderRadius: 16 }}>
-              <Check size={28} className="mx-auto mb-4" style={{ color: OG }} />
-              <p style={{ fontFamily: JK, fontWeight: 700, fontSize: 18, color: CREAM, marginBottom: 8 }}>Заявка отправлена!</p>
-              <p style={{ fontFamily: BODY, fontSize: 13, color: MUTED }}>Свяжемся с вами в течение рабочего дня.</p>
+            <div className="p-10 text-center max-w-lg" style={{ border: `1px solid rgba(0,0,0,0.1)`, backgroundColor: "#fff", borderRadius: 16 }}>
+              <Check size={28} className="mx-auto mb-4" style={{ color: "#1A1412" }} />
+              <p style={{ fontFamily: JK, fontWeight: 700, fontSize: 18, color: "#1A1412", marginBottom: 8 }}>Заявка отправлена!</p>
+              <p style={{ fontFamily: BODY, fontSize: 13, color: MUTED_LIGHT }}>Свяжемся с вами в течение рабочего дня.</p>
             </div>
           ) : (
             <form onSubmit={handleSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-3xl">
@@ -1696,16 +1825,21 @@ function BusinessPage({ setPage }: { setPage: (p: Page) => void }) {
                   placeholder="Как к вам обращаться" className="w-full px-4 py-3 text-sm outline-none" style={inputStyle} />
               </div>
               <div>
-                <label style={labelStyle}>ТЕЛЕФОН ИЛИ EMAIL</label>
-                <input required type="text" value={form.contact} onChange={(e) => setForm({ ...form, contact: e.target.value })}
-                  placeholder="+7 900 000-00-00 или email@mail.ru" className="w-full px-4 py-3 text-sm outline-none" style={inputStyle} />
+                <label style={labelStyle}>ТЕЛЕФОН</label>
+                <input required type="tel" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })}
+                  placeholder="+7 900 000-00-00" className="w-full px-4 py-3 text-sm outline-none" style={inputStyle} />
+              </div>
+              <div>
+                <label style={labelStyle}>EMAIL (НЕОБЯЗАТЕЛЬНО)</label>
+                <input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })}
+                  placeholder="email@mail.ru" className="w-full px-4 py-3 text-sm outline-none" style={inputStyle} />
               </div>
               <div>
                 <label style={labelStyle}>ТИП СОТРУДНИЧЕСТВА</label>
                 <select value={form.type} onChange={(e) => setForm({ ...form, type: e.target.value })}
-                  className="w-full px-4 py-3 text-sm outline-none cursor-pointer" style={{ ...inputStyle, color: form.type ? CREAM : `${CREAM}70` }}>
-                  <option value="" style={{ background: BG }}>Выберите вариант</option>
-                  {["Опт", "Корпоративные подарки", "Пока не уверен(а)"].map((o) => <option key={o} style={{ background: BG }}>{o}</option>)}
+                  className="w-full px-4 py-3 text-sm outline-none cursor-pointer" style={{ ...inputStyle, color: form.type ? "#1A1412" : MUTED_LIGHT }}>
+                  <option value="" style={{ background: "#fff" }}>Выберите вариант</option>
+                  {["Опт", "Корпоративные подарки", "Пока не уверен(а)"].map((o) => <option key={o} style={{ background: "#fff" }}>{o}</option>)}
                 </select>
               </div>
               <div className="md:col-span-2">
@@ -1720,12 +1854,12 @@ function BusinessPage({ setPage }: { setPage: (p: Page) => void }) {
                   className="w-full px-4 py-3 text-sm outline-none resize-none" style={inputStyle} />
               </div>
               <div className="md:col-span-2">
-                <ConsentCheckbox checked={consent} onChange={setConsent} onOpenPolicy={() => setPage("privacy")} />
+                <ConsentCheckbox checked={consent} onChange={setConsent} onOpenPolicy={() => setPage("privacy")} onLight />
               </div>
               {error && <p className="md:col-span-2" style={{ fontFamily: BODY, fontSize: 12, color: "#E05A5A" }}>{error}</p>}
               <div className="md:col-span-2">
-                <button type="submit" disabled={loading} className="text-white px-10 py-4 text-sm font-bold hover:brightness-110 active:scale-[0.98] transition-[filter,opacity,transform] duration-150 disabled:opacity-50"
-                  style={{ backgroundColor: OG, borderRadius: 12, fontFamily: JK }}>
+                <button type="submit" disabled={loading} className="px-10 py-4 text-sm font-bold hover:brightness-125 active:scale-[0.98] transition-[filter,opacity,transform] duration-150 disabled:opacity-50"
+                  style={{ backgroundColor: "#1A1412", color: CREAM, borderRadius: 12, fontFamily: JK }}>
                   {loading ? "Отправляем…" : "Отправить заявку"}
                 </button>
               </div>
@@ -1749,18 +1883,18 @@ function FAQPage() {
     { q: "Какие способы доставки?", a: "СДЭК, Почта России, самовывоз в Екатеринбурге. Тщательно упаковываем в фирменную коробку." },
   ];
   return (
-    <div style={{ backgroundColor: BG }} className="pt-14 min-h-screen">
+    <div style={{ backgroundColor: LIGHT }} className="pt-14 min-h-screen">
       <div className="px-6 md:px-14 xl:px-[clamp(56px,6vw,120px)] py-16 max-w-3xl">
-        <p style={{ fontFamily: MONO, fontSize: 9, color: OG, letterSpacing: "0.3em", marginBottom: 8 }}>— ВОПРОСЫ</p>
-        <h1 style={{ fontFamily: JK, fontWeight: 800, fontSize: 34, color: CREAM, marginBottom: 36 }}>FAQ</h1>
-        <div style={{ borderTop: `1px solid ${CREAM}0c` }}>
+        <p style={{ fontFamily: LABEL, fontSize: 10, fontWeight: 600, color: MUTED_LIGHT, letterSpacing: "0.3em", marginBottom: 8 }}>— ВОПРОСЫ</p>
+        <h1 style={{ fontFamily: SERIF, fontWeight: 800, fontSize: 34, color: "#1A1412", marginBottom: 36 }}>FAQ</h1>
+        <div style={{ borderTop: `1px solid rgba(0,0,0,0.08)` }}>
           {faqs.map((f, i) => (
-            <div key={i} style={{ borderBottom: `1px solid ${CREAM}0c` }}>
+            <div key={i} style={{ borderBottom: `1px solid rgba(0,0,0,0.08)` }}>
               <button onClick={() => setOpen(open === i ? null : i)} className="w-full text-left py-5 flex justify-between items-center gap-4">
-                <span style={{ fontFamily: JK, fontWeight: 600, fontSize: 14, color: CREAM }}>{f.q}</span>
-                <ArrowRight size={14} style={{ color: OG, flexShrink: 0, transform: open === i ? "rotate(90deg)" : "none", transition: "transform 0.2s" }} />
+                <span style={{ fontFamily: JK, fontWeight: 600, fontSize: 14, color: "#1A1412" }}>{f.q}</span>
+                <ArrowRight size={14} style={{ color: MUTED_LIGHT, flexShrink: 0, transform: open === i ? "rotate(90deg)" : "none", transition: "transform 0.2s" }} />
               </button>
-              {open === i && <p className="pb-5" style={{ fontFamily: BODY, fontSize: 13, color: MUTED, lineHeight: 1.65 }}>{f.a}</p>}
+              {open === i && <p className="pb-5" style={{ fontFamily: BODY, fontSize: 13, color: MUTED_LIGHT, lineHeight: 1.65 }}>{f.a}</p>}
             </div>
           ))}
         </div>
@@ -1791,15 +1925,15 @@ function DeliveryReturnsPage() {
     },
   ];
   return (
-    <div style={{ backgroundColor: BG }} className="pt-14 min-h-screen">
+    <div style={{ backgroundColor: LIGHT }} className="pt-14 min-h-screen">
       <div className="px-6 md:px-14 xl:px-[clamp(56px,6vw,120px)] py-16 max-w-3xl">
-        <p style={{ fontFamily: MONO, fontSize: 9, color: OG, letterSpacing: "0.3em", marginBottom: 8 }}>— ИНФОРМАЦИЯ</p>
-        <h1 style={{ fontFamily: JK, fontWeight: 800, fontSize: 34, color: CREAM, marginBottom: 36 }}>Доставка, возврат и уход</h1>
+        <p style={{ fontFamily: LABEL, fontSize: 10, fontWeight: 600, color: MUTED_LIGHT, letterSpacing: "0.3em", marginBottom: 8 }}>— ИНФОРМАЦИЯ</p>
+        <h1 style={{ fontFamily: SERIF, fontWeight: 800, fontSize: 34, color: "#1A1412", marginBottom: 36 }}>Доставка, возврат и уход</h1>
         <div className="space-y-10">
           {sections.map((s) => (
             <div key={s.h}>
-              <h2 style={{ fontFamily: JK, fontWeight: 700, fontSize: 18, color: CREAM, marginBottom: 10 }}>{s.h}</h2>
-              <p style={{ fontFamily: BODY, fontSize: 13, color: MUTED, lineHeight: 1.7, whiteSpace: "pre-line" }}>{s.b}</p>
+              <h2 style={{ fontFamily: JK, fontWeight: 700, fontSize: 18, color: "#1A1412", marginBottom: 10 }}>{s.h}</h2>
+              <p style={{ fontFamily: BODY, fontSize: 13, color: MUTED_LIGHT, lineHeight: 1.7, whiteSpace: "pre-line" }}>{s.b}</p>
             </div>
           ))}
         </div>
@@ -1864,16 +1998,16 @@ ${PHONE}.`,
     },
   ];
   return (
-    <div style={{ backgroundColor: BG }} className="pt-14 min-h-screen">
+    <div style={{ backgroundColor: LIGHT }} className="pt-14 min-h-screen">
       <div className="px-6 md:px-14 xl:px-[clamp(56px,6vw,120px)] py-16 max-w-3xl">
-        <p style={{ fontFamily: MONO, fontSize: 9, color: OG, letterSpacing: "0.3em", marginBottom: 8 }}>— ДОКУМЕНТ</p>
-        <h1 style={{ fontFamily: JK, fontWeight: 800, fontSize: 34, color: CREAM, marginBottom: 12 }}>Политика обработки персональных данных</h1>
-        <p style={{ fontFamily: BODY, fontSize: 12, color: MUTED, marginBottom: 36 }}>Действует с 03.07.2026</p>
+        <p style={{ fontFamily: LABEL, fontSize: 10, fontWeight: 600, color: MUTED_LIGHT, letterSpacing: "0.3em", marginBottom: 8 }}>— ДОКУМЕНТ</p>
+        <h1 style={{ fontFamily: SERIF, fontWeight: 800, fontSize: 34, color: "#1A1412", marginBottom: 12 }}>Политика обработки персональных данных</h1>
+        <p style={{ fontFamily: BODY, fontSize: 12, color: MUTED_LIGHT, marginBottom: 36 }}>Действует с 03.07.2026</p>
         <div className="space-y-8">
           {sections.map((s) => (
             <div key={s.h}>
-              <h2 style={{ fontFamily: JK, fontWeight: 700, fontSize: 15, color: CREAM, marginBottom: 8 }}>{s.h}</h2>
-              <p style={{ fontFamily: BODY, fontSize: 13, color: MUTED, lineHeight: 1.7, whiteSpace: "pre-line" }}>{s.b}</p>
+              <h2 style={{ fontFamily: JK, fontWeight: 700, fontSize: 15, color: "#1A1412", marginBottom: 8 }}>{s.h}</h2>
+              <p style={{ fontFamily: BODY, fontSize: 13, color: MUTED_LIGHT, lineHeight: 1.7, whiteSpace: "pre-line" }}>{s.b}</p>
             </div>
           ))}
         </div>
@@ -1904,59 +2038,71 @@ function YandexMarketIcon() {
 }
 
 function Footer({ setPage }: { setPage: (p: Page) => void }) {
+  const [subEmail, setSubEmail] = useState("");
+  const navCol = (title: string, items: { l: string; p: Page }[]) => (
+    <div>
+      <p style={{ fontFamily: LABEL, fontWeight: 600, fontSize: 10, color: MUTED, letterSpacing: "0.15em", marginBottom: 18 }}>{title}</p>
+      <div className="space-y-3">
+        {items.map((it) => (
+          <button key={it.l} onClick={() => setPage(it.p)} className="block transition-colors"
+            style={{ fontFamily: BODY, fontSize: 13, color: MUTED }}>{it.l}</button>
+        ))}
+      </div>
+    </div>
+  );
   return (
     <footer className="px-6 md:px-14 xl:px-[clamp(56px,6vw,120px)] py-14" style={{ backgroundColor: "#0D0B08", borderTop: `1px solid ${CREAM}0c` }}>
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-10 mb-12">
-        <div className="md:col-span-2">
+      <div className="grid grid-cols-2 md:grid-cols-5 gap-8 mb-10">
+        <div className="col-span-2 md:col-span-1">
           <div className="flex items-center gap-2.5 mb-4">
             <Logo height={28} />
           </div>
-          <p style={{ fontFamily: BODY, fontSize: 13, color: MUTED, lineHeight: 1.65, maxWidth: 260, marginBottom: 20 }}>
-            Авторские 3D-объекты из студии в Екатеринбурге. Каждое изделие — единственное в своём роде.
+          <p style={{ fontFamily: BODY, fontSize: 13, color: MUTED, lineHeight: 1.65, maxWidth: 220 }}>
+            Предметы интерьера собственного производства. Создаём вещи, которые остаются надолго.
           </p>
-          <div className="flex gap-3">
-            {[{ n: "3+", s: "года опыта" }, { n: "-30%", s: "первый заказ" }].map((s) => (
-              <div key={s.n} className="px-4 py-2.5" style={{ border: `1px solid ${CREAM}0e`, borderRadius: 10 }}>
-                <p style={{ fontFamily: JK, fontWeight: 700, fontSize: 14, color: OG }}>{s.n}</p>
-                <p style={{ fontFamily: MONO, fontSize: 9, color: MUTED }}>{s.s}</p>
-              </div>
-            ))}
-          </div>
         </div>
+        {navCol("КАТАЛОГ", [
+          { l: "Лампы", p: "catalog" }, { l: "Декор", p: "catalog" }, { l: "Украшения", p: "catalog" },
+          { l: "Лимитированное", p: "limited" },
+        ])}
+        {navCol("КОМПАНИЯ", [
+          { l: "О нас", p: "about" }, { l: "Доставка и оплата", p: "delivery" }, { l: "Бизнесу", p: "business" },
+        ])}
+        {navCol("ПОДДЕРЖКА", [
+          { l: "Возврат и обмен", p: "delivery" }, { l: "Уход за изделиями", p: "delivery" }, { l: "FAQ", p: "faq" },
+        ])}
         <div>
-          <p style={{ fontFamily: MONO, fontSize: 9, color: MUTED, letterSpacing: "0.2em", marginBottom: 18 }}>НАВИГАЦИЯ</p>
-          <div className="space-y-3">
-            {(["catalog","limited","about","custom","business","faq"] as Page[]).map((p) => {
-              const l: Record<string, string> = { catalog: "Каталог", limited: "Лимит. серия", about: "О студии", custom: "На заказ", business: "Бизнесу", faq: "FAQ" };
-              return <button key={p} onClick={() => setPage(p)} className="block transition-colors"
-                style={{ fontFamily: BODY, fontSize: 13, color: MUTED }}>{l[p]}</button>;
-            })}
-          </div>
-        </div>
-        <div>
-          <p style={{ fontFamily: MONO, fontSize: 9, color: MUTED, letterSpacing: "0.2em", marginBottom: 18 }}>КОНТАКТЫ</p>
-          <div className="space-y-3">
-            {[
-              { icon: <Send size={11} />, l: "Telegram", h: TELEGRAM_URL, goal: "telegram_click" },
-              { icon: <MessageCircle size={11} />, l: "WhatsApp", h: WHATSAPP_URL, goal: "whatsapp_click" },
-              { icon: <Users size={11} />, l: "ВКонтакте", h: VK_URL, goal: null },
-              { icon: <Instagram size={11} />, l: "Instagram", h: INSTAGRAM_URL, goal: null },
-              { icon: <MessageCircle size={11} />, l: EMAIL, h: `mailto:${EMAIL}`, goal: null },
-              { icon: <Phone size={11} />, l: PHONE, h: `tel:${PHONE_HREF}`, goal: "phone_click" },
-            ].map((c) => (
-              <a key={c.l} href={c.h} target="_blank" rel="noopener noreferrer"
-                onClick={() => c.goal && (window as any).ym?.(110458266, "reachGoal", c.goal)}
-                className="flex items-center gap-2 transition-colors"
-                style={{ fontFamily: BODY, fontSize: 13, color: MUTED }}>
-                <span style={{ color: OG }}>{c.icon}</span> {c.l}
-              </a>
-            ))}
-          </div>
-          <p style={{ fontFamily: BODY, fontSize: 11, color: MUTED, lineHeight: 1.5, marginTop: 16, maxWidth: 220 }}>
-            Сайт не загружается? Напишите в Telegram или ВКонтакте — они обычно остаются доступны даже при ограничениях мобильного интернета.
+          <p style={{ fontFamily: LABEL, fontWeight: 600, fontSize: 10, color: MUTED, letterSpacing: "0.15em", marginBottom: 18 }}>БУДЬТЕ В КУРСЕ НОВИНОК</p>
+          <p style={{ fontFamily: BODY, fontSize: 13, color: MUTED, lineHeight: 1.6, marginBottom: 14, maxWidth: 220 }}>
+            Подпишитесь на рассылку и первыми узнавайте о новых коллекциях.
           </p>
+          <form onSubmit={(e) => { e.preventDefault(); toast.success("Спасибо! Вы подписаны на новости."); setSubEmail(""); }}
+            className="flex items-center gap-2" style={{ borderBottom: `1px solid ${CREAM}30`, paddingBottom: 8 }}>
+            <input type="email" required value={subEmail} onChange={(e) => setSubEmail(e.target.value)} placeholder="Ваш e-mail"
+              className="bg-transparent outline-none flex-1 min-w-0" style={{ fontFamily: BODY, fontSize: 13, color: CREAM }} />
+            <button type="submit" aria-label="Подписаться" style={{ color: CREAM }}><ArrowRight size={15} /></button>
+          </form>
         </div>
       </div>
+      <div className="flex flex-wrap items-center gap-4 mb-10">
+        {[
+          { icon: <Send size={13} />, l: "Telegram", h: TELEGRAM_URL, goal: "telegram_click" },
+          { icon: <MessageCircle size={13} />, l: "WhatsApp", h: WHATSAPP_URL, goal: "whatsapp_click" },
+          { icon: <Users size={13} />, l: "ВКонтакте", h: VK_URL, goal: null },
+          { icon: <Instagram size={13} />, l: "Instagram", h: INSTAGRAM_URL, goal: null },
+          { icon: <MessageCircle size={13} />, l: EMAIL, h: `mailto:${EMAIL}`, goal: null },
+          { icon: <Phone size={13} />, l: PHONE, h: `tel:${PHONE_HREF}`, goal: "phone_click" },
+        ].map((c) => (
+          <a key={c.l} href={c.h} target="_blank" rel="noopener noreferrer" aria-label={c.l}
+            onClick={() => c.goal && (window as any).ym?.(110458266, "reachGoal", c.goal)}
+            className="flex items-center gap-1.5 transition-colors" style={{ fontFamily: BODY, fontSize: 12, color: MUTED }}>
+            <span style={{ color: CREAM }}>{c.icon}</span> {c.l}
+          </a>
+        ))}
+      </div>
+      <p style={{ fontFamily: BODY, fontSize: 11, color: MUTED, lineHeight: 1.5, marginBottom: 24, maxWidth: 480 }}>
+        Сайт не загружается? Напишите в Telegram или ВКонтакте — они обычно остаются доступны даже при ограничениях мобильного интернета.
+      </p>
       <div className="flex flex-wrap items-center gap-3 mb-8">
         {[
           { icon: FUND_LOGO_URL ? <img loading="lazy" src={FUND_LOGO_URL} alt="" className="w-full h-full object-cover" /> : <Heart size={13} color="#E0567A" />, label: "Партнёр фонда «Братишка»" },
@@ -2023,39 +2169,39 @@ function TrackOrderPage() {
   };
 
   return (
-    <div style={{ backgroundColor: BG }} className="pt-24 min-h-screen px-6 md:px-14 pb-20">
+    <div style={{ backgroundColor: LIGHT }} className="pt-24 min-h-screen px-6 md:px-14 pb-20">
       <div className="max-w-md mx-auto">
-        <h1 style={{ fontFamily: JK, fontWeight: 800, fontSize: 26, color: CREAM, marginBottom: 10 }}>Отследить заказ</h1>
-        <p style={{ fontFamily: BODY, fontSize: 13, color: MUTED, marginBottom: 24, lineHeight: 1.6 }}>
+        <h1 style={{ fontFamily: SERIF, fontWeight: 800, fontSize: 26, color: "#1A1412", marginBottom: 10 }}>Отследить заказ</h1>
+        <p style={{ fontFamily: BODY, fontSize: 13, color: MUTED_LIGHT, marginBottom: 24, lineHeight: 1.6 }}>
           Введите код заказа — он показывался на экране сразу после оплаты.
         </p>
         <form onSubmit={handleSubmit} className="flex gap-2 mb-6">
           <input required value={code} onChange={(e) => setCode(e.target.value)} placeholder="Например, a1b2c3d4"
             className="flex-1 px-4 py-3 text-sm outline-none"
-            style={{ fontFamily: BODY, backgroundColor: CARD, border: `1px solid ${CREAM}18`, borderRadius: 10, color: CREAM }} />
+            style={{ fontFamily: BODY, backgroundColor: "#fff", border: `1px solid rgba(0,0,0,0.12)`, borderRadius: 10, color: "#1A1412" }} />
           <button type="submit" disabled={loading}
-            className="px-5 text-white text-xs tracking-widest uppercase hover:brightness-110 active:scale-[0.98] transition-[filter,opacity,transform] duration-150 disabled:opacity-50"
-            style={{ backgroundColor: OG, borderRadius: 10, fontFamily: MONO }}>
+            className="px-5 text-xs tracking-widest uppercase hover:brightness-125 active:scale-[0.98] transition-[filter,opacity,transform] duration-150 disabled:opacity-50"
+            style={{ backgroundColor: "#1A1412", color: CREAM, borderRadius: 10, fontFamily: MONO }}>
             {loading ? "…" : "Проверить"}
           </button>
         </form>
         {error && <p style={{ fontFamily: BODY, fontSize: 13, color: "#E05A5A" }}>{error}</p>}
         {result && (
-          <div className="p-5" style={{ backgroundColor: CARD, borderRadius: 14, border: `1px solid ${CREAM}12` }}>
+          <div className="p-5" style={{ backgroundColor: "#fff", borderRadius: 14, border: `1px solid rgba(0,0,0,0.1)` }}>
             <div className="flex justify-between mb-3">
-              <span style={{ fontFamily: MONO, fontSize: 10, color: MUTED }}>ОПЛАТА</span>
-              <span style={{ fontFamily: MONO, fontSize: 12, color: paymentBadge[result.status]?.c ?? CREAM }}>
+              <span style={{ fontFamily: MONO, fontSize: 10, color: MUTED_LIGHT }}>ОПЛАТА</span>
+              <span style={{ fontFamily: MONO, fontSize: 12, color: paymentBadge[result.status]?.c ?? "#1A1412" }}>
                 {paymentBadge[result.status]?.l ?? result.status}
               </span>
             </div>
             <div className="flex justify-between" style={{ marginBottom: result.trackingCode ? 12 : 0 }}>
-              <span style={{ fontFamily: MONO, fontSize: 10, color: MUTED }}>СТАТУС</span>
-              <span style={{ fontFamily: MONO, fontSize: 12, color: CREAM }}>{result.fulfillmentStatus}</span>
+              <span style={{ fontFamily: MONO, fontSize: 10, color: MUTED_LIGHT }}>СТАТУС</span>
+              <span style={{ fontFamily: MONO, fontSize: 12, color: "#1A1412" }}>{result.fulfillmentStatus}</span>
             </div>
             {result.trackingCode && (
               <div className="flex justify-between">
-                <span style={{ fontFamily: MONO, fontSize: 10, color: MUTED }}>ТРЕК-НОМЕР</span>
-                <span style={{ fontFamily: MONO, fontSize: 12, color: OG }}>{result.trackingCode}</span>
+                <span style={{ fontFamily: MONO, fontSize: 10, color: MUTED_LIGHT }}>ТРЕК-НОМЕР</span>
+                <span style={{ fontFamily: MONO, fontSize: 12, color: "#1A1412" }}>{result.trackingCode}</span>
               </div>
             )}
           </div>
@@ -2071,9 +2217,9 @@ type OrderStatus = "checking" | "paid" | "pending_payment" | "canceled" | "error
 function OrderStatusModal({ status, orderId, onClose }: { status: OrderStatus; orderId?: string | null; onClose: () => void }) {
   const code = orderId?.slice(0, 8);
   const copy: Record<OrderStatus, { title: string; text: string; icon: React.ReactNode }> = {
-    checking: { title: "Проверяем оплату…", text: "Обычно это занимает пару секунд.", icon: <RotateCw size={26} className="animate-spin" style={{ color: OG }} /> },
-    paid: { title: "Заказ оплачен!", text: "Мы получили оплату и скоро свяжемся с вами по указанным контактам.", icon: <Check size={26} style={{ color: OG }} /> },
-    pending_payment: { title: "Оплата ещё не подтверждена", text: "Если вы уже оплатили — подождите немного и обновите страницу.", icon: <Clock size={26} style={{ color: OG }} /> },
+    checking: { title: "Проверяем оплату…", text: "Обычно это занимает пару секунд.", icon: <RotateCw size={26} className="animate-spin" style={{ color: CREAM }} /> },
+    paid: { title: "Заказ оплачен!", text: "Мы получили оплату и скоро свяжемся с вами по указанным контактам.", icon: <Check size={26} style={{ color: CREAM }} /> },
+    pending_payment: { title: "Оплата ещё не подтверждена", text: "Если вы уже оплатили — подождите немного и обновите страницу.", icon: <Clock size={26} style={{ color: CREAM }} /> },
     canceled: { title: "Платёж отменён", text: "Заказ не был оплачен. Можете попробовать снова из корзины.", icon: <X size={26} style={{ color: "#E05A5A" }} /> },
     error: { title: "Не удалось проверить заказ", text: "Попробуйте обновить страницу или напишите нам в Telegram.", icon: <X size={26} style={{ color: "#E05A5A" }} /> },
   };
@@ -2081,7 +2227,7 @@ function OrderStatusModal({ status, orderId, onClose }: { status: OrderStatus; o
   return (
     <div className="fixed inset-0 z-[100] flex items-center justify-center px-6" style={{ backgroundColor: "rgba(0,0,0,0.7)" }}>
       <div className="w-full max-w-sm p-8 text-center" style={{ backgroundColor: "#1A1612", borderRadius: 20, border: `1px solid ${CREAM}12` }}>
-        <div className="mx-auto mb-5 w-14 h-14 flex items-center justify-center" style={{ backgroundColor: `${OG}15`, borderRadius: 99 }}>
+        <div className="mx-auto mb-5 w-14 h-14 flex items-center justify-center" style={{ backgroundColor: `${CREAM}15`, borderRadius: 99 }}>
           {c.icon}
         </div>
         <h2 style={{ fontFamily: JK, fontWeight: 700, fontSize: 18, color: CREAM, marginBottom: 8 }}>{c.title}</h2>
@@ -2090,18 +2236,18 @@ function OrderStatusModal({ status, orderId, onClose }: { status: OrderStatus; o
           <>
             <div className="mb-4 py-3 px-4 inline-block" style={{ backgroundColor: CARD, borderRadius: 10, border: `1px solid ${CREAM}12` }}>
               <p style={{ fontFamily: MONO, fontSize: 9, color: MUTED, letterSpacing: "0.1em", marginBottom: 4 }}>КОД ЗАКАЗА — СОХРАНИТЕ ДЛЯ ОТСЛЕЖИВАНИЯ</p>
-              <p style={{ fontFamily: MONO, fontSize: 16, color: OG, fontWeight: 600 }}>{code}</p>
+              <p style={{ fontFamily: MONO, fontSize: 16, color: CREAM, fontWeight: 600 }}>{code}</p>
             </div>
             <p style={{ fontFamily: BODY, fontSize: 12, color: MUTED, lineHeight: 1.6, marginBottom: 20 }}>
               Напишите нам с этим кодом в{" "}
-              <a href={VK_URL} target="_blank" rel="noopener noreferrer" style={{ color: OG }}>ВКонтакте</a>{" "}
+              <a href={VK_URL} target="_blank" rel="noopener noreferrer" style={{ color: CREAM, textDecoration: "underline" }}>ВКонтакте</a>{" "}
               — так вы будете получать статус заказа и трек-номер отправления.
             </p>
           </>
         )}
         {status !== "checking" && (
-          <button onClick={onClose} className="w-full py-3 text-white text-xs tracking-widest uppercase hover:brightness-110 active:scale-[0.98] transition-[filter,transform] duration-150"
-            style={{ backgroundColor: OG, borderRadius: 12, fontFamily: MONO }}>Понятно</button>
+          <button onClick={onClose} className="w-full py-3 text-xs tracking-widest uppercase hover:brightness-125 active:scale-[0.98] transition-[filter,transform] duration-150"
+            style={{ backgroundColor: CREAM, color: "#1A1412", borderRadius: 12, fontFamily: MONO }}>Понятно</button>
         )}
       </div>
     </div>
@@ -2217,7 +2363,7 @@ export default function App() {
       <NavBar page={page} setPage={navigate} cartCount={cartCount} onCartOpen={() => setCartOpen(true)} />
       <div key={page} className="motion-safe:animate-[pageFade_280ms_ease-out]">
         {page === "home"    && <HomePage    products={products} setPage={navigate} onSelect={handleSelect} onAdd={handleAdd} />}
-        {page === "catalog" && <CatalogPage products={products} onSelect={handleSelect} onAdd={handleAdd} />}
+        {page === "catalog" && <CatalogPage products={products} onSelect={handleSelect} onAdd={handleAdd} setPage={setPage} />}
         {page === "limited" && <LimitedPage products={products} onSelect={handleSelect} onAdd={handleAdd} />}
         {page === "product" && selectedProduct &&
           <ProductPage product={selectedProduct} products={products} onBack={() => navigate(prevPage)} onAdd={handleAdd} onSelect={handleSelect} onCartOpen={() => setCartOpen(true)} />}
@@ -3037,7 +3183,9 @@ function AdminDashboard({ token, onLogout }: { token: string; onLogout: () => vo
                         </td>
                         <td className="py-3 px-3" style={{ fontFamily: BODY, fontSize: 13, color: CREAM, whiteSpace: "nowrap" }}>
                           <div>{l.type === "business" ? `${l.company} — ${l.name}` : l.name}</div>
-                          <div style={{ fontFamily: MONO, fontSize: 10, color: MUTED }}>{l.contact}</div>
+                          <div style={{ fontFamily: MONO, fontSize: 10, color: MUTED }}>
+                            {[l.phone, l.email, l.contact].filter(Boolean).join(" · ")}
+                          </div>
                         </td>
                         <td className="py-3 px-3" style={{ fontFamily: BODY, fontSize: 12, color: MUTED, maxWidth: 320, whiteSpace: "normal" }}>
                           {l.type === "business"
