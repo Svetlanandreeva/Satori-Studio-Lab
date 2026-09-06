@@ -20,6 +20,7 @@ import { startCheckoutAddressGuard } from "./checkoutAddressGuard";
 import { startRemoveQuickBuy } from "./removeQuickBuy";
 import { startAdminOrderDrawer } from "./adminOrderDrawer";
 import { startAdminOrderCounters } from "./adminOrderCounters";
+import { startCoverSync } from "./coverSync";
 
 const isAdmin = window.location.pathname.startsWith("/admin");
 createRoot(document.getElementById("root")!).render(isAdmin ? <AdminFigmaApp /> : <App />);
@@ -42,4 +43,5 @@ if (!isAdmin) {
   startPageTransitions();
   startCheckoutAddressGuard();
   startRemoveQuickBuy();
+  startCoverSync();
 }
