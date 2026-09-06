@@ -21,6 +21,7 @@
     padding-left: 56px !important;
     padding-right: 28px !important;
     box-sizing: border-box !important;
+    transform: translateY(38px) !important;
   }
 
   #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(1) h1 {
