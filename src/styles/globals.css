@@ -10,10 +10,695 @@
   to   { opacity: 1; transform: translateY(0); }
 }
 
+:root {
+  --satori-paper: #f6f0e8;
+  --satori-ink: #161311;
+  --satori-brown: #473e37;
+  --satori-muted: #61574d;
+  --satori-dark: #1f1b18;
+  --satori-card: #eee5da;
+  --satori-panel: #e9dfd3;
+  --satori-cream: #faf7f2;
+}
+
+html, body, #root {
+  background: var(--satori-paper);
+}
+
 :focus-visible {
-  outline: 2px solid #E07A34;
+  outline: 2px solid #7b6653;
   outline-offset: 2px;
   border-radius: 4px;
+}
+
+/* -------------------------------------------------------------------------- */
+/* Figma: SATORI — Homepage Concept                                           */
+/* The existing React store keeps all commerce behaviour; these rules align   */
+/* the live storefront to the supplied desktop concept without touching APIs. */
+/* -------------------------------------------------------------------------- */
+
+/* Active customer-facing page surface. Admin does not use the pageFade shell. */
+#root > div > div[class*="pageFade"] > div {
+  background: var(--satori-paper) !important;
+}
+
+/* ----- Header -------------------------------------------------------------- */
+#root > div > header {
+  height: 96px !important;
+  background: rgba(246, 240, 232, 0.96) !important;
+  backdrop-filter: blur(18px) !important;
+  -webkit-backdrop-filter: blur(18px) !important;
+  border-bottom: 1px solid rgba(22, 19, 17, 0.035);
+}
+
+#root > div > header > div:first-child {
+  max-width: none !important;
+  height: 96px !important;
+  padding-left: 48px !important;
+  padding-right: 48px !important;
+}
+
+#root > div > header > div:first-child > button:first-child {
+  position: relative;
+  width: 202px;
+  height: 96px;
+  justify-content: flex-start !important;
+  color: var(--satori-ink) !important;
+}
+
+#root > div > header > div:first-child > button:first-child > img,
+#root > div > header > div:first-child > button:first-child > svg {
+  display: none !important;
+}
+
+#root > div > header > div:first-child > button:first-child::before {
+  content: "SATORI";
+  font-family: Inter, sans-serif;
+  font-size: 32px;
+  line-height: 1;
+  font-weight: 600;
+  letter-spacing: -1.1px;
+  color: var(--satori-ink);
+}
+
+#root > div > header > div:first-child > button:first-child::after {
+  content: "LAB";
+  position: absolute;
+  left: 118px;
+  top: 26px;
+  font-family: Inter, sans-serif;
+  font-size: 9px;
+  line-height: 1;
+  font-weight: 600;
+  letter-spacing: .03em;
+  color: var(--satori-muted);
+}
+
+#root > div > header nav {
+  gap: 34px !important;
+  margin-right: auto;
+}
+
+#root > div > header nav button {
+  color: var(--satori-ink) !important;
+  font-family: Inter, sans-serif !important;
+  font-size: 11px !important;
+  line-height: 1 !important;
+  font-weight: 500 !important;
+  letter-spacing: .015em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+#root > div > header nav button:hover {
+  opacity: .58;
+}
+
+#root > div > header > div:first-child > div:last-child {
+  position: relative;
+  min-width: 190px;
+  justify-content: flex-end;
+  gap: 20px !important;
+  color: var(--satori-ink) !important;
+}
+
+#root > div > header > div:first-child > div:last-child::before {
+  content: "⌕   ♡";
+  white-space: pre;
+  font-family: Inter, sans-serif;
+  font-size: 19px;
+  line-height: 1;
+  color: var(--satori-ink);
+  letter-spacing: 7px;
+}
+
+#root > div > header > div:first-child > div:last-child > button:first-child {
+  min-width: 82px;
+  color: var(--satori-ink) !important;
+}
+
+#root > div > header > div:first-child > div:last-child > button:first-child > svg {
+  display: none !important;
+}
+
+#root > div > header > div:first-child > div:last-child > button:first-child::after {
+  content: "Корзина";
+  font-family: Inter, sans-serif;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--satori-ink);
+}
+
+/* Pages other than home used the old 56px fixed header offset. */
+#root > div > div[class*="pageFade"] > div[class*="pt-14"] {
+  padding-top: 96px !important;
+}
+
+/* ----- Home: identify it by its long direct-section sequence --------------- */
+@media (min-width: 1024px) {
+  /* overall surface */
+  #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) {
+    background: var(--satori-paper) !important;
+  }
+
+  /* 01 Hero — exact 1440 concept geometry: x48, y96, 1344×610 */
+  #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(1) {
+    padding: 96px 48px 32px !important;
+  }
+
+  #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(1) > div {
+    min-height: 610px !important;
+    height: 610px !important;
+    border-radius: 40px !important;
+    overflow: hidden !important;
+  }
+
+  /* Figma's 620px dark editorial panel on the left */
+  #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(1) > div > div.absolute.inset-0 > div.absolute.inset-0 {
+    left: 0 !important;
+    right: auto !important;
+    top: 0 !important;
+    bottom: 0 !important;
+    width: 46.13% !important;
+    border-radius: 40px !important;
+    opacity: .76 !important;
+    background: #15120f !important;
+  }
+
+  #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(1) > div > div.relative {
+    min-height: 610px !important;
+    height: 610px !important;
+    padding: 50px 40px !important;
+    justify-content: flex-start !important;
+  }
+
+  #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(1) > div > div.relative > p:first-child {
+    margin: 0 0 32px !important;
+    font-family: Inter, sans-serif !important;
+    font-size: 12px !important;
+    line-height: 16px !important;
+    font-weight: 500 !important;
+    letter-spacing: 0 !important;
+    color: #d1bfab !important;
+  }
+
+  #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(1) h1 {
+    width: 520px !important;
+    max-width: 520px !important;
+    margin: 0 0 26px !important;
+    font-family: "Playfair Display", serif !important;
+    font-size: 62px !important;
+    line-height: 69px !important;
+    font-weight: 400 !important;
+    letter-spacing: -1.2px !important;
+    color: var(--satori-cream) !important;
+  }
+
+  #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(1) h1 + p {
+    max-width: 500px !important;
+    margin: 0 0 30px !important;
+    font-family: Inter, sans-serif !important;
+    font-size: 16px !important;
+    line-height: 26px !important;
+    color: #ebe0d1 !important;
+  }
+
+  #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(1) h1 + p + div {
+    gap: 14px !important;
+  }
+
+  #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(1) h1 + p + div button {
+    height: 52px !important;
+    padding: 0 24px !important;
+    border-radius: 26px !important;
+    font-family: Inter, sans-serif !important;
+    font-size: 14px !important;
+    font-weight: 500 !important;
+  }
+
+  #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(1) h1 + p + div button:first-child {
+    width: 194px !important;
+    background: #1a1714 !important;
+    border: 0 !important;
+  }
+
+  #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(1) h1 + p + div button:last-child {
+    width: 128px !important;
+    background: var(--satori-cream) !important;
+  }
+
+  #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(1) > div > div.absolute.bottom-5 {
+    right: 40px !important;
+    bottom: 36px !important;
+  }
+
+  /* 02 Category row — 4 × 324×220, 16px gaps */
+  #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(2) {
+    padding: 0 48px 32px !important;
+  }
+
+  #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(2) > div {
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    gap: 16px !important;
+  }
+
+  #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(2) button {
+    height: 220px !important;
+    aspect-ratio: auto !important;
+    border-radius: 30px !important;
+  }
+
+  #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(2) button > div:last-child {
+    padding: 24px !important;
+  }
+
+  #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(2) button > div:last-child > p:nth-child(2) {
+    max-width: 276px;
+    font-family: "Playfair Display", serif !important;
+    font-size: 27px !important;
+    line-height: 33px !important;
+    font-weight: 400 !important;
+  }
+
+  /* 03 Featured product — 744/600 split, 560px tall */
+  #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(3) {
+    padding: 0 48px 32px !important;
+  }
+
+  #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(3) > div {
+    height: 560px !important;
+    border-radius: 36px !important;
+    background: var(--satori-panel) !important;
+  }
+
+  #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(3) > div > div:first-child {
+    flex: 0 0 55.36% !important;
+    height: 560px !important;
+    aspect-ratio: auto !important;
+  }
+
+  #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(3) > div > div:nth-child(2) {
+    flex: 1 1 auto !important;
+    padding: 48px !important;
+  }
+
+  #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(3) h2 {
+    max-width: 430px !important;
+    font-size: 38px !important;
+    line-height: 44px !important;
+    font-weight: 400 !important;
+  }
+
+  /* 04 Three editorial cards */
+  #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(4) {
+    padding: 0 48px 32px !important;
+  }
+
+  #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(4) > div {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 15px !important;
+  }
+
+  #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(4) > div > div {
+    height: 220px !important;
+    padding: 26px 28px !important;
+    border-radius: 30px !important;
+    background: linear-gradient(110deg, #241c17 0%, #755742 100%) !important;
+  }
+
+  #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(4) > div > div > p:nth-child(2) {
+    max-width: 376px;
+    font-family: "Playfair Display", serif !important;
+    font-size: 30px !important;
+    line-height: 36px !important;
+  }
+
+  /* 05 Individual production CTA — 1344×309 */
+  #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(5) {
+    padding: 0 48px !important;
+  }
+
+  #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(5) > div {
+    height: 309px !important;
+    padding: 34px 36px !important;
+    gap: 92px !important;
+    border-radius: 36px !important;
+    background: #1a1714 !important;
+  }
+
+  #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(5) h2 {
+    max-width: 540px !important;
+    font-size: 44px !important;
+    line-height: 50px !important;
+    font-weight: 400 !important;
+  }
+
+  #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(5) > div > div:last-child {
+    flex: 0 0 584px !important;
+    height: 218px !important;
+    margin: 0 !important;
+    padding: 20px 32px !important;
+    border-radius: 30px !important;
+    border: 1px solid #4d453d !important;
+    background: #292521 !important;
+  }
+
+  /* 06 Hits — title + 3×2 cards */
+  #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(6) {
+    padding: 17px 48px 58px !important;
+  }
+
+  #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(6) > div:first-child {
+    margin-bottom: 22px !important;
+  }
+
+  #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(6) h2 {
+    font-family: "Playfair Display", serif !important;
+    font-size: 38px !important;
+    line-height: 46px !important;
+    font-weight: 400 !important;
+    text-transform: uppercase;
+  }
+
+  #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(6) > div:last-child {
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    column-gap: 30px !important;
+    row-gap: 32px !important;
+  }
+
+  #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(6) > div:last-child > div {
+    position: relative;
+    height: 442px !important;
+    padding: 14px !important;
+    border-radius: 28px !important;
+    background: var(--satori-card) !important;
+  }
+
+  #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(6) > div:last-child > div::after {
+    content: "♡";
+    position: absolute;
+    z-index: 3;
+    top: 21px;
+    right: 22px;
+    font-family: Inter, sans-serif;
+    font-size: 17px;
+    line-height: 1;
+    color: var(--satori-ink);
+  }
+
+  #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(6) > div:last-child > div > div:first-child {
+    height: 304px !important;
+    aspect-ratio: auto !important;
+    border-radius: 20px !important;
+  }
+
+  #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(6) > div:last-child > div > div:last-child {
+    padding: 18px 6px 0 !important;
+  }
+
+  /* 07 Inspiration — four 324×286 editorial tiles */
+  #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(7) {
+    padding: 0 48px 40px !important;
+  }
+
+  #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(7) h2 {
+    margin-bottom: 20px !important;
+    font-size: 36px !important;
+    line-height: 44px !important;
+    font-weight: 400 !important;
+  }
+
+  #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(7) > div {
+    grid-template-columns: repeat(4, minmax(0, 1fr)) !important;
+    gap: 16px !important;
+  }
+
+  #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(7) button {
+    height: 286px !important;
+    aspect-ratio: auto !important;
+    border-radius: 30px !important;
+  }
+
+  #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(7) button > div.absolute.bottom-0 {
+    left: 14px !important;
+    right: 14px !important;
+    bottom: 16px !important;
+    height: 80px !important;
+    padding: 12px 18px !important;
+    border-radius: 22px !important;
+    background: rgba(26, 22, 18, .78) !important;
+  }
+
+  #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(7) button > div.absolute.top-4 {
+    top: auto !important;
+    left: 32px !important;
+    bottom: 62px !important;
+    z-index: 4;
+  }
+
+  #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(7) button > div.absolute.bottom-0 p {
+    padding-top: 20px;
+    font-family: "Playfair Display", serif !important;
+    font-size: 20px !important;
+    font-weight: 400 !important;
+  }
+
+  /* 08 Trust strip — 1344×194 */
+  #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(8) {
+    padding: 0 48px 36px !important;
+    border: 0 !important;
+  }
+
+  #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(8) > div {
+    height: 194px !important;
+    padding: 22px 30px !important;
+    grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+    gap: 0 !important;
+    border-radius: 30px !important;
+    background: #f0e6da !important;
+  }
+
+  #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(8) > div > div {
+    min-height: 132px;
+    padding: 4px 30px 4px 4px;
+  }
+
+  #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(8) > div > div:not(:last-child) {
+    border-right: 1px solid #d1c4b5;
+  }
+
+  /* Old studio/gallery tail is intentionally omitted in the approved concept. */
+  #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(n+9) {
+    display: none !important;
+  }
+}
+
+/* ----- Footer -------------------------------------------------------------- */
+#root > div > footer {
+  min-height: 460px;
+  padding: 50px 48px 0 !important;
+  background: var(--satori-dark) !important;
+  border-top: 0 !important;
+}
+
+#root > div > footer > div:first-child {
+  grid-template-columns: 280px 170px 170px 170px 280px !important;
+  justify-content: space-between;
+  gap: 24px !important;
+  margin-bottom: 0 !important;
+}
+
+#root > div > footer > div:first-child > div:first-child > div:first-child {
+  position: relative;
+  width: 140px;
+  height: 62px;
+  margin-bottom: 24px !important;
+}
+
+#root > div > footer > div:first-child > div:first-child > div:first-child img {
+  display: none !important;
+}
+
+#root > div > footer > div:first-child > div:first-child > div:first-child::before {
+  content: "SATORI";
+  position: absolute;
+  left: 0;
+  top: 0;
+  font-family: Inter, sans-serif;
+  font-size: 36px;
+  line-height: 1;
+  font-weight: 500;
+  color: #deccb8;
+}
+
+#root > div > footer > div:first-child > div:first-child > div:first-child::after {
+  content: "LAB";
+  position: absolute;
+  left: 4px;
+  top: 42px;
+  font-family: Inter, sans-serif;
+  font-size: 10px;
+  line-height: 1;
+  font-weight: 500;
+  color: #a69180;
+}
+
+#root > div > footer > div:first-child > div p,
+#root > div > footer > div:first-child > div button {
+  color: #d1c2b0 !important;
+}
+
+#root > div > footer > div:first-child > div > p:first-child {
+  color: #a89685 !important;
+  font-size: 12px !important;
+  letter-spacing: 0 !important;
+}
+
+#root > div > footer > div:first-child > div:first-child > p {
+  color: #b2a699 !important;
+  font-size: 15px !important;
+  line-height: 24px !important;
+}
+
+#root > div > footer form {
+  height: 54px;
+  padding: 0 18px !important;
+  border: 1px solid #544a40 !important;
+  border-radius: 27px !important;
+  background: #29241f !important;
+}
+
+#root > div > footer form input {
+  color: #d9c9b8 !important;
+  font-size: 14px !important;
+}
+
+#root > div > footer > div:nth-child(2),
+#root > div > footer > p:nth-child(3),
+#root > div > footer > div:nth-child(4),
+#root > div > footer > p:nth-child(5) {
+  display: none !important;
+}
+
+#root > div > footer > div:last-child {
+  margin-top: 154px;
+  padding-top: 0 !important;
+  border-top: 0 !important;
+  justify-content: flex-start !important;
+}
+
+#root > div > footer > div:last-child > p {
+  font-size: 0 !important;
+}
+
+#root > div > footer > div:last-child > p::after {
+  content: "© SATORI LAB";
+  font-family: Inter, sans-serif;
+  font-size: 12px;
+  color: #85786b;
+}
+
+#root > div > footer > div:last-child > div {
+  display: none !important;
+}
+
+/* ----- Mobile/tablet: keep the same visual language, preserve usability ---- */
+@media (max-width: 1023px) {
+  #root > div > header {
+    height: 68px !important;
+  }
+
+  #root > div > header > div:first-child {
+    height: 68px !important;
+    padding-left: 20px !important;
+    padding-right: 20px !important;
+  }
+
+  #root > div > header > div:first-child > button:first-child {
+    width: 150px;
+    height: 68px;
+  }
+
+  #root > div > header > div:first-child > button:first-child::before {
+    font-size: 24px;
+  }
+
+  #root > div > header > div:first-child > button:first-child::after {
+    left: 89px;
+    top: 17px;
+    font-size: 8px;
+  }
+
+  #root > div > header > div:first-child > div:last-child::before {
+    display: none;
+  }
+
+  #root > div > header > div:first-child > div:last-child {
+    min-width: 0;
+  }
+
+  #root > div > header > div:first-child > div:last-child > button:first-child > svg {
+    display: block !important;
+  }
+
+  #root > div > header > div:first-child > div:last-child > button:first-child::after {
+    display: none;
+  }
+
+  #root > div > div[class*="pageFade"] > div[class*="pt-14"] {
+    padding-top: 68px !important;
+  }
+
+  #root > div > footer {
+    min-height: 0;
+    padding: 40px 24px 30px !important;
+  }
+
+  #root > div > footer > div:first-child {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 36px 24px !important;
+  }
+
+  #root > div > footer > div:first-child > div:first-child,
+  #root > div > footer > div:first-child > div:last-child {
+    grid-column: 1 / -1;
+  }
+
+  #root > div > footer > div:last-child {
+    margin-top: 44px;
+  }
+}
+
+@media (max-width: 767px) {
+  /* Home gets compact cream spacing while retaining the existing responsive DOM. */
+  #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section {
+    padding-left: 16px !important;
+    padding-right: 16px !important;
+  }
+
+  #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(1) {
+    padding-top: 84px !important;
+    padding-bottom: 20px !important;
+  }
+
+  #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(1) > div {
+    border-radius: 28px !important;
+  }
+
+  #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(2),
+  #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(3),
+  #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(4),
+  #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(5),
+  #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(6),
+  #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(7),
+  #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(8) {
+    padding-top: 0 !important;
+    padding-bottom: 24px !important;
+  }
+
+  #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(n+9) {
+    display: none !important;
+  }
 }
 
 /* Respect the system's reduced-motion preference: keep opacity/color
