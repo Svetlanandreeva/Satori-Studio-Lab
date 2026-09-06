@@ -1,0 +1,74 @@
+/* Live hero + admin-entry corrections, loaded last. */
+
+@media (min-width: 1024px) {
+  /* Home hero: keep all copy on a reliably dark field even when the uploaded
+     poster has a bright object crossing the centre of the composition. */
+  #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(1) > div > div.absolute.inset-0 > div.absolute.inset-0 {
+    width: 64% !important;
+    opacity: 1 !important;
+    border-radius: 40px 0 0 40px !important;
+    background: linear-gradient(90deg,
+      rgba(21,18,15,.94) 0%,
+      rgba(21,18,15,.91) 68%,
+      rgba(21,18,15,.70) 84%,
+      rgba(21,18,15,0) 100%) !important;
+  }
+
+  #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(1) h1 {
+    max-width: 500px !important;
+    width: 500px !important;
+    font-size: clamp(54px, 4.35vw, 62px) !important;
+    line-height: 1.08 !important;
+    text-wrap: balance;
+    text-shadow: 0 2px 18px rgba(0,0,0,.14);
+  }
+
+  #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(1) h1 + p {
+    max-width: 455px !important;
+    color: #f1e8dd !important;
+    font-size: 15px !important;
+    line-height: 1.7 !important;
+    text-shadow: 0 1px 12px rgba(0,0,0,.20);
+  }
+
+  #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(1) > div > div.relative {
+    padding-left: 48px !important;
+  }
+}
+
+/* Footer admin entry: it already existed functionally, make it easy to find. */
+#root > div > footer a[href="/admin"] {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  min-height: 38px !important;
+  padding: 0 16px !important;
+  border: 1px solid #5a4e43 !important;
+  border-radius: 999px !important;
+  background: #2b2520 !important;
+  color: #eadfd3 !important;
+  font-family: Inter, sans-serif !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  letter-spacing: .03em !important;
+  text-decoration: none !important;
+  opacity: 1 !important;
+}
+
+#root > div > footer a[href="/admin"]::before {
+  content: "↗";
+  margin-right: 8px;
+  font-size: 12px;
+}
+
+#root > div > footer a[href="/admin"]:hover {
+  background: #40372f !important;
+  border-color: #756555 !important;
+}
+
+@media (max-width: 1023px) {
+  /* On tablets/mobile the original full-width overlay is safer for readability. */
+  #root > div > div[class*="pageFade"] > div > section:first-child h1 {
+    text-wrap: balance;
+  }
+}
