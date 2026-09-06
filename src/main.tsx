@@ -7,12 +7,14 @@ import "./styles/storefront-enhancements.css";
 import "./styles/mobile-hero-width-fix.css";
 import "./styles/mobile-admin-link.css";
 import "./styles/admin-figma.css";
+import "./styles/page-transitions.css";
 import { startFeaturedSwitcher } from "./featuredSwitcher";
 import { startStorefrontEnhancements } from "./storefrontEnhancements";
 import { startBrandCopyEnhancements } from "./brandCopyEnhancements";
 import { startInspirationCoverManager } from "./inspirationCoverManager";
 import { startAdminPanelLayoutFix } from "./adminPanelLayoutFix";
 import { startAdminProductLinks } from "./adminProductLinks";
+import { startPageTransitions } from "./pageTransitions";
 
 const isAdmin = window.location.pathname.startsWith("/admin");
 createRoot(document.getElementById("root")!).render(isAdmin ? <AdminFigmaApp /> : <App />);
@@ -27,4 +29,5 @@ startAdminProductLinks();
 if (!isAdmin) {
   startFeaturedSwitcher();
   startBrandCopyEnhancements();
+  startPageTransitions();
 }
