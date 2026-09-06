@@ -41,3 +41,42 @@
     z-index: 20 !important;
   }
 }
+
+/* Elegant SPA page transition. The App remounts the current page inside a keyed
+   wrapper; override the old 280ms fade with a softer editorial fade/rise/blur. */
+@keyframes satoriPageEnter {
+  0% {
+    opacity: 0;
+    transform: translateY(14px) scale(.994);
+    filter: blur(7px);
+  }
+  55% {
+    opacity: .92;
+    filter: blur(1.5px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+    filter: blur(0);
+  }
+}
+
+#root [class*="pageFade_280ms"] {
+  animation: satoriPageEnter 520ms cubic-bezier(.22,.61,.36,1) both !important;
+  transform-origin: 50% 12%;
+  will-change: opacity, transform, filter;
+}
+
+@media (max-width: 767px) {
+  #root [class*="pageFade_280ms"] {
+    animation-duration: 430ms !important;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  #root [class*="pageFade_280ms"] {
+    animation: none !important;
+    filter: none !important;
+    transform: none !important;
+  }
+}
