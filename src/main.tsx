@@ -19,6 +19,7 @@ import { startPageTransitions } from "./pageTransitions";
 import { startCheckoutAddressGuard } from "./checkoutAddressGuard";
 import { startRemoveQuickBuy } from "./removeQuickBuy";
 import { startAdminOrderDrawer } from "./adminOrderDrawer";
+import { startAdminOrderCounters } from "./adminOrderCounters";
 
 const isAdmin = window.location.pathname.startsWith("/admin");
 createRoot(document.getElementById("root")!).render(isAdmin ? <AdminFigmaApp /> : <App />);
@@ -32,6 +33,7 @@ startAdminProductLinks();
 
 if (isAdmin) {
   startAdminOrderDrawer();
+  startAdminOrderCounters();
 }
 
 if (!isAdmin) {
