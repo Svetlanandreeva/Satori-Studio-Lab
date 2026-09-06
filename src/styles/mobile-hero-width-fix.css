@@ -1,7 +1,7 @@
-/* Keep the mobile Hero tall, but align its width with the cards below. */
+/* Keep the mobile Hero tall, and align its outer edges with the cards below. */
 @media (max-width: 767px) {
   #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(1) {
-    width: auto !important;
+    width: 100% !important;
     max-width: none !important;
     padding-left: 0 !important;
     padding-right: 0 !important;
@@ -9,13 +9,15 @@
     margin-right: 0 !important;
   }
 
+  /* The cards below sit about 30px from the viewport edges on mobile.
+     Give Hero the exact same outer inset instead of adding section padding. */
   #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(1) > div {
-    width: 100% !important;
-    max-width: 100% !important;
+    width: calc(100% - 60px) !important;
+    max-width: calc(100% - 60px) !important;
     min-height: calc(100svh - 118px) !important;
     height: calc(100svh - 118px) !important;
-    margin-left: 0 !important;
-    margin-right: 0 !important;
+    margin-left: 30px !important;
+    margin-right: 30px !important;
     border-radius: 30px !important;
     overflow: hidden !important;
   }
