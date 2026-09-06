@@ -1,3 +1,8 @@
+/* Keep Telegram contact in the footer only; hide the floating site-wide shortcut. */
+a.fixed.bottom-6.right-6[href^="https://t.me/"] {
+  display: none !important;
+}
+
 /* Mobile Hero: keep the same width as the cards below, make it full viewport height,
    and keep the copy low but safely above the mobile browser toolbar. */
 @media (max-width: 767px) {
