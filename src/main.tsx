@@ -15,6 +15,7 @@ import { startInspirationCoverManager } from "./inspirationCoverManager";
 import { startAdminPanelLayoutFix } from "./adminPanelLayoutFix";
 import { startAdminProductLinks } from "./adminProductLinks";
 import { startPageTransitions } from "./pageTransitions";
+import { startCheckoutAddressGuard } from "./checkoutAddressGuard";
 
 const isAdmin = window.location.pathname.startsWith("/admin");
 createRoot(document.getElementById("root")!).render(isAdmin ? <AdminFigmaApp /> : <App />);
@@ -30,4 +31,5 @@ if (!isAdmin) {
   startFeaturedSwitcher();
   startBrandCopyEnhancements();
   startPageTransitions();
+  startCheckoutAddressGuard();
 }
