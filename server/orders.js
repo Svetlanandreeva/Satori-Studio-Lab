@@ -19,6 +19,18 @@ function withWriteLock(fn) {
   return writeQueue;
 }
 
+function hasCompleteDeliveryAddress(customer) {
+  if (!customer?.delivery || String(customer.delivery).startsWith("Самовывоз")) return true;
+
+  const address = String(customer.address || "").trim();
+  const parts = address.split(/[\s,]+/).filter(Boolean);
+
+  // The checkout used to accept any non-empty string, so values such as
+  // "Чита" passed validation. For courier/post delivery we need at least a
+  // meaningful street/address fragment and a house number.
+  return address.length >= 8 && parts.length >= 2 && /\d/.test(address);
+}
+
 export async function listOrders() {
   return readOrders();
 }
@@ -35,6 +47,10 @@ export async function findOrderByCode(code) {
 }
 
 export async function createOrder(order) {
+  if (!hasCompleteDeliveryAddress(order?.customer)) {
+    throw new Error("Укажите полный адрес доставки: город, улицу и номер дома");
+  }
+
   return withWriteLock(async () => {
     const orders = await readOrders();
     orders.push(order);
