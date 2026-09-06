@@ -80,10 +80,12 @@ export async function deletePromoCode(code) {
   });
 }
 
-export function isPromoUsable(promo, amount = 0) {
+export function isPromoUsable(promo, amount = null) {
   if (!promo || !promo.active) return false;
   if (promo.usageLimit && promo.usedCount >= promo.usageLimit) return false;
-  if (promo.minAmount && Number(amount) < Number(promo.minAmount)) return false;
+  // Older callers do not yet pass the basket amount. Only enforce a minimum
+  // when an amount is explicitly supplied, so existing checkout stays valid.
+  if (amount !== null && promo.minAmount && Number(amount) < Number(promo.minAmount)) return false;
   const now = Date.now();
   if (promo.startsAt && now < new Date(promo.startsAt).getTime()) return false;
   if (promo.endsAt) {
