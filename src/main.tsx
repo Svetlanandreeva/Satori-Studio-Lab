@@ -8,6 +8,7 @@ import { startFeaturedSwitcher } from "./featuredSwitcher";
 import { startStorefrontEnhancements } from "./storefrontEnhancements";
 import { startBrandCopyEnhancements } from "./brandCopyEnhancements";
 import { startAdminHeroManager } from "./adminHeroManager";
+import { startInspirationCoverManager } from "./inspirationCoverManager";
 
 const isAdmin = window.location.pathname.startsWith("/admin");
 createRoot(document.getElementById("root")!).render(isAdmin ? <AdminApp /> : <App />);
@@ -15,6 +16,7 @@ createRoot(document.getElementById("root")!).render(isAdmin ? <AdminApp /> : <Ap
 // Storefront enhancements also contain the admin controls for the three cards
 // directly below Hero, so they must run on /admin too.
 startStorefrontEnhancements();
+startInspirationCoverManager();
 
 if (isAdmin) {
   startAdminHeroManager();
