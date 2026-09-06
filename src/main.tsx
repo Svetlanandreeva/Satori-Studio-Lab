@@ -16,6 +16,7 @@ import { startAdminPanelLayoutFix } from "./adminPanelLayoutFix";
 import { startAdminProductLinks } from "./adminProductLinks";
 import { startPageTransitions } from "./pageTransitions";
 import { startCheckoutAddressGuard } from "./checkoutAddressGuard";
+import { startRemoveQuickBuy } from "./removeQuickBuy";
 
 const isAdmin = window.location.pathname.startsWith("/admin");
 createRoot(document.getElementById("root")!).render(isAdmin ? <AdminFigmaApp /> : <App />);
@@ -32,4 +33,5 @@ if (!isAdmin) {
   startBrandCopyEnhancements();
   startPageTransitions();
   startCheckoutAddressGuard();
+  startRemoveQuickBuy();
 }
