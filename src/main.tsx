@@ -5,6 +5,7 @@ import "./styles/featured-switcher.css";
 import "./styles/storefront-enhancements.css";
 import { startFeaturedSwitcher } from "./featuredSwitcher";
 import { startStorefrontEnhancements } from "./storefrontEnhancements";
+import { startBrandCopyEnhancements } from "./brandCopyEnhancements";
 
 const isAdmin = window.location.pathname.startsWith("/admin");
 createRoot(document.getElementById("root")!).render(isAdmin ? <AdminApp /> : <App />);
@@ -12,4 +13,5 @@ createRoot(document.getElementById("root")!).render(isAdmin ? <AdminApp /> : <Ap
 if (!isAdmin) {
   startFeaturedSwitcher();
   startStorefrontEnhancements();
+  startBrandCopyEnhancements();
 }
