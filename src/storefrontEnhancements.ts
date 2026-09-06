@@ -94,31 +94,11 @@ async function enhanceHero(heroSection: HTMLElement) {
   );
   mediaHost.insertBefore(carouselLayer, overlay ?? mediaHost.firstChild);
 
-  const controls = document.createElement("div");
-  controls.className = "satori-hero-slide-controls";
-  const controlButtons = slides.map((_, index) => {
-    const button = document.createElement("button");
-    button.type = "button";
-    button.textContent = String(index + 1).padStart(2, "0");
-    button.setAttribute("aria-label", `Показать слайд ${index + 1}`);
-    controls.appendChild(button);
-    return button;
-  });
-  heroCard.appendChild(controls);
-
   let activeIndex = 0;
   let showingA = true;
-  let timer: number | null = null;
 
   const mount = (frame: HTMLElement, slide: HeroSlide) => {
     frame.replaceChildren(createMedia(slide));
-  };
-
-  const updateControls = () => {
-    controlButtons.forEach((button, index) => {
-      button.classList.toggle("is-active", index === activeIndex);
-      button.setAttribute("aria-pressed", index === activeIndex ? "true" : "false");
-    });
   };
 
   const render = (nextIndex: number) => {
@@ -132,29 +112,10 @@ async function enhanceHero(heroSection: HTMLElement) {
     });
     activeIndex = nextIndex;
     showingA = !showingA;
-    updateControls();
-  };
-
-  const restart = () => {
-    if (timer) window.clearInterval(timer);
-    timer = window.setInterval(() => render((activeIndex + 1) % slides.length), 6500);
   };
 
   mount(frameA, slides[0]);
-  updateControls();
-  restart();
-
-  controlButtons.forEach((button, index) => {
-    button.addEventListener("click", () => {
-      render(index);
-      restart();
-    });
-  });
-
-  heroCard.addEventListener("mouseenter", () => {
-    if (timer) window.clearInterval(timer);
-  });
-  heroCard.addEventListener("mouseleave", restart);
+  window.setInterval(() => render((activeIndex + 1) % slides.length), 6500);
 }
 
 function ensureAdminLink() {
