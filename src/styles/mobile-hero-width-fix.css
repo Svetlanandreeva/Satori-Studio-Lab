@@ -1,0 +1,29 @@
+/* Keep the mobile Hero tall, but restore the original inset width. */
+@media (max-width: 767px) {
+  #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(1) {
+    width: auto !important;
+    max-width: none !important;
+    padding-left: 30px !important;
+    padding-right: 30px !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+  }
+
+  #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(1) > div {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-height: calc(100svh - 118px) !important;
+    height: calc(100svh - 118px) !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+    border-radius: 30px !important;
+    overflow: hidden !important;
+  }
+
+  /* Keep the copy low inside the tall card. */
+  #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(1) > div > div.relative {
+    left: 22px !important;
+    right: 22px !important;
+    bottom: 28px !important;
+  }
+}
