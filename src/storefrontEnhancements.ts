@@ -1,6 +1,5 @@
 type HeroSlide = { type: "image" | "video"; url: string };
-
-type GalleryItem = { id?: string; url?: string };
+type HeroPayload = { type?: "image" | "video" | null; url?: string | null; slides?: HeroSlide[] };
 
 function uniqueSlides(slides: HeroSlide[]) {
   const seen = new Set<string>();
@@ -12,25 +11,31 @@ function uniqueSlides(slides: HeroSlide[]) {
 }
 
 async function loadHeroSlides(): Promise<HeroSlide[]> {
-  const [hero, gallery] = await Promise.all([
-    fetch("/api/hero").then((r) => (r.ok ? r.json() : null)).catch(() => null),
-    fetch("/api/gallery").then((r) => (r.ok ? r.json() : [])).catch(() => []),
-  ]);
+  const hero = await fetch("/api/hero")
+    .then((r) => (r.ok ? r.json() : null))
+    .catch(() => null) as HeroPayload | null;
 
-  const slides: HeroSlide[] = [];
-  if (hero?.url && (hero.type === "image" || hero.type === "video")) {
-    slides.push({ type: hero.type, url: hero.url });
+  if (!hero) return [];
+
+  // The homepage carousel must use ONLY media uploaded through the Hero block
+  // in the admin panel. Do not mix in /api/gallery (that gallery is used by the
+  // inspiration section and can contain unrelated photos).
+  if (Array.isArray(hero.slides) && hero.slides.length) {
+    return uniqueSlides(
+      hero.slides.filter(
+        (slide): slide is HeroSlide =>
+          Boolean(slide?.url) && (slide?.type === "image" || slide?.type === "video"),
+      ),
+    ).slice(0, 8);
   }
 
-  if (Array.isArray(gallery)) {
-    (gallery as GalleryItem[])
-      .map((item) => item?.url)
-      .filter((url): url is string => Boolean(url))
-      .slice(0, 6)
-      .forEach((url) => slides.push({ type: "image", url }));
+  // Backward compatibility while the persisted hero.json is still in the old
+  // single-file format. After the next admin upload the server stores `slides`.
+  if (hero.url && (hero.type === "image" || hero.type === "video")) {
+    return [{ type: hero.type, url: hero.url }];
   }
 
-  return uniqueSlides(slides).slice(0, 3);
+  return [];
 }
 
 function findHomeHero(): HTMLElement | null {
@@ -131,8 +136,99 @@ function ensureAdminLink() {
   right.insertBefore(link, right.firstChild);
 }
 
+function ensureCustomOrderStyles() {
+  if (document.getElementById("satori-custom-order-polish")) return;
+  const style = document.createElement("style");
+  style.id = "satori-custom-order-polish";
+  style.textContent = `
+    .satori-custom-order-card {
+      display: grid !important;
+      grid-template-columns: minmax(0, .9fr) minmax(420px, 1.1fr) !important;
+      align-items: stretch !important;
+      gap: clamp(36px, 4vw, 68px) !important;
+      padding: clamp(36px, 4vw, 56px) !important;
+      border-radius: 32px !important;
+      min-height: 0 !important;
+    }
+    .satori-custom-order-card > div:first-child {
+      min-width: 0 !important;
+      display: flex !important;
+      flex-direction: column !important;
+      justify-content: center !important;
+    }
+    .satori-custom-order-card > div:first-child h2 {
+      max-width: 9.5ch !important;
+      margin: 14px 0 20px !important;
+      font-size: clamp(42px, 3.7vw, 58px) !important;
+      line-height: .98 !important;
+      letter-spacing: -.025em !important;
+    }
+    .satori-custom-order-card > div:first-child p:not(:first-child) {
+      max-width: 500px !important;
+      margin-bottom: 24px !important;
+      font-size: 14px !important;
+      line-height: 1.55 !important;
+    }
+    .satori-custom-order-card > div:last-child {
+      min-width: 0 !important;
+      margin: 0 !important;
+      padding: 30px 34px !important;
+      border-radius: 24px !important;
+      display: flex !important;
+      align-items: center !important;
+    }
+    .satori-custom-order-card > div:last-child > div {
+      width: 100% !important;
+      gap: 0 !important;
+    }
+    .satori-custom-order-card > div:last-child > div > div {
+      padding: 19px 0 !important;
+      align-items: flex-start !important;
+    }
+    .satori-custom-order-card > div:last-child > div > div + div {
+      border-top: 1px solid rgba(240,234,226,.10) !important;
+    }
+    .satori-custom-order-card > div:last-child > div > div > div > div:first-child {
+      font-size: 15px !important;
+      line-height: 1.25 !important;
+    }
+    .satori-custom-order-card > div:last-child > div > div > div > div:last-child {
+      margin-top: 6px !important;
+      font-size: 13px !important;
+      line-height: 1.45 !important;
+      max-width: 520px !important;
+    }
+    @media (max-width: 900px) {
+      .satori-custom-order-card {
+        grid-template-columns: 1fr !important;
+        gap: 28px !important;
+        padding: 28px !important;
+      }
+      .satori-custom-order-card > div:first-child h2 {
+        max-width: 12ch !important;
+        font-size: clamp(38px, 10vw, 52px) !important;
+      }
+      .satori-custom-order-card > div:last-child {
+        padding: 22px 24px !important;
+      }
+    }
+  `;
+  document.head.appendChild(style);
+}
+
+function enhanceCustomOrderBlock() {
+  const section = Array.from(document.querySelectorAll<HTMLElement>("section")).find((item) =>
+    item.textContent?.includes("Нужен объект, которого нет в каталоге?"),
+  );
+  const card = section?.firstElementChild as HTMLElement | null;
+  if (!card || card.classList.contains("satori-custom-order-card")) return;
+  card.classList.add("satori-custom-order-card");
+}
+
 function scan() {
   ensureAdminLink();
+  ensureCustomOrderStyles();
+  enhanceCustomOrderBlock();
   const hero = findHomeHero();
   if (hero) void enhanceHero(hero);
 }
