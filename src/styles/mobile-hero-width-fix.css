@@ -1,16 +1,16 @@
-/* Keep the mobile Hero tall and use the SAME mobile container width as the cards below. */
+/* Mobile Hero: keep it tall, but align its outer edges exactly with the cards below.
+   The cards section uses px-6 on mobile = 24px on each side. */
 @media (max-width: 767px) {
   #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(1) {
     width: 100% !important;
     max-width: none !important;
-    padding-left: 0 !important;
-    padding-right: 0 !important;
+    box-sizing: border-box !important;
+    padding-left: 24px !important;
+    padding-right: 24px !important;
     margin-left: 0 !important;
     margin-right: 0 !important;
   }
 
-  /* The parent already provides the mobile page inset used by the cards below.
-     Do NOT add another 30px here — that was doubling the side margin. */
   #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(1) > div {
     width: 100% !important;
     max-width: 100% !important;
