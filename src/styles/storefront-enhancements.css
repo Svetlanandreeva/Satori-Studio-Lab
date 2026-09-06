@@ -98,6 +98,11 @@
   color: #eee5dc !important;
 }
 
+/* Hide the decorative “Смотреть видео о бренде” label on the homepage hero. */
+#root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(1) > div > div.absolute.bottom-5.right-6 {
+  display: none !important;
+}
+
 /* Small unobtrusive pagination — override the broad hero CTA rule with higher specificity. */
 #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(1) .satori-hero-slide-controls {
   position: absolute !important;
