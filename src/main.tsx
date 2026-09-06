@@ -12,6 +12,7 @@ import { startStorefrontEnhancements } from "./storefrontEnhancements";
 import { startBrandCopyEnhancements } from "./brandCopyEnhancements";
 import { startInspirationCoverManager } from "./inspirationCoverManager";
 import { startAdminPanelLayoutFix } from "./adminPanelLayoutFix";
+import { startAdminProductLinks } from "./adminProductLinks";
 
 const isAdmin = window.location.pathname.startsWith("/admin");
 createRoot(document.getElementById("root")!).render(isAdmin ? <AdminFigmaApp /> : <App />);
@@ -21,6 +22,7 @@ createRoot(document.getElementById("root")!).render(isAdmin ? <AdminFigmaApp /> 
 startStorefrontEnhancements();
 startInspirationCoverManager();
 startAdminPanelLayoutFix();
+startAdminProductLinks();
 
 if (!isAdmin) {
   startFeaturedSwitcher();
