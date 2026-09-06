@@ -5,9 +5,14 @@ on:
     branches: [main]
   workflow_dispatch:
 
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
 
@@ -18,6 +23,9 @@ jobs:
 
       - run: npm ci
       - run: npm run build
+
+      - name: Record deployed version
+        run: node -e 'require("fs").writeFileSync("dist/version.json", JSON.stringify({commit:process.env.GITHUB_SHA,run:process.env.GITHUB_RUN_ID})+"\n")'
 
       - uses: webfactory/ssh-agent@v0.9.0
         with:
@@ -42,4 +50,10 @@ jobs:
             server/ root@194.226.97.103:/var/www/satori/backend/
 
       - name: Restart backend service
-        run: ssh root@194.226.97.103 'systemctl restart satori-backend'
+        run: |
+          ssh root@194.226.97.103 'set -eu; systemctl restart satori-backend; systemctl is-active --quiet satori-backend; curl --fail --silent --show-error --retry 10 --retry-connrefused --retry-delay 2 --max-time 10 -o /dev/null http://127.0.0.1:3001/api/products'
+
+      - name: Verify published version
+        run: |
+          curl --fail --silent --show-error --retry 3 --max-time 20 "https://satorilabural.ru/version.json?commit=$GITHUB_SHA" -o published-version.json
+          node -e 'const v=JSON.parse(require("fs").readFileSync("published-version.json","utf8")); if(v.commit!==process.env.GITHUB_SHA) throw new Error("Published version does not match this commit")'
