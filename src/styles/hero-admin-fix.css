@@ -1,38 +1,69 @@
 /* Live hero + admin-entry corrections, loaded last. */
 
 @media (min-width: 1024px) {
-  /* Home hero: keep all copy on a reliably dark field even when the uploaded
-     poster has a bright object crossing the centre of the composition. */
+  /* Home hero: smoother tonal field, cleaner editorial column and aligned CTAs. */
   #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(1) > div > div.absolute.inset-0 > div.absolute.inset-0 {
-    width: 64% !important;
+    width: 74% !important;
     opacity: 1 !important;
     border-radius: 40px 0 0 40px !important;
     background: linear-gradient(90deg,
-      rgba(21,18,15,.94) 0%,
-      rgba(21,18,15,.91) 68%,
-      rgba(21,18,15,.70) 84%,
-      rgba(21,18,15,0) 100%) !important;
-  }
-
-  #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(1) h1 {
-    max-width: 500px !important;
-    width: 500px !important;
-    font-size: clamp(54px, 4.35vw, 62px) !important;
-    line-height: 1.08 !important;
-    text-wrap: balance;
-    text-shadow: 0 2px 18px rgba(0,0,0,.14);
-  }
-
-  #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(1) h1 + p {
-    max-width: 455px !important;
-    color: #f1e8dd !important;
-    font-size: 15px !important;
-    line-height: 1.7 !important;
-    text-shadow: 0 1px 12px rgba(0,0,0,.20);
+      rgba(18,15,13,.96) 0%,
+      rgba(18,15,13,.93) 34%,
+      rgba(18,15,13,.82) 54%,
+      rgba(18,15,13,.58) 72%,
+      rgba(18,15,13,.24) 88%,
+      rgba(18,15,13,0) 100%) !important;
   }
 
   #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(1) > div > div.relative {
-    padding-left: 48px !important;
+    width: 100% !important;
+    max-width: 650px !important;
+    padding-left: 56px !important;
+    padding-right: 28px !important;
+    box-sizing: border-box !important;
+  }
+
+  #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(1) h1 {
+    width: 570px !important;
+    max-width: 570px !important;
+    margin-top: 18px !important;
+    margin-bottom: 26px !important;
+    font-size: clamp(56px, 4.45vw, 64px) !important;
+    line-height: .98 !important;
+    letter-spacing: -.035em !important;
+    text-wrap: balance !important;
+    text-shadow: 0 2px 20px rgba(0,0,0,.15) !important;
+  }
+
+  #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(1) h1 + p {
+    width: 490px !important;
+    max-width: 490px !important;
+    margin-bottom: 34px !important;
+    color: #f1e8dd !important;
+    font-size: 16px !important;
+    line-height: 1.52 !important;
+    text-wrap: pretty !important;
+    text-shadow: 0 1px 12px rgba(0,0,0,.22) !important;
+  }
+
+  /* Keep the two hero CTAs visually equal and on one line. */
+  #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(1) button {
+    width: 184px !important;
+    min-width: 184px !important;
+    height: 58px !important;
+    min-height: 58px !important;
+    padding: 0 20px !important;
+    border-radius: 999px !important;
+    white-space: nowrap !important;
+    font-size: 14px !important;
+    line-height: 1 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+
+  #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(1) button + button {
+    margin-left: 14px !important;
   }
 }
 
