@@ -129,7 +129,8 @@
 }
 
 /* Admin: cover controls for the three blocks below Hero. */
-.satori-cover-admin-panel {
+.satori-cover-admin-panel,
+.satori-hero-media-admin {
   margin-top: 28px;
   padding-top: 28px;
   border-top: 1px solid rgba(236,230,223,.12);
@@ -227,37 +228,141 @@
   line-height: 1.4;
 }
 
+/* Admin: manage several Hero photos/videos instead of a single “replace” file. */
+.satori-legacy-hero-upload-hidden,
+.satori-legacy-hero-preview-hidden {
+  display: none !important;
+}
+
+.satori-hero-media-admin-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.satori-hero-media-actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-shrink: 0;
+}
+
+.satori-hero-media-actions button {
+  min-height: 38px;
+  padding: 0 15px;
+  border-radius: 999px;
+  font-family: Inter, sans-serif;
+  font-size: 11px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.satori-hero-media-add {
+  border: 1px solid #eee7df;
+  background: #eee7df;
+  color: #181411;
+}
+
+.satori-hero-media-clear {
+  border: 1px solid rgba(224,90,90,.35);
+  background: transparent;
+  color: #e05a5a;
+}
+
+.satori-hero-media-status {
+  margin: 2px 0 14px;
+  color: #81776e;
+  font-family: Inter, sans-serif;
+  font-size: 10px;
+}
+
+.satori-hero-media-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.satori-hero-media-card {
+  min-width: 0;
+  padding: 8px;
+  border: 1px solid rgba(236,230,223,.11);
+  border-radius: 14px;
+  background: rgba(255,255,255,.025);
+}
+
+.satori-hero-media-preview {
+  aspect-ratio: 16 / 10;
+  overflow: hidden;
+  border-radius: 10px;
+  background: #171310;
+}
+
+.satori-hero-media-preview img,
+.satori-hero-media-preview video {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+}
+
+.satori-hero-media-meta {
+  padding: 8px 2px 2px;
+  color: #a99f94;
+  font-family: Inter, sans-serif;
+  font-size: 10px;
+}
+
 @media (max-width: 1023px) {
   .satori-admin-top-link {
     display: none;
   }
 }
 
-/* Mobile hero: keep the video/photo visible at the top, and create a strong
-   bottom-to-top black fade only where the copy sits. */
+/* Mobile hero: full-bleed, almost one viewport tall, with the copy anchored low.
+   The image/video stays clearly visible above the bottom black gradient. */
 @media (max-width: 767px) {
+  #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(1) {
+    width: 100% !important;
+    max-width: none !important;
+    padding-left: 0 !important;
+    padding-right: 0 !important;
+    margin-left: 0 !important;
+    margin-right: 0 !important;
+  }
+
   #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(1) > div {
     position: relative !important;
+    width: 100vw !important;
+    max-width: none !important;
+    min-height: calc(100svh - 118px) !important;
+    height: calc(100svh - 118px) !important;
+    margin-left: calc(50% - 50vw) !important;
+    margin-right: calc(50% - 50vw) !important;
+    border-radius: 0 0 32px 32px !important;
+    overflow: hidden !important;
   }
 
   #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(1) .satori-hero-carousel-host > .absolute.inset-0:not(.satori-hero-carousel-layer) {
     background: linear-gradient(
       to top,
-      rgba(8, 7, 6, .96) 0%,
-      rgba(8, 7, 6, .88) 22%,
-      rgba(8, 7, 6, .66) 42%,
-      rgba(8, 7, 6, .30) 62%,
-      rgba(8, 7, 6, .08) 78%,
-      rgba(8, 7, 6, 0) 100%
+      rgba(7, 6, 5, .98) 0%,
+      rgba(7, 6, 5, .94) 20%,
+      rgba(7, 6, 5, .80) 38%,
+      rgba(7, 6, 5, .50) 54%,
+      rgba(7, 6, 5, .20) 68%,
+      rgba(7, 6, 5, .04) 80%,
+      rgba(7, 6, 5, 0) 100%
     ) !important;
   }
 
   #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(1) > div > div.relative {
     position: absolute !important;
-    left: 22px !important;
-    right: 22px !important;
+    left: 24px !important;
+    right: 24px !important;
     top: auto !important;
-    bottom: 34px !important;
+    bottom: 24px !important;
     z-index: 20 !important;
     transform: none !important;
     width: auto !important;
@@ -267,35 +372,47 @@
   }
 
   #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(1) > div > div.relative h1 {
-    max-width: 100% !important;
-    margin: 12px 0 14px !important;
-    font-size: clamp(40px, 11.5vw, 48px) !important;
-    line-height: .94 !important;
+    max-width: 8.8ch !important;
+    margin: 10px 0 12px !important;
+    font-size: clamp(38px, 10.3vw, 44px) !important;
+    line-height: .92 !important;
     letter-spacing: -.035em !important;
     text-wrap: balance !important;
-    text-shadow: 0 3px 28px rgba(0,0,0,.42) !important;
+    text-shadow: 0 3px 28px rgba(0,0,0,.48) !important;
   }
 
   #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(1) > div > div.relative p {
-    max-width: 330px !important;
-    margin: 0 0 18px !important;
-    font-size: 14px !important;
+    max-width: 320px !important;
+    margin: 0 0 16px !important;
+    font-size: 13.5px !important;
     line-height: 1.42 !important;
     color: rgba(247,241,235,.94) !important;
-    text-shadow: 0 2px 18px rgba(0,0,0,.45) !important;
+    text-shadow: 0 2px 18px rgba(0,0,0,.50) !important;
+  }
+
+  #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(1) > div > div.relative > p:first-child {
+    max-width: 290px !important;
+    margin-bottom: 8px !important;
+    font-size: 9.5px !important;
+    line-height: 1.35 !important;
+    letter-spacing: .16em !important;
   }
 
   #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(1) > div > div.relative > div:last-child {
     gap: 10px !important;
+    flex-wrap: nowrap !important;
   }
 
   #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(1) > div > div.relative button {
     min-height: 48px !important;
+    padding-left: 18px !important;
+    padding-right: 18px !important;
+    white-space: nowrap !important;
   }
 
   .satori-hero-carousel-frame > img,
   .satori-hero-carousel-frame > video {
-    object-position: center 34% !important;
+    object-position: center center !important;
   }
 }
 
@@ -306,5 +423,17 @@
 
   .satori-home-feature-has-cover {
     min-height: 220px;
+  }
+
+  .satori-hero-media-admin-header {
+    flex-direction: column;
+  }
+
+  .satori-hero-media-actions {
+    justify-content: flex-start;
+  }
+
+  .satori-hero-media-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
