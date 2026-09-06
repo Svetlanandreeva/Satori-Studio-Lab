@@ -29,7 +29,10 @@ export async function getPromoCode(code) {
   return codes.find((c) => c.code.toLowerCase() === code.toLowerCase()) || null;
 }
 
-export async function createPromoCode({ code, type, value, usageLimit }) {
+export async function createPromoCode({
+  code, type, value, usageLimit, applyTo, minAmount, startsAt, endsAt,
+  oncePerClient, active,
+}) {
   return withWriteLock(async () => {
     if (!code || !type || !value) throw new Error("Заполните код, тип и размер скидки");
     const codes = await readPromoCodes();
@@ -38,11 +41,16 @@ export async function createPromoCode({ code, type, value, usageLimit }) {
     }
     const promo = {
       code: code.trim().toUpperCase(),
-      type, // "percent" | "fixed"
+      type,
       value: Number(value),
       usageLimit: usageLimit ? Number(usageLimit) : null,
       usedCount: 0,
-      active: true,
+      active: active !== false,
+      applyTo: applyTo || null,
+      minAmount: Number(minAmount) || 0,
+      startsAt: startsAt || null,
+      endsAt: endsAt || null,
+      oncePerClient: Boolean(oncePerClient),
       createdAt: new Date().toISOString(),
     };
     codes.push(promo);
@@ -72,9 +80,17 @@ export async function deletePromoCode(code) {
   });
 }
 
-export function isPromoUsable(promo) {
+export function isPromoUsable(promo, amount = 0) {
   if (!promo || !promo.active) return false;
   if (promo.usageLimit && promo.usedCount >= promo.usageLimit) return false;
+  if (promo.minAmount && Number(amount) < Number(promo.minAmount)) return false;
+  const now = Date.now();
+  if (promo.startsAt && now < new Date(promo.startsAt).getTime()) return false;
+  if (promo.endsAt) {
+    const end = new Date(promo.endsAt);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(promo.endsAt)) end.setHours(23, 59, 59, 999);
+    if (now > end.getTime()) return false;
+  }
   return true;
 }
 
