@@ -1,0 +1,109 @@
+/* SATORI homepage — layout stability pass.
+   Keeps the Figma geometry from globals.css, but removes reveal states that can
+   leave whole sections invisible when Chrome restores a previous scroll position. */
+
+:root {
+  --satori-home-gutter: 48px;
+  --satori-home-gap: 32px;
+}
+
+/* The homepage is the only customer page with this many direct sections. */
+#root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) {
+  min-height: 100vh;
+  overflow-x: clip;
+}
+
+/* Never let scroll-reveal create large blank holes in the storefront. */
+#root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(2),
+#root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(3),
+#root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(4),
+#root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(5),
+#root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(7),
+#root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(8) {
+  opacity: 1 !important;
+  transform: none !important;
+  transition: none !important;
+}
+
+/* Hits use revealStyle on the title and on each card rather than on the section. */
+#root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(6) > div:first-child,
+#root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(6) > div:nth-child(2) > div {
+  opacity: 1 !important;
+  transform: none !important;
+  transition: none !important;
+}
+
+@media (min-width: 1024px) {
+  /* Keep the 1440px Figma canvas proportions centered on wider screens. */
+  #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section {
+    width: 100%;
+    max-width: 1440px;
+    margin-left: auto;
+    margin-right: auto;
+    box-sizing: border-box;
+  }
+
+  /* Hero starts immediately below the 96px fixed header. */
+  #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(1) {
+    padding-top: 96px !important;
+    padding-right: var(--satori-home-gutter) !important;
+    padding-bottom: var(--satori-home-gap) !important;
+    padding-left: var(--satori-home-gutter) !important;
+  }
+
+  /* Exact, consistent 32px rhythm between the main Figma blocks. */
+  #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(2),
+  #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(3),
+  #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(4) {
+    padding-top: 0 !important;
+    padding-right: var(--satori-home-gutter) !important;
+    padding-bottom: var(--satori-home-gap) !important;
+    padding-left: var(--satori-home-gutter) !important;
+    margin: 0 auto !important;
+  }
+
+  #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(5) {
+    padding: 0 var(--satori-home-gutter) !important;
+    margin: 0 auto !important;
+  }
+
+  /* Editorial cards: keep copy inside the card rather than letting it collide
+     with the following custom-production panel at intermediate desktop widths. */
+  #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(4) > div > div {
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(4) > div > div > p:nth-child(2) {
+    font-size: clamp(24px, 2.08vw, 30px) !important;
+    line-height: 1.18 !important;
+    text-wrap: balance;
+  }
+
+  /* Prevent the CTA columns from squeezing into each other. */
+  #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(5) > div > div {
+    min-width: 0;
+  }
+}
+
+@media (max-width: 1023px) {
+  :root {
+    --satori-home-gutter: 20px;
+    --satori-home-gap: 18px;
+  }
+
+  #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(1) {
+    padding: 68px var(--satori-home-gutter) var(--satori-home-gap) !important;
+  }
+
+  #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(2),
+  #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(3),
+  #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(4),
+  #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(5),
+  #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(6),
+  #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(7),
+  #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(8) {
+    margin-top: 0 !important;
+    margin-bottom: 0 !important;
+  }
+}
