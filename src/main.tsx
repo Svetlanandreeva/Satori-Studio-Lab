@@ -11,6 +11,7 @@ import { startFeaturedSwitcher } from "./featuredSwitcher";
 import { startStorefrontEnhancements } from "./storefrontEnhancements";
 import { startBrandCopyEnhancements } from "./brandCopyEnhancements";
 import { startInspirationCoverManager } from "./inspirationCoverManager";
+import { startAdminPanelLayoutFix } from "./adminPanelLayoutFix";
 
 const isAdmin = window.location.pathname.startsWith("/admin");
 createRoot(document.getElementById("root")!).render(isAdmin ? <AdminFigmaApp /> : <App />);
@@ -19,6 +20,7 @@ createRoot(document.getElementById("root")!).render(isAdmin ? <AdminFigmaApp /> 
 // directly below Hero. Inspiration controls are shared with the Figma admin home.
 startStorefrontEnhancements();
 startInspirationCoverManager();
+startAdminPanelLayoutFix();
 
 if (!isAdmin) {
   startFeaturedSwitcher();
