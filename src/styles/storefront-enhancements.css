@@ -1,12 +1,14 @@
-/* Final storefront interaction polish: lower hero copy, hero slideshow and visible admin entry. */
+/* Storefront interactions: hero slideshow + visible admin entry. */
 
 @media (min-width: 1024px) {
-  /* Lower the entire hero editorial block a little more. */
+  /* Keep the editorial copy lower, but always ABOVE slideshow media and overlay. */
   #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(1) > div > div.relative {
-    transform: translateY(126px) !important;
+    position: relative !important;
+    z-index: 20 !important;
+    transform: translateY(150px) !important;
   }
 
-  /* Make room for an explicit admin entry next to the cart. */
+  /* Explicit admin entry next to cart. */
   #root > div > header > div:first-child > div:last-child {
     min-width: 176px !important;
     gap: 16px !important;
@@ -40,27 +42,31 @@
   transform: scale(.97);
 }
 
+/* Hero slideshow stacking: media -> dark overlay -> copy/CTAs -> pagination. */
 .satori-hero-carousel-host {
   overflow: hidden;
+  isolation: isolate;
 }
 
 .satori-hero-carousel-layer {
   position: absolute;
   inset: 0;
-  z-index: 0;
+  z-index: 0 !important;
   overflow: hidden;
   pointer-events: none;
 }
 
+/* Existing dark-gradient overlay remains above the images, never above the copy. */
 .satori-hero-carousel-host > .absolute.inset-0:not(.satori-hero-carousel-layer) {
-  z-index: 2;
+  z-index: 4 !important;
+  pointer-events: none !important;
 }
 
 .satori-hero-carousel-frame {
   position: absolute;
   inset: 0;
   opacity: 0;
-  transition: opacity .7s cubic-bezier(.22,.61,.36,1);
+  transition: opacity .65s cubic-bezier(.22,.61,.36,1);
 }
 
 .satori-hero-carousel-frame.is-active {
@@ -73,44 +79,72 @@
   height: 100%;
   display: block;
   object-fit: cover;
+  object-position: center center;
 }
 
-.satori-hero-slide-controls {
-  position: absolute;
-  left: 56px;
-  bottom: 28px;
-  z-index: 8;
-  display: flex;
-  align-items: center;
-  gap: 8px;
+/* Force hero copy to stay crisp/visible over every slide. */
+#root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(1) > div > div.relative,
+#root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(1) > div > div.relative h1,
+#root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(1) > div > div.relative p {
+  opacity: 1 !important;
+  visibility: visible !important;
 }
 
-/* Override the broad hero CTA rule for the tiny slide controls. */
-.satori-hero-slide-controls > button {
-  width: 34px !important;
-  min-width: 34px !important;
+#root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(1) > div > div.relative h1 {
+  color: #f4eee7 !important;
+}
+
+#root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(1) > div > div.relative p {
+  color: #eee5dc !important;
+}
+
+/* Small unobtrusive pagination — override the broad hero CTA rule with higher specificity. */
+#root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(1) .satori-hero-slide-controls {
+  position: absolute !important;
+  left: 56px !important;
+  bottom: 28px !important;
+  z-index: 30 !important;
+  display: flex !important;
+  align-items: center !important;
+  gap: 8px !important;
+  width: auto !important;
+}
+
+#root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(1) .satori-hero-slide-controls > button {
+  width: 38px !important;
+  min-width: 38px !important;
+  max-width: 38px !important;
   height: 30px !important;
   min-height: 30px !important;
+  max-height: 30px !important;
   padding: 0 !important;
   margin: 0 !important;
-  border: 1px solid rgba(250, 247, 242, .28) !important;
+  border: 1px solid rgba(250,247,242,.34) !important;
   border-radius: 999px !important;
-  background: rgba(24, 20, 17, .22) !important;
-  color: rgba(250, 247, 242, .62) !important;
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
+  background: rgba(18,15,13,.30) !important;
+  color: rgba(250,247,242,.76) !important;
+  backdrop-filter: blur(10px) !important;
+  -webkit-backdrop-filter: blur(10px) !important;
   font-family: Inter, sans-serif !important;
   font-size: 9px !important;
   font-weight: 600 !important;
   line-height: 1 !important;
-  cursor: pointer;
-  transition: background-color .18s ease, color .18s ease, border-color .18s ease !important;
+  cursor: pointer !important;
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  white-space: nowrap !important;
+  transition: background-color .18s ease, color .18s ease, border-color .18s ease, transform .18s ease !important;
 }
 
-.satori-hero-slide-controls > button.is-active {
-  background: rgba(250, 247, 242, .92) !important;
+#root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(1) .satori-hero-slide-controls > button.is-active {
+  background: rgba(250,247,242,.94) !important;
   color: #181411 !important;
-  border-color: rgba(250, 247, 242, .92) !important;
+  border-color: rgba(250,247,242,.94) !important;
+}
+
+#root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(1) .satori-hero-slide-controls > button:hover {
+  transform: translateY(-1px) !important;
 }
 
 @media (max-width: 1023px) {
@@ -119,7 +153,15 @@
   }
 
   .satori-hero-slide-controls {
-    left: 24px;
-    bottom: 20px;
+    left: 24px !important;
+    bottom: 20px !important;
+  }
+
+  .satori-hero-slide-controls > button {
+    width: 34px !important;
+    min-width: 34px !important;
+    height: 28px !important;
+    min-height: 28px !important;
+    padding: 0 !important;
   }
 }
