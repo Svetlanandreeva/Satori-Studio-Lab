@@ -16,9 +16,20 @@ let lastFetch = 0;
 let scanTimer: number | null = null;
 
 function parseSlot(url: string, marker: string, count: number) {
-  const i = url.indexOf(marker);
+  // Accept both the raw fragment form we currently save and an encoded fragment
+  // form in case a proxy/browser ever serialises # as %23.
+  const candidates = [marker, marker.replace("#", "%23")];
+  let i = -1;
+  let matched = marker;
+  for (const candidate of candidates) {
+    i = url.indexOf(candidate);
+    if (i >= 0) {
+      matched = candidate;
+      break;
+    }
+  }
   if (i < 0) return null;
-  const slot = Number(url.slice(i + marker.length));
+  const slot = Number(url.slice(i + matched.length));
   if (!Number.isInteger(slot) || slot < 0 || slot >= count) return null;
   return { slot, baseUrl: url.slice(0, i) };
 }
@@ -68,10 +79,50 @@ function findInspirationSection() {
   ) ?? null;
 }
 
-function setStyleIfDifferent(el: HTMLElement, property: string, value: string) {
-  if (el.style.getPropertyValue(property) !== value) {
-    el.style.setProperty(property, value);
-  }
+function ensureCoverStyles() {
+  if (document.getElementById("satori-live-cover-styles")) return;
+  const style = document.createElement("style");
+  style.id = "satori-live-cover-styles";
+  style.textContent = `
+    /* The three blocks under Hero have a React-owned inline background shorthand.
+       Do not fight that shorthand. Draw the admin image in a separate pseudo layer
+       above it, so React can rerender as often as it wants without erasing the cover. */
+    [data-satori-fresh-cover="1"] {
+      position: relative !important;
+      overflow: hidden !important;
+      isolation: isolate !important;
+    }
+    [data-satori-fresh-cover="1"]::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      z-index: 0;
+      background-image: var(--satori-home-cover-image) !important;
+      background-size: cover !important;
+      background-position: center !important;
+      background-repeat: no-repeat !important;
+      pointer-events: none;
+    }
+    [data-satori-fresh-cover="1"]::after {
+      content: "";
+      position: absolute;
+      inset: 0;
+      z-index: 1;
+      background: linear-gradient(180deg, rgba(20,15,12,.13) 0%, rgba(20,15,12,.72) 100%);
+      pointer-events: none;
+    }
+    [data-satori-fresh-cover="1"] > * {
+      position: relative !important;
+      z-index: 2 !important;
+    }
+    [data-satori-fresh-cover="1"] p,
+    [data-satori-fresh-cover="1"] h2,
+    [data-satori-fresh-cover="1"] h3,
+    [data-satori-fresh-cover="1"] span {
+      color: #f3ece5 !important;
+    }
+  `;
+  document.head.appendChild(style);
 }
 
 function applyHome(urls: Array<string | null>) {
@@ -83,30 +134,20 @@ function applyHome(urls: Array<string | null>) {
   cards.slice(0, HOME_COUNT).forEach((card, slot) => {
     const url = urls[slot];
     if (!url) {
-      if (card.dataset.satoriFreshCover === "1") {
-        card.style.removeProperty("background-image");
-        card.style.removeProperty("background-size");
-        card.style.removeProperty("background-position");
-        card.style.removeProperty("background-repeat");
-        delete card.dataset.satoriFreshCover;
-        card.classList.remove("satori-home-feature-has-cover");
-      }
+      card.removeAttribute("data-satori-fresh-cover");
+      card.style.removeProperty("--satori-home-cover-image");
+      card.classList.remove("satori-home-feature-has-cover");
       return;
     }
 
     const safeUrl = url.replace(/"/g, "%22");
-    const backgroundImage = `linear-gradient(180deg, rgba(20,15,12,.16) 0%, rgba(20,15,12,.70) 100%), url("${safeUrl}")`;
-
-    // These cards are rendered by React with an inline `background` shorthand.
-    // A later React render (for example when scroll-reveal becomes visible)
-    // can overwrite background-image. Keep this operation idempotent so the
-    // style observer below can safely restore the cover without causing a loop.
-    setStyleIfDifferent(card, "background-image", backgroundImage);
-    setStyleIfDifferent(card, "background-size", "cover");
-    setStyleIfDifferent(card, "background-position", "center");
-    setStyleIfDifferent(card, "background-repeat", "no-repeat");
-
-    card.dataset.satoriFreshCover = "1";
+    const coverValue = `url("${safeUrl}")`;
+    if (card.style.getPropertyValue("--satori-home-cover-image") !== coverValue) {
+      card.style.setProperty("--satori-home-cover-image", coverValue);
+    }
+    if (card.getAttribute("data-satori-fresh-cover") !== "1") {
+      card.setAttribute("data-satori-fresh-cover", "1");
+    }
     card.classList.add("satori-home-feature-has-cover");
   });
 }
@@ -135,8 +176,6 @@ function applyInspiration(urls: Array<string | null>) {
     });
     card.querySelectorAll(".satori-inspiration-cover-image").forEach((el) => el.remove());
 
-    // Avoid removing/reinserting the same image on every sync; doing so would
-    // retrigger the MutationObserver continuously.
     if (current && current.getAttribute("src") === url) return;
     current?.remove();
 
@@ -177,15 +216,14 @@ export function startCoverSync() {
   const root = document.getElementById("root");
   if (!root) return;
 
+  ensureCoverStyles();
+
   const observer = new MutationObserver(() => schedule(false));
   observer.observe(root, {
     childList: true,
     subtree: true,
-    // React can replace the cards' inline background shorthand without adding
-    // or removing DOM nodes. Watching style changes lets us restore uploaded
-    // covers immediately after such rerenders.
     attributes: true,
-    attributeFilter: ["style"],
+    attributeFilter: ["style", "class"],
   });
 
   window.addEventListener("pageshow", () => schedule(true));
@@ -194,11 +232,9 @@ export function startCoverSync() {
     if (document.visibilityState === "visible") schedule(true);
   });
 
-  // Keep an already-open desktop/tablet page in sync with changes made from
-  // the mobile admin without requiring a hard refresh.
   window.setInterval(() => {
     if (document.visibilityState === "visible") schedule(true);
-  }, 30000);
+  }, 15000);
 
   schedule(true);
 }
