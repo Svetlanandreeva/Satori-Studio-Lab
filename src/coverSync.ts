@@ -68,6 +68,12 @@ function findInspirationSection() {
   ) ?? null;
 }
 
+function setStyleIfDifferent(el: HTMLElement, property: string, value: string) {
+  if (el.style.getPropertyValue(property) !== value) {
+    el.style.setProperty(property, value);
+  }
+}
+
 function applyHome(urls: Array<string | null>) {
   const section = findFeatureStrip();
   if (!section) return;
@@ -83,15 +89,23 @@ function applyHome(urls: Array<string | null>) {
         card.style.removeProperty("background-position");
         card.style.removeProperty("background-repeat");
         delete card.dataset.satoriFreshCover;
+        card.classList.remove("satori-home-feature-has-cover");
       }
       return;
     }
 
     const safeUrl = url.replace(/"/g, "%22");
-    card.style.backgroundImage = `linear-gradient(180deg, rgba(20,15,12,.16) 0%, rgba(20,15,12,.70) 100%), url("${safeUrl}")`;
-    card.style.backgroundSize = "cover";
-    card.style.backgroundPosition = "center";
-    card.style.backgroundRepeat = "no-repeat";
+    const backgroundImage = `linear-gradient(180deg, rgba(20,15,12,.16) 0%, rgba(20,15,12,.70) 100%), url("${safeUrl}")`;
+
+    // These cards are rendered by React with an inline `background` shorthand.
+    // A later React render (for example when scroll-reveal becomes visible)
+    // can overwrite background-image. Keep this operation idempotent so the
+    // style observer below can safely restore the cover without causing a loop.
+    setStyleIfDifferent(card, "background-image", backgroundImage);
+    setStyleIfDifferent(card, "background-size", "cover");
+    setStyleIfDifferent(card, "background-position", "center");
+    setStyleIfDifferent(card, "background-repeat", "no-repeat");
+
     card.dataset.satoriFreshCover = "1";
     card.classList.add("satori-home-feature-has-cover");
   });
@@ -104,14 +118,27 @@ function applyInspiration(urls: Array<string | null>) {
   const cards = grid ? Array.from(grid.children).filter((el): el is HTMLButtonElement => el instanceof HTMLButtonElement) : [];
 
   cards.slice(0, INSP_COUNT).forEach((card, slot) => {
-    card.querySelectorAll(".satori-fresh-inspiration-cover").forEach((el) => el.remove());
     const url = urls[slot];
-    if (!url) return;
+    const current = card.querySelector<HTMLImageElement>(".satori-fresh-inspiration-cover");
+    const nativeMedia = card.querySelectorAll<HTMLElement>(":scope > picture, :scope > img:not(.satori-inspiration-cover-image):not(.satori-fresh-inspiration-cover)");
 
-    card.querySelectorAll<HTMLElement>(":scope > picture, :scope > img:not(.satori-inspiration-cover-image)").forEach((media) => {
-      media.style.setProperty("display", "none", "important");
+    if (!url) {
+      current?.remove();
+      nativeMedia.forEach((media) => media.style.removeProperty("display"));
+      return;
+    }
+
+    nativeMedia.forEach((media) => {
+      if (media.style.getPropertyValue("display") !== "none" || media.style.getPropertyPriority("display") !== "important") {
+        media.style.setProperty("display", "none", "important");
+      }
     });
     card.querySelectorAll(".satori-inspiration-cover-image").forEach((el) => el.remove());
+
+    // Avoid removing/reinserting the same image on every sync; doing so would
+    // retrigger the MutationObserver continuously.
+    if (current && current.getAttribute("src") === url) return;
+    current?.remove();
 
     const img = document.createElement("img");
     img.src = url;
@@ -151,7 +178,15 @@ export function startCoverSync() {
   if (!root) return;
 
   const observer = new MutationObserver(() => schedule(false));
-  observer.observe(root, { childList: true, subtree: true });
+  observer.observe(root, {
+    childList: true,
+    subtree: true,
+    // React can replace the cards' inline background shorthand without adding
+    // or removing DOM nodes. Watching style changes lets us restore uploaded
+    // covers immediately after such rerenders.
+    attributes: true,
+    attributeFilter: ["style"],
+  });
 
   window.addEventListener("pageshow", () => schedule(true));
   window.addEventListener("focus", () => schedule(true));
