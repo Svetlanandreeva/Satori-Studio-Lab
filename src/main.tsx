@@ -21,6 +21,7 @@ import { startRemoveQuickBuy } from "./removeQuickBuy";
 import { startAdminOrderDrawer } from "./adminOrderDrawer";
 import { startAdminOrderCounters } from "./adminOrderCounters";
 import { startCoverSync } from "./coverSync";
+import { startMadeToOrderPresentation } from "./madeToOrderPresentation";
 
 const isAdmin = window.location.pathname.startsWith("/admin");
 createRoot(document.getElementById("root")!).render(isAdmin ? <AdminFigmaApp /> : <App />);
@@ -44,4 +45,5 @@ if (!isAdmin) {
   startCheckoutAddressGuard();
   startRemoveQuickBuy();
   startCoverSync();
+  startMadeToOrderPresentation();
 }
