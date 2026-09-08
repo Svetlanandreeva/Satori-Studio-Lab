@@ -16,7 +16,7 @@ function normalizeTelegram(value) {
   if (/^-?\d+$/.test(raw)) return raw;
   const match = raw.match(/(?:https?:\/\/)?t\.me\/([A-Za-z0-9_]+)/i);
   if (match) return `@${match[1]}`;
-  return raw.startsWith("@") ? raw : raw;
+  return raw;
 }
 
 export function wazzupConfigured() {
@@ -176,10 +176,13 @@ export function parseWazzupWebhook(body) {
 }
 
 export async function getWazzupStatus() {
-  if (!wazzupConfigured()) return { configured: false, channels: [], active: 0, webhook: null };
+  if (!wazzupConfigured()) return { configured: false, channels: [], active: 0, webhookConnected: false };
   const channels = await listWazzupChannels({ force: true });
-  let webhook = null;
-  try { webhook = await getWazzupWebhook(); } catch {}
+  let webhookConnected = false;
+  try {
+    const webhook = await getWazzupWebhook();
+    webhookConnected = Boolean(webhook?.webhooksUri);
+  } catch {}
   return {
     configured: true,
     channels: channels.map((item) => ({
@@ -189,6 +192,6 @@ export async function getWazzupStatus() {
       state: item.state,
     })),
     active: channels.filter((item) => item.state === "active").length,
-    webhook,
+    webhookConnected,
   };
 }
