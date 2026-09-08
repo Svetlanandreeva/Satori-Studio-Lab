@@ -31,6 +31,8 @@ const MAX_TOUCHES = Math.max(1, Number(process.env.AI_MANAGER_MAX_TOUCHES || 3))
 const OUTREACH_TEMPLATE = process.env.WHATSAPP_OUTREACH_TEMPLATE_NAME || "";
 const FOLLOWUP_TEMPLATE = process.env.WHATSAPP_FOLLOWUP_TEMPLATE_NAME || "";
 const WHATSAPP_LANGUAGE = process.env.WHATSAPP_TEMPLATE_LANGUAGE || "ru";
+const BRIEF_FIELDS = ["item", "quantity", "dimensions", "materials", "finish", "construction", "deadline", "budget", "delivery", "branding", "packaging"];
+const BRIEF_CORE = ["item", "quantity", "dimensions", "materials", "deadline"];
 
 let writeQueue = Promise.resolve();
 let tickRunning = false;
@@ -39,6 +41,51 @@ const STOP_RE = /(не\s*пишите|не\s*интересно|не\s*нужн�
 
 function whatsappApiReady() {
   return Boolean(process.env.WHATSAPP_ACCESS_TOKEN && process.env.WHATSAPP_PHONE_NUMBER_ID);
+}
+
+function emptyBrief() {
+  return {
+    item: "",
+    quantity: "",
+    dimensions: "",
+    materials: "",
+    finish: "",
+    construction: "",
+    deadline: "",
+    budget: "",
+    delivery: "",
+    branding: "",
+    packaging: "",
+    references: [],
+    notes: "",
+    confirmed: false,
+  };
+}
+
+function normalizeBrief(value) {
+  const src = value && typeof value === "object" ? value : {};
+  const out = emptyBrief();
+  for (const key of BRIEF_FIELDS) out[key] = String(src[key] || "").trim();
+  out.references = Array.isArray(src.references) ? [...new Set(src.references.map((x) => String(x || "").trim()).filter(Boolean))] : [];
+  out.notes = String(src.notes || "").trim();
+  out.confirmed = Boolean(src.confirmed);
+  return out;
+}
+
+function mergeBrief(current, incoming) {
+  const base = normalizeBrief(current);
+  const next = normalizeBrief(incoming);
+  for (const key of BRIEF_FIELDS) if (next[key]) base[key] = next[key];
+  if (next.notes) base.notes = next.notes;
+  if (next.references.length) base.references = [...new Set([...base.references, ...next.references])];
+  return base;
+}
+
+function briefProgress(value) {
+  const brief = normalizeBrief(value);
+  const filled = BRIEF_FIELDS.filter((key) => brief[key]).length;
+  const coreReady = BRIEF_CORE.every((key) => brief[key]);
+  return { filled, total: BRIEF_FIELDS.length, pct: Math.round((filled / BRIEF_FIELDS.length) * 100), ready: filled >= 8 && coreReady };
 }
 
 async function ensureState() {
@@ -59,7 +106,7 @@ async function readState() {
   const data = raw.trim() ? JSON.parse(raw) : {};
   return {
     settings: { enabled: Boolean(data.settings?.enabled), autoSend: Boolean(data.settings?.autoSend) },
-    contacts: Array.isArray(data.contacts) ? data.contacts : [],
+    contacts: Array.isArray(data.contacts) ? data.contacts.map((item) => ({ ...item, brief: normalizeBrief(item.brief) })) : [],
     usage: data.usage && typeof data.usage === "object" ? data.usage : { day: "", sent: 0 },
     createdAt: data.createdAt || new Date().toISOString(),
   };
@@ -117,7 +164,7 @@ function resetUsage(state) {
 }
 
 function stats(state) {
-  const result = { total: state.contacts.length, new: 0, draft: 0, contacted: 0, replied: 0, qualified: 0, proposal: 0, deal: 0, human: 0, stopped: 0 };
+  const result = { total: state.contacts.length, new: 0, draft: 0, contacted: 0, replied: 0, qualified: 0, proposal: 0, deal: 0, human: 0, stopped: 0, briefReady: 0 };
   for (const item of state.contacts) {
     if (item.status === "new") result.new += 1;
     if (item.status === "draft_ready") result.draft += 1;
@@ -128,6 +175,7 @@ function stats(state) {
     if (item.stage === "deal" || item.dealId) result.deal += 1;
     if (item.status === "human") result.human += 1;
     if (["stopped", "lost"].includes(item.status) || item.stage === "lost") result.stopped += 1;
+    if (briefProgress(item.brief).ready) result.briefReady += 1;
   }
   return result;
 }
@@ -170,6 +218,7 @@ function snapshot(run, contact) {
     score: 0,
     summary: "",
     draft: "",
+    brief: emptyBrief(),
     attempts: 0,
     lastActionAt: null,
     lastInboundId: "",
@@ -220,6 +269,7 @@ async function syncContacts() {
         existing.sourceUrl = text(contact.sourceUrl || run.sourceUrl) || existing.sourceUrl;
         existing.competitor = text(run.competitor) || existing.competitor;
         existing.source = text(run.source) || existing.source;
+        existing.brief = normalizeBrief(existing.brief);
       }
     }
     return true;
@@ -240,7 +290,7 @@ function matchingMessages(items, lead) {
 }
 
 function conversationText(messages) {
-  return messages.slice(-12).map((item) => `${item.direction === "inbound" ? "Клиент" : "Satori"}: ${text(item.text)}`).join("\n");
+  return messages.slice(-14).map((item) => `${item.direction === "inbound" ? "Клиент" : "Satori"}: ${text(item.text)}`).join("\n");
 }
 
 function leadContext(lead) {
@@ -256,8 +306,31 @@ function leadContext(lead) {
     score: lead.score,
     attempts: lead.attempts,
     previousSummary: lead.summary || null,
+    brief: normalizeBrief(lead.brief),
+    briefProgress: briefProgress(lead.brief),
   };
 }
+
+const BRIEF_SCHEMA = {
+  type: "object",
+  properties: {
+    item: { type: "string" },
+    quantity: { type: "string" },
+    dimensions: { type: "string" },
+    materials: { type: "string" },
+    finish: { type: "string" },
+    construction: { type: "string" },
+    deadline: { type: "string" },
+    budget: { type: "string" },
+    delivery: { type: "string" },
+    branding: { type: "string" },
+    packaging: { type: "string" },
+    references: { type: "array", items: { type: "string" } },
+    notes: { type: "string" },
+  },
+  required: ["item", "quantity", "dimensions", "materials", "finish", "construction", "deadline", "budget", "delivery", "branding", "packaging", "references", "notes"],
+  additionalProperties: false,
+};
 
 const DECISION_SCHEMA = {
   type: "object",
@@ -273,36 +346,52 @@ const DECISION_SCHEMA = {
     dealTitle: { type: ["string", "null"] },
     dealNotes: { type: ["string", "null"] },
     estimatedAmount: { type: ["number", "null"], minimum: 0 },
+    brief: BRIEF_SCHEMA,
   },
-  required: ["action", "stage", "score", "message", "summary", "nextFollowUpHours", "needsHuman", "reason", "dealTitle", "dealNotes", "estimatedAmount"],
+  required: ["action", "stage", "score", "message", "summary", "nextFollowUpHours", "needsHuman", "reason", "dealTitle", "dealNotes", "estimatedAmount", "brief"],
   additionalProperties: false,
 };
 
 async function askModel({ mode, lead, messages = [] }) {
   if (!process.env.OPENAI_API_KEY) throw new Error("OPENAI_API_KEY не задан");
-  const instructions = `Ты AI sales manager студии Satori. Satori создаёт авторский свет, предметы интерьера, арт-объекты и индивидуальные/B2B проекты. Твоя цель — аккуратно довести релевантного лида до реальной сделки, а не любой ценой получить ответ.
+  const instructions = `Ты AI sales manager студии Satori. Satori создаёт авторский свет, предметы интерьера, арт-объекты и индивидуальные/B2B проекты. Твоя цель — аккуратно довести релевантного лида до реальной сделки и одновременно собрать достаточное техническое задание.
 
-Правила:
+Правила продаж:
 - Никогда не говори, что контакт найден парсером или у конкурента.
 - Не придумывай факты о человеке/компании и не утверждай, что изучил сайт, если в контексте нет данных.
 - Первое сообщение короткое, живое, без канцелярита и без давления.
 - Не обещай точную цену, срок, скидку или техническую возможность без подтверждения человека.
-- Квалифицируй мягко: что нужно, количество, размеры/формат, срок, ориентир по бюджету, город/доставка, брендинг/упаковка — спрашивай только то, что уместно в текущем сообщении, не анкетой.
 - Если клиент явно просит не писать или отказывает — action=stop, stage=lost, message пустая строка.
 - Если нужен нестандартный расчёт, юридическое обещание, конфликт, возврат, скидка, точная инженерная гарантия — needsHuman=true и action=human.
-- convert используй только когда есть явный коммерческий интерес и достаточно контекста для карточки сделки.
 - Отвечай на языке последнего сообщения клиента; если диалога ещё нет — на русском, если контекст явно не указывает другое.
-- Не пиши длиннее 600 символов без необходимости.`;
+- Не пиши длиннее 600 символов без необходимости.
+
+Правила сбора ТЗ:
+- Сохраняй в brief только то, что клиент реально сообщил или однозначно следует из контекста. Не выдумывай параметры.
+- Неизвестное поле возвращай пустой строкой. Уже известные данные есть в lead.brief — не спрашивай их повторно.
+- Собирай: изделие/задачу, количество, размеры, материалы, цвет/фактуру/покрытие, конструкцию/крепление, срок, бюджет, доставку/город, брендинг/логотип, упаковку. Ссылки на референсы складывай в references.
+- Для света дополнительно уточняй важные электрические/световые требования внутри construction или notes: тип света, температура, питание, диммирование, монтаж — только если это релевантно.
+- Для B2B/тиражей уточняй количество, повторяемость, брендинг, упаковку и логистику.
+- Не задавай анкету. В одном сообщении максимум 1–3 связанных вопроса. Сначала самое критичное для расчёта.
+- Если клиент отвечает сразу на несколько пунктов, сохрани все.
+- ТЗ считается готовым к расчёту, когда собрано минимум 8 из 11 основных параметров и обязательно известны: изделие, количество, размеры, материалы и срок.
+- action=convert разрешён только при явном коммерческом интересе и готовом ТЗ. До этого продолжай мягко собирать недостающие данные.
+- Когда ТЗ стало готовым, кратко перечисли ключевые параметры клиенту и попроси подтвердить, что всё верно. Не ставь confirmed=true самостоятельно — подтверждение хранится CRM отдельно.`;
 
   const input = {
     mode,
     lead: leadContext(lead),
     conversation: conversationText(messages),
+    briefGuide: {
+      fields: BRIEF_FIELDS,
+      coreRequired: BRIEF_CORE,
+      readyRule: "минимум 8/11 и заполнены item, quantity, dimensions, materials, deadline",
+    },
     task: mode === "initial"
-      ? "Оцени релевантность контакта и подготовь персонализированное первое сообщение."
+      ? "Оцени релевантность контакта и подготовь персонализированное первое сообщение. На первом холодном контакте не начинай с длинного сбора ТЗ."
       : mode === "followup"
-        ? "Подготовь ненавязчивый follow-up с новым смыслом, не повторяя предыдущее сообщение."
-        : "Проанализируй новое сообщение клиента, обнови стадию и реши следующий лучший шаг.",
+        ? "Подготовь ненавязчивый follow-up с новым смыслом, не повторяя предыдущее сообщение. Если уже есть интерес, уточни один-два наиболее важных пропущенных параметра ТЗ."
+        : "Проанализируй новое сообщение клиента, извлеки из него все параметры ТЗ, обнови brief и задай максимум 1–3 следующих уместных вопроса.",
   };
 
   const response = await fetch("https://api.openai.com/v1/responses", {
@@ -326,7 +415,7 @@ async function askModel({ mode, lead, messages = [] }) {
           schema: DECISION_SCHEMA,
         },
       },
-      max_output_tokens: 1200,
+      max_output_tokens: 1800,
     }),
   });
   const data = await response.json().catch(() => ({}));
@@ -348,6 +437,8 @@ function applyDecision(lead, decision) {
   lead.summary = text(decision.summary);
   lead.stage = text(decision.stage) || lead.stage;
   lead.draft = text(decision.message);
+  lead.brief = mergeBrief(lead.brief, decision.brief);
+  const bp = briefProgress(lead.brief);
   if (decision.needsHuman || decision.action === "human") lead.status = "human";
   if (decision.action === "stop" || decision.stage === "lost") {
     lead.status = "stopped";
@@ -358,7 +449,7 @@ function applyDecision(lead, decision) {
   if (number(decision.nextFollowUpHours) > 0) {
     lead.nextFollowUpAt = new Date(Date.now() + number(decision.nextFollowUpHours) * 3600_000).toISOString();
   }
-  addEvent(lead, "ai_decision", { action: decision.action, stage: decision.stage, reason: text(decision.reason), score: lead.score });
+  addEvent(lead, "ai_decision", { action: decision.action, stage: decision.stage, reason: text(decision.reason), score: lead.score, briefFilled: bp.filled, briefReady: bp.ready });
 }
 
 async function recordOutbound({ lead, channel, text: messageText, result }) {
@@ -479,9 +570,16 @@ async function sendFollowupAutomatically(lead, state) {
   return false;
 }
 
-async function maybeCreateDeal(lead, decision, createDeal) {
+async function maybeCreateDeal(lead, decision, createDeal, force = false) {
   if (lead.dealId || decision.action !== "convert") return;
   if (typeof createDeal !== "function") return;
+  const bp = briefProgress(lead.brief);
+  if (!force && !bp.ready) {
+    lead.status = "qualified";
+    lead.stage = "qualified";
+    addEvent(lead, "deal_blocked", { reason: "ТЗ недостаточно заполнено", briefFilled: bp.filled });
+    return;
+  }
   const deal = await createDeal({
     title: text(decision.dealTitle) || `${lead.company || lead.name || "Новый лид"} — AI lead`,
     clientName: lead.name,
@@ -491,6 +589,7 @@ async function maybeCreateDeal(lead, decision, createDeal) {
     telegram: lead.telegram,
     amount: number(decision.estimatedAmount),
     notes: [text(decision.dealNotes), lead.summary, `Источник: ${lead.source || "парсер"}${lead.competitor ? ` · ${lead.competitor}` : ""}`].filter(Boolean).join("\n"),
+    brief: normalizeBrief(lead.brief),
     sourceAiId: lead.id,
   });
   if (!deal) return;
@@ -498,9 +597,9 @@ async function maybeCreateDeal(lead, decision, createDeal) {
   lead.dealTitle = deal.title;
   lead.stage = "deal";
   lead.status = "deal";
-  addEvent(lead, "deal_created", { dealId: deal.id });
+  addEvent(lead, "deal_created", { dealId: deal.id, briefFilled: bp.filled });
   await patchParserContact(lead.runId, lead.contactId, { status: "deal", importedToCrm: true });
-  await sendOwnerTelegram(`🤖 AI-менеджер Satori создал сделку\n${deal.title}${lead.name ? `\nКонтакт: ${lead.name}` : ""}${lead.company ? ` · ${lead.company}` : ""}`);
+  await sendOwnerTelegram(`🤖 AI-менеджер Satori создал сделку\n${deal.title}${lead.name ? `\nКонтакт: ${lead.name}` : ""}${lead.company ? ` · ${lead.company}` : ""}\nТЗ: ${bp.filled}/${bp.total}`);
 }
 
 async function processInitial(lead, state) {
@@ -620,7 +719,7 @@ export function createAiSalesManager({ createDeal } = {}) {
       if (status && item.status !== status && item.stage !== status) return false;
       if (q && !`${item.name} ${item.company} ${item.role} ${item.competitor} ${item.summary}`.toLowerCase().includes(q)) return false;
       return true;
-    });
+    }).map((item) => ({ ...item, brief: normalizeBrief(item.brief), briefProgress: briefProgress(item.brief) }));
     res.json({ settings: publicSettings(state), stats: stats(state), contacts: contacts.sort((a, b) => String(b.updatedAt || b.createdAt).localeCompare(String(a.updatedAt || a.createdAt))) });
   });
 
@@ -646,8 +745,9 @@ export function createAiSalesManager({ createDeal } = {}) {
       if (req.body?.status !== undefined) lead.status = text(req.body.status);
       if (req.body?.draft !== undefined) lead.draft = text(req.body.draft);
       if (req.body?.nextFollowUpAt !== undefined) lead.nextFollowUpAt = req.body.nextFollowUpAt || null;
+      if (req.body?.brief && typeof req.body.brief === "object") lead.brief = mergeBrief(lead.brief, req.body.brief);
       addEvent(lead, "manual_update");
-      return lead;
+      return { ...lead, briefProgress: briefProgress(lead.brief) };
     });
     if (!updated) return res.status(404).json({ error: "Контакт AI-менеджера не найден" });
     res.json(updated);
@@ -691,7 +791,7 @@ export function createAiSalesManager({ createDeal } = {}) {
         dealNotes: text(req.body?.notes) || lead.summary,
         estimatedAmount: number(req.body?.amount),
       };
-      await maybeCreateDeal(lead, decision, createDeal);
+      await maybeCreateDeal(lead, decision, createDeal, true);
       output = lead;
       return lead;
     });
