@@ -1,9 +1,23 @@
 import { randomUUID } from "node:crypto";
-import { normalizePhone, normalizeTelegram } from "./integrations.js";
 
 const API_BASE = "https://api.wazzup24.com/v3";
 const CACHE_MS = Math.max(5000, Number(process.env.WAZZUP_CHANNEL_CACHE_MS || 60000));
 let channelCache = { at: 0, items: [] };
+
+function normalizePhone(value) {
+  let digits = String(value || "").replace(/\D/g, "");
+  if (digits.length === 11 && digits.startsWith("8")) digits = `7${digits.slice(1)}`;
+  return digits;
+}
+
+function normalizeTelegram(value) {
+  const raw = String(value || "").trim();
+  if (!raw) return "";
+  if (/^-?\d+$/.test(raw)) return raw;
+  const match = raw.match(/(?:https?:\/\/)?t\.me\/([A-Za-z0-9_]+)/i);
+  if (match) return `@${match[1]}`;
+  return raw.startsWith("@") ? raw : raw;
+}
 
 export function wazzupConfigured() {
   return Boolean(String(process.env.WAZZUP_API_KEY || "").trim());
