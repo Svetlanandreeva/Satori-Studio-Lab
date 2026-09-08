@@ -5,6 +5,7 @@ import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import { randomUUID } from "node:crypto";
 import { config as loadEnv } from "dotenv";
+import webpush from "web-push";
 import { login, requireAdmin } from "../server/auth.js";
 import { listOrders, updateOrder } from "../server/orders.js";
 import { listLeads } from "../server/leads.js";
@@ -16,16 +17,26 @@ const app = express();
 const PORT = Number(process.env.CRM_PORT || 3010);
 const DATA_DIR = path.join(__dirname, "data");
 const DATA_FILE = path.join(DATA_DIR, "crm.json");
+const PUSH_FILE = path.join(DATA_DIR, "push-subscriptions.json");
+const VAPID_FILE = path.join(DATA_DIR, "vapid.json");
 const PUBLIC_DIR = path.join(__dirname, "public");
+const BRAND_DIR = path.join(__dirname, "..", "public");
 const STAGES = ["Новый запрос", "Расчёт", "Согласовано", "В производстве", "Готово", "Доставка", "Завершено"];
+const PUSH_POLL_MS = Math.max(5000, Number(process.env.CRM_PUSH_POLL_MS || 10000));
 
 let writeQueue = Promise.resolve();
+let pushWriteQueue = Promise.resolve();
+let vapidKeys = null;
+let seenOrderIds = new Set();
+let seenLeadIds = new Set();
+let watcherReady = false;
 
 async function ensureData() {
   await mkdir(DATA_DIR, { recursive: true });
   if (!existsSync(DATA_FILE)) {
     await writeFile(DATA_FILE, JSON.stringify({ clients: [], deals: [], tasks: [], webOrderStages: {}, leadStages: {} }, null, 2), "utf-8");
   }
+  if (!existsSync(PUSH_FILE)) await writeFile(PUSH_FILE, "[]\n", "utf-8");
 }
 
 async function readCrm() {
@@ -50,6 +61,98 @@ function mutate(mutator) {
   };
   writeQueue = writeQueue.then(run, run);
   return writeQueue;
+}
+
+async function readSubscriptions() {
+  await ensureData();
+  const raw = await readFile(PUSH_FILE, "utf-8");
+  const data = raw.trim() ? JSON.parse(raw) : [];
+  return Array.isArray(data) ? data : [];
+}
+
+function mutateSubscriptions(mutator) {
+  const run = async () => {
+    const subscriptions = await readSubscriptions();
+    const result = await mutator(subscriptions);
+    await writeFile(PUSH_FILE, JSON.stringify(subscriptions, null, 2), "utf-8");
+    return result;
+  };
+  pushWriteQueue = pushWriteQueue.then(run, run);
+  return pushWriteQueue;
+}
+
+async function ensureVapid() {
+  if (vapidKeys) return vapidKeys;
+  await mkdir(DATA_DIR, { recursive: true });
+  if (existsSync(VAPID_FILE)) {
+    const raw = await readFile(VAPID_FILE, "utf-8");
+    vapidKeys = JSON.parse(raw);
+  } else {
+    vapidKeys = webpush.generateVAPIDKeys();
+    await writeFile(VAPID_FILE, JSON.stringify(vapidKeys, null, 2), "utf-8");
+  }
+  webpush.setVapidDetails(process.env.CRM_VAPID_SUBJECT || "https://satorilabural.ru", vapidKeys.publicKey, vapidKeys.privateKey);
+  return vapidKeys;
+}
+
+async function sendPush(payload) {
+  await ensureVapid();
+  const subscriptions = await readSubscriptions();
+  if (!subscriptions.length) return;
+  const stale = new Set();
+  await Promise.all(subscriptions.map(async (subscription) => {
+    try {
+      await webpush.sendNotification(subscription, JSON.stringify(payload), { TTL: 120 });
+    } catch (error) {
+      if (error?.statusCode === 404 || error?.statusCode === 410) stale.add(subscription.endpoint);
+      else console.error("CRM push failed:", error?.message || error);
+    }
+  }));
+  if (stale.size) await mutateSubscriptions((items) => {
+    const fresh = items.filter((item) => !stale.has(item.endpoint));
+    items.splice(0, items.length, ...fresh);
+    return true;
+  });
+}
+
+function orderPush(order) {
+  const itemNames = (order.items || []).map((item) => item.name).filter(Boolean).join(", ");
+  return {
+    title: "Новый заказ Satori",
+    body: `${order.customer?.name || "Клиент"}${itemNames ? ` · ${itemNames}` : ""}${order.amount ? ` · ${Number(order.amount).toLocaleString("ru-RU")} ₽` : ""}`,
+    tag: `order-${order.id}`,
+    url: "/",
+  };
+}
+
+function leadPush(lead) {
+  const kind = lead.type === "business" ? `B2B${lead.company ? ` · ${lead.company}` : ""}` : "Индивидуальный заказ";
+  return {
+    title: "Новая заявка Satori",
+    body: `${lead.name || "Новый клиент"} · ${kind}`,
+    tag: `lead-${lead.id}`,
+    url: "/",
+  };
+}
+
+async function pollSiteActivity() {
+  try {
+    const [orders, leads] = await Promise.all([listOrders(), listLeads()]);
+    if (!watcherReady) {
+      seenOrderIds = new Set(orders.map((item) => item.id));
+      seenLeadIds = new Set(leads.map((item) => item.id));
+      watcherReady = true;
+      return;
+    }
+    const newOrders = orders.filter((item) => !seenOrderIds.has(item.id));
+    const newLeads = leads.filter((item) => !seenLeadIds.has(item.id));
+    orders.forEach((item) => seenOrderIds.add(item.id));
+    leads.forEach((item) => seenLeadIds.add(item.id));
+    for (const order of newOrders) await sendPush(orderPush(order));
+    for (const lead of newLeads) await sendPush(leadPush(lead));
+  } catch (error) {
+    console.error("CRM site activity watcher failed:", error?.message || error);
+  }
 }
 
 const normalize = (value) => String(value || "").trim().toLowerCase();
@@ -91,7 +194,8 @@ function mapCrmStageToOrder(stage) {
 }
 
 app.use(express.json({ limit: "1mb" }));
-app.use(express.static(PUBLIC_DIR));
+app.use("/brand", express.static(BRAND_DIR, { maxAge: "7d" }));
+app.use(express.static(PUBLIC_DIR, { maxAge: "1h" }));
 
 app.post("/api/login", (req, res) => {
   try {
@@ -101,6 +205,43 @@ app.post("/api/login", (req, res) => {
   } catch (error) {
     res.status(500).json({ error: error.message || "Ошибка входа" });
   }
+});
+
+app.get("/api/push/public-key", requireAdmin, async (req, res) => {
+  try {
+    const keys = await ensureVapid();
+    res.json({ publicKey: keys.publicKey });
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ error: "Не удалось подготовить push" });
+  }
+});
+
+app.post("/api/push/subscribe", requireAdmin, async (req, res) => {
+  const subscription = req.body?.subscription;
+  if (!subscription?.endpoint || !subscription?.keys?.p256dh || !subscription?.keys?.auth) return res.status(400).json({ error: "Некорректная push-подписка" });
+  await mutateSubscriptions((items) => {
+    const idx = items.findIndex((item) => item.endpoint === subscription.endpoint);
+    if (idx >= 0) items[idx] = subscription;
+    else items.push(subscription);
+    return true;
+  });
+  res.json({ ok: true });
+});
+
+app.delete("/api/push/subscribe", requireAdmin, async (req, res) => {
+  const endpoint = String(req.body?.endpoint || "");
+  await mutateSubscriptions((items) => {
+    const fresh = items.filter((item) => item.endpoint !== endpoint);
+    items.splice(0, items.length, ...fresh);
+    return true;
+  });
+  res.json({ ok: true });
+});
+
+app.post("/api/push/test", requireAdmin, async (req, res) => {
+  await sendPush({ title: "Satori CRM", body: "Уведомления подключены. Новые заявки и заказы будут приходить сюда.", tag: "satori-crm-test", url: "/" });
+  res.json({ ok: true });
 });
 
 app.get("/api/bootstrap", requireAdmin, async (req, res) => {
@@ -239,6 +380,9 @@ app.delete("/api/tasks/:id", requireAdmin, async (req, res) => {
 app.get("/health", (req, res) => res.json({ ok: true, service: "satori-crm" }));
 app.get("/{*splat}", (req, res) => res.sendFile(path.join(PUBLIC_DIR, "index.html")));
 
-app.listen(PORT, () => {
+app.listen(PORT, async () => {
+  await ensureVapid();
+  await pollSiteActivity();
+  setInterval(pollSiteActivity, PUSH_POLL_MS).unref();
   console.log(`Satori CRM listening on http://localhost:${PORT}`);
 });
