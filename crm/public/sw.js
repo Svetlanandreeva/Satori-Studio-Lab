@@ -1,5 +1,5 @@
-const CACHE = "satori-crm-v4";
-const STATIC = ["/", "/styles.css", "/pwa.css", "/integrations.css", "/parser-history.css", "/app.js", "/pwa.js", "/integrations-ui.js", "/parser-history-ui.js", "/manifest.webmanifest", "/brand/favicon.svg"];
+const CACHE = "satori-crm-v5";
+const STATIC = ["/", "/styles.css", "/pwa.css", "/integrations.css", "/parser-history.css", "/ai-manager.css", "/app.js", "/pwa.js", "/integrations-ui.js", "/parser-history-ui.js", "/ai-manager-ui.js", "/manifest.webmanifest", "/brand/favicon.svg"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(STATIC)));
