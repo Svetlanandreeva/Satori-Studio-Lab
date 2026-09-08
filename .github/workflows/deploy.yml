@@ -12,7 +12,7 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
 
@@ -38,9 +38,7 @@ jobs:
       - name: Deploy frontend
         run: rsync -az --delete dist/ root@194.226.97.103:/var/www/satori/frontend/
 
-      # Backend: only sync code. Never touch data/ (live products, orders,
-      # leads, promocodes — edited through the admin panel, not git) or
-      # uploads/ (product photos) or .env (secrets, not in this repo).
+      # Backend: only sync code. Never touch live data/uploads/secrets.
       - name: Deploy backend
         run: |
           rsync -az \
@@ -52,6 +50,90 @@ jobs:
       - name: Restart backend service
         run: |
           ssh root@194.226.97.103 'set -eu; systemctl restart satori-backend; systemctl is-active --quiet satori-backend; curl --fail --silent --show-error --retry 10 --retry-connrefused --retry-delay 2 --max-time 10 -o /dev/null http://127.0.0.1:3001/api/products'
+
+      # CRM is deployed independently from the storefront. Preserve runtime
+      # JSON data and secrets; source code/static assets are mirrored exactly.
+      - name: Deploy CRM
+        run: |
+          ssh root@194.226.97.103 'mkdir -p /var/www/satori/crm'
+          rsync -az --delete \
+            --exclude 'data/' \
+            --exclude 'node_modules/' \
+            --exclude '.env' \
+            crm/ root@194.226.97.103:/var/www/satori/crm/
+
+      - name: Install CRM dependencies and restart service
+        run: |
+          ssh root@194.226.97.103 'bash -se' <<'REMOTE'
+          set -eu
+          cd /var/www/satori/crm
+          npm install --omit=dev --no-audit --no-fund
+
+          # CRM reads ../.env. Reuse the existing backend env only when a
+          # dedicated root env has not already been created.
+          if [ ! -e /var/www/satori/.env ] && [ -f /var/www/satori/backend/.env ]; then
+            ln -s /var/www/satori/backend/.env /var/www/satori/.env
+          fi
+
+          cat >/etc/systemd/system/satori-crm.service <<'UNIT'
+          [Unit]
+          Description=Satori CRM
+          After=network.target
+
+          [Service]
+          Type=simple
+          WorkingDirectory=/var/www/satori/crm
+          ExecStart=/usr/bin/node /var/www/satori/crm/start.js
+          Restart=always
+          RestartSec=3
+          Environment=NODE_ENV=production
+
+          [Install]
+          WantedBy=multi-user.target
+          UNIT
+
+          systemctl daemon-reload
+          systemctl enable satori-crm >/dev/null 2>&1 || true
+          systemctl restart satori-crm
+          systemctl is-active --quiet satori-crm
+          curl --fail --silent --show-error --retry 12 --retry-connrefused --retry-delay 2 --max-time 10 http://127.0.0.1:3010/health >/dev/null
+
+          # Validate the real authenticated bootstrap without printing secrets.
+          node --input-type=module <<'NODE'
+          import { config } from 'dotenv';
+          config({ path: '/var/www/satori/.env', quiet: true });
+          const password = process.env.ADMIN_PASSWORD;
+          if (!password) throw new Error('ADMIN_PASSWORD is missing for CRM');
+          const login = await fetch('http://127.0.0.1:3010/api/login', {
+            method: 'POST',
+            headers: { 'content-type': 'application/json' },
+            body: JSON.stringify({ password }),
+          });
+          if (!login.ok) throw new Error(`CRM login check failed: ${login.status}`);
+          const auth = await login.json();
+          if (!auth.token) throw new Error('CRM login did not return a token');
+          const response = await fetch('http://127.0.0.1:3010/api/bootstrap', {
+            headers: { authorization: `Bearer ${auth.token}` },
+          });
+          if (!response.ok) throw new Error(`CRM bootstrap failed: ${response.status}`);
+          const data = await response.json();
+          for (const key of ['stages', 'contacts', 'deals', 'tasks']) {
+            if (!Array.isArray(data[key])) throw new Error(`CRM bootstrap field ${key} is invalid`);
+          }
+          console.log(`CRM bootstrap OK: ${data.deals.length} deals, ${data.contacts.length} contacts`);
+          NODE
+          REMOTE
+
+      - name: Verify CRM HTTPS and static application
+        run: |
+          curl --fail --silent --show-error --retry 5 --retry-delay 2 --max-time 15 \
+            --resolve crm.satorilabural.online:443:194.226.97.103 \
+            https://crm.satorilabural.online/health -o crm-health.json
+          grep -q '"ok"' crm-health.json
+          curl --fail --silent --show-error --retry 5 --retry-delay 2 --max-time 15 \
+            --resolve crm.satorilabural.online:443:194.226.97.103 \
+            https://crm.satorilabural.online/app.js -o crm-app.js
+          grep -q 'const root' crm-app.js
 
       - name: Verify published version
         run: |
