@@ -1,0 +1,187 @@
+.admin-figma main.fa-crm-summary-mode > .fa-stats,
+.admin-figma main.fa-crm-summary-mode > .fa-toolbar,
+.admin-figma main.fa-crm-summary-mode > .fa-split,
+.admin-figma main.fa-crm-summary-mode > .fa-leads-split {
+  display: none !important;
+}
+
+.admin-figma main.fa-crm-summary-mode > .fa-page-head > button {
+  display: none !important;
+}
+
+.fa-crm-site-summary {
+  overflow: hidden;
+  padding: 0 !important;
+}
+
+.fa-crm-summary-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 18px 20px;
+  border-bottom: 1px solid rgba(17,16,15,.1);
+}
+
+.fa-crm-summary-head > div {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.fa-crm-summary-head span {
+  font-size: 10px;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  opacity: .55;
+}
+
+.fa-crm-summary-head b {
+  font-size: 15px;
+}
+
+.fa-crm-open-all,
+.fa-crm-row-open {
+  text-decoration: none;
+  color: inherit;
+}
+
+.fa-crm-open-all {
+  display: inline-flex;
+  align-items: center;
+  min-height: 38px;
+  padding: 0 14px;
+  border: 1px solid rgba(17,16,15,.18);
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.fa-crm-summary-table-wrap {
+  overflow-x: auto;
+}
+
+.fa-crm-summary-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.fa-crm-summary-table th,
+.fa-crm-summary-table td {
+  padding: 15px 18px;
+  text-align: left;
+  border-bottom: 1px solid rgba(17,16,15,.08);
+  white-space: nowrap;
+}
+
+.fa-crm-summary-table th {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: .11em;
+  opacity: .5;
+}
+
+.fa-crm-summary-table td {
+  font-size: 13px;
+}
+
+.fa-crm-summary-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.fa-crm-status {
+  display: inline-flex;
+  align-items: center;
+  min-height: 27px;
+  padding: 0 10px;
+  border-radius: 999px;
+  background: rgba(17,16,15,.06);
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.fa-crm-summary-table code,
+.fa-crm-number {
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 12px;
+}
+
+.fa-crm-row-open {
+  display: inline-flex;
+  min-height: 32px;
+  align-items: center;
+  padding: 0 11px;
+  border: 1px solid rgba(17,16,15,.15);
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 600;
+}
+
+.fa-crm-loading,
+.fa-crm-error,
+.fa-crm-empty {
+  padding: 28px 20px !important;
+  font-size: 13px;
+  opacity: .65;
+}
+
+@media (max-width: 760px) {
+  .fa-crm-summary-head {
+    align-items: flex-start;
+    padding: 16px;
+  }
+
+  .fa-crm-summary-table-wrap {
+    overflow: visible;
+  }
+
+  .fa-crm-summary-table,
+  .fa-crm-summary-table tbody,
+  .fa-crm-summary-table tr,
+  .fa-crm-summary-table td {
+    display: block;
+    width: 100%;
+  }
+
+  .fa-crm-summary-table thead {
+    display: none;
+  }
+
+  .fa-crm-summary-table tr {
+    padding: 14px 16px;
+    border-bottom: 1px solid rgba(17,16,15,.1);
+  }
+
+  .fa-crm-summary-table tr:last-child {
+    border-bottom: 0;
+  }
+
+  .fa-crm-summary-table td {
+    display: grid;
+    grid-template-columns: 105px minmax(0,1fr);
+    gap: 12px;
+    align-items: center;
+    padding: 7px 0;
+    border: 0;
+    white-space: normal;
+  }
+
+  .fa-crm-summary-table td[data-label]::before {
+    content: attr(data-label);
+    font-size: 10px;
+    letter-spacing: .08em;
+    text-transform: uppercase;
+    opacity: .5;
+  }
+
+  .fa-crm-summary-table td:last-child {
+    display: block;
+    padding-top: 10px;
+  }
+
+  .fa-crm-row-open {
+    width: 100%;
+    justify-content: center;
+    min-height: 42px;
+  }
+}
