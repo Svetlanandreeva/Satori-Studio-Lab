@@ -8,6 +8,7 @@ import "./styles/mobile-hero-width-fix.css";
 import "./styles/mobile-admin-link.css";
 import "./styles/admin-figma.css";
 import "./styles/admin-order-drawer.css";
+import "./styles/admin-crm-summary.css";
 import "./styles/page-transitions.css";
 import { startFeaturedSwitcher } from "./featuredSwitcher";
 import { startStorefrontEnhancements } from "./storefrontEnhancements";
@@ -20,6 +21,7 @@ import { startCheckoutAddressGuard } from "./checkoutAddressGuard";
 import { startRemoveQuickBuy } from "./removeQuickBuy";
 import { startAdminOrderDrawer } from "./adminOrderDrawer";
 import { startAdminOrderCounters } from "./adminOrderCounters";
+import { startAdminCrmSummary } from "./adminCrmSummary";
 import { startCoverSync } from "./coverSync";
 import { startMadeToOrderPresentation } from "./madeToOrderPresentation";
 
@@ -36,6 +38,7 @@ startAdminProductLinks();
 if (isAdmin) {
   startAdminOrderDrawer();
   startAdminOrderCounters();
+  startAdminCrmSummary();
 }
 
 if (!isAdmin) {
