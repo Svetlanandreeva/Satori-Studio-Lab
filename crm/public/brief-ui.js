@@ -14,9 +14,12 @@ const FIELDS = [
   ["branding", "Брендинг / логотип"],
   ["packaging", "Упаковка"],
 ];
+const CORE = ["item", "quantity", "dimensions", "materials", "deadline"];
 
 let lastDealId = "";
 let enhancing = false;
+let badgeLoading = false;
+let badgeLastAt = 0;
 
 function bEsc(value = "") {
   return String(value).replace(/[&<>"']/g, (ch) => ({ "&":"&amp;", "<":"&lt;", ">":"&gt;", '"':"&quot;", "'":"&#39;" })[ch]);
@@ -48,29 +51,40 @@ function normalizeBrief(value) {
   return brief;
 }
 
+function mergeBrief(primary, fallback) {
+  const brief = normalizeBrief(primary);
+  const other = normalizeBrief(fallback);
+  for (const [key] of FIELDS) if (!brief[key] && other[key]) brief[key] = other[key];
+  if (!brief.notes && other.notes) brief.notes = other.notes;
+  brief.references = [...new Set([...(brief.references || []), ...(other.references || [])])];
+  return brief;
+}
+
 function seedBrief(deal, aiLead) {
-  const brief = normalizeBrief(deal.brief);
-  const text = `${deal.notes || ""}\n${aiLead?.summary || ""}`;
+  let brief = mergeBrief(deal.brief, aiLead?.brief);
+  const sourceText = `${deal.notes || ""}\n${aiLead?.summary || ""}`;
   if (!brief.item) brief.item = deal.title || "";
   if (!brief.deadline && deal.deadline) brief.deadline = deal.deadline;
   if (!brief.quantity) {
-    const m = text.match(/(?:количеств[оа]|тираж|qty)[^\d]{0,12}(\d{1,5})/i) || text.match(/\b(\d{1,5})\s*(?:шт|штук)/i);
+    const m = sourceText.match(/(?:количеств[оа]|тираж|qty)[^\d]{0,12}(\d{1,5})/i) || sourceText.match(/\b(\d{1,5})\s*(?:шт|штук)/i);
     if (m) brief.quantity = `${m[1]} шт.`;
   }
   if (!brief.dimensions) {
-    const m = text.match(/\b\d{1,4}(?:[.,]\d+)?\s*[xх×*]\s*\d{1,4}(?:[.,]\d+)?(?:\s*[xх×*]\s*\d{1,4}(?:[.,]\d+)?)?\s*(?:мм|см|м)?\b/i);
+    const m = sourceText.match(/\b\d{1,4}(?:[.,]\d+)?\s*[xх×*]\s*\d{1,4}(?:[.,]\d+)?(?:\s*[xх×*]\s*\d{1,4}(?:[.,]\d+)?)?\s*(?:мм|см|м)?\b/i);
     if (m) brief.dimensions = m[0];
   }
   if (!brief.budget) {
-    const m = text.match(/(?:бюджет|до|около|ориентир)[^\d]{0,12}([\d\s]{3,})\s*(?:₽|руб|р\.)/i);
+    const m = sourceText.match(/(?:бюджет|до|около|ориентир)[^\d]{0,12}([\d\s]{3,})\s*(?:₽|руб|р\.)/i);
     if (m) brief.budget = `${m[1].replace(/\s+/g," ").trim()} ₽`;
   }
   return brief;
 }
 
 function progress(brief) {
-  const filled = FIELDS.filter(([key]) => String(brief[key] || "").trim()).length;
-  return { filled, total: FIELDS.length, pct: Math.round((filled / FIELDS.length) * 100), ready: filled >= 8 };
+  const normalized = normalizeBrief(brief);
+  const filled = FIELDS.filter(([key]) => normalized[key]).length;
+  const coreReady = CORE.every((key) => normalized[key]);
+  return { filled, total: FIELDS.length, pct: Math.round((filled / FIELDS.length) * 100), ready: filled >= 8 && coreReady };
 }
 
 function briefStatusHtml(brief) {
@@ -163,7 +177,10 @@ async function enhanceDealDialog(dialog) {
       try {
         const current = collect(section);
         await briefApi(`/api/deals/${encodeURIComponent(deal.id)}`, { method: "PATCH", body: JSON.stringify({ brief: current }) });
+        if (aiLead?.id) await briefApi(`/api/ai-manager/contacts/${encodeURIComponent(aiLead.id)}`, { method: "PATCH", body: JSON.stringify({ brief: current }) }).catch(() => {});
         eventToast(progress(current).ready ? "ТЗ сохранено — готово к расчёту" : "ТЗ сохранено");
+        badgeLastAt = 0;
+        decorateCards();
       } catch (error) { eventToast(error.message); }
       finally { button.disabled = false; }
     });
@@ -172,6 +189,30 @@ async function enhanceDealDialog(dialog) {
   } finally {
     enhancing = false;
   }
+}
+
+async function decorateCards() {
+  if (!briefToken() || badgeLoading || Date.now() - badgeLastAt < 1400 || !document.querySelector(".deal[data-deal-id]")) return;
+  badgeLoading = true;
+  badgeLastAt = Date.now();
+  try {
+    const payload = await briefApi("/api/bootstrap");
+    const byId = new Map((payload.deals || []).map((deal) => [deal.id, deal]));
+    document.querySelectorAll(".deal[data-deal-id]").forEach((card) => {
+      const deal = byId.get(card.dataset.dealId);
+      if (!deal) return;
+      const p = progress(deal.brief);
+      let badge = card.querySelector(".brief-card-badge");
+      if (!badge) {
+        badge = document.createElement("div");
+        badge.className = "brief-card-badge";
+        card.appendChild(badge);
+      }
+      badge.classList.toggle("ready", p.ready);
+      badge.textContent = p.ready ? `ТЗ ${p.filled}/${p.total} · Готово` : `ТЗ ${p.filled}/${p.total}`;
+    });
+  } catch {}
+  finally { badgeLoading = false; }
 }
 
 function eventToast(text) {
@@ -189,5 +230,8 @@ document.addEventListener("click", (event) => {
 
 const briefObserver = new MutationObserver(() => {
   document.querySelectorAll("dialog[open]").forEach((dialog) => enhanceDealDialog(dialog));
+  decorateCards();
 });
 briefObserver.observe(document.documentElement, { childList: true, subtree: true });
+setInterval(decorateCards, 3500);
+decorateCards();
