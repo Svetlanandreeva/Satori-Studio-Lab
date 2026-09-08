@@ -55,8 +55,12 @@ async function jsonRequest(url, options) {
   return data;
 }
 
+function whatsappApiReady() {
+  return Boolean(process.env.WHATSAPP_ACCESS_TOKEN && process.env.WHATSAPP_PHONE_NUMBER_ID);
+}
+
 export async function sendWhatsAppText({ to, text }) {
-  if (!process.env.WHATSAPP_ACCESS_TOKEN || !process.env.WHATSAPP_PHONE_NUMBER_ID) {
+  if (!whatsappApiReady()) {
     return { mode: "open", url: whatsappOpenUrl(to, text) };
   }
   const phone = normalizePhone(to);
@@ -73,6 +77,34 @@ export async function sendWhatsAppText({ to, text }) {
       to: phone,
       type: "text",
       text: { preview_url: false, body: String(text || "") },
+    }),
+  });
+  return { mode: "api", messageId: data?.messages?.[0]?.id || null };
+}
+
+export async function sendWhatsAppTemplate({ to, templateName, languageCode = "ru", parameters = [] }) {
+  if (!whatsappApiReady()) throw new Error("WhatsApp Cloud API не подключён на сервере");
+  const phone = normalizePhone(to);
+  if (!phone) throw new Error("У клиента не указан номер WhatsApp");
+  if (!templateName) throw new Error("Не задан WhatsApp template для первого контакта");
+  const bodyParameters = parameters.filter((value) => String(value || "").trim()).map((value) => ({ type: "text", text: String(value) }));
+  const template = {
+    name: templateName,
+    language: { code: languageCode },
+    ...(bodyParameters.length ? { components: [{ type: "body", parameters: bodyParameters }] } : {}),
+  };
+  const data = await jsonRequest(`https://graph.facebook.com/${graphVersion()}/${process.env.WHATSAPP_PHONE_NUMBER_ID}/messages`, {
+    method: "POST",
+    headers: {
+      Authorization: `Bearer ${process.env.WHATSAPP_ACCESS_TOKEN}`,
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      messaging_product: "whatsapp",
+      recipient_type: "individual",
+      to: phone,
+      type: "template",
+      template,
     }),
   });
   return { mode: "api", messageId: data?.messages?.[0]?.id || null };

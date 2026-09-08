@@ -16,7 +16,7 @@ async function ensureHistory() {
   if (!existsSync(HISTORY_FILE)) await writeFile(HISTORY_FILE, "[]\n", "utf-8");
 }
 
-async function readHistory() {
+export async function listParserRuns() {
   await ensureHistory();
   const raw = await readFile(HISTORY_FILE, "utf-8");
   const data = raw.trim() ? JSON.parse(raw) : [];
@@ -25,7 +25,7 @@ async function readHistory() {
 
 function mutateHistory(mutator) {
   const run = async () => {
-    const history = await readHistory();
+    const history = await listParserRuns();
     const result = await mutator(history);
     await writeFile(HISTORY_FILE, JSON.stringify(history, null, 2), "utf-8");
     return result;
@@ -65,13 +65,24 @@ function stats(history) {
   }, { runs: 0, found: 0, newContacts: 0, duplicates: 0, errors: 0, running: 0 });
 }
 
+export async function patchParserContact(runId, contactId, patch = {}) {
+  return mutateHistory((history) => {
+    const run = history.find((item) => item.id === runId);
+    const contact = run?.contacts?.find((item) => item.id === contactId);
+    if (!contact) return null;
+    if (patch.status !== undefined) contact.status = text(patch.status);
+    if (patch.importedToCrm !== undefined) contact.importedToCrm = Boolean(patch.importedToCrm);
+    return contact;
+  });
+}
+
 export function createParserHistoryRouter() {
   const router = Router();
   router.use(requireAdmin);
 
   router.get("/", async (req, res) => {
     try {
-      const history = await readHistory();
+      const history = await listParserRuns();
       const competitor = text(req.query.competitor).toLowerCase();
       const status = text(req.query.status);
       const filtered = history.filter((run) => {
@@ -169,14 +180,7 @@ export function createParserHistoryRouter() {
   });
 
   router.patch("/runs/:runId/contacts/:contactId", async (req, res) => {
-    const updated = await mutateHistory((history) => {
-      const run = history.find((item) => item.id === req.params.runId);
-      const contact = run?.contacts?.find((item) => item.id === req.params.contactId);
-      if (!contact) return null;
-      if (req.body?.status !== undefined) contact.status = text(req.body.status);
-      if (req.body?.importedToCrm !== undefined) contact.importedToCrm = Boolean(req.body.importedToCrm);
-      return contact;
-    });
+    const updated = await patchParserContact(req.params.runId, req.params.contactId, req.body || {});
     if (!updated) return res.status(404).json({ error: "Контакт не найден" });
     res.json(updated);
   });
