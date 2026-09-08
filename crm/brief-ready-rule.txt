@@ -1,1 +1,0 @@
-ready = filled >= 8 && item && quantity && dimensions && materials && deadline
