@@ -21,6 +21,14 @@ import {
   verifyWhatsAppWebhook,
   whatsappOpenUrl,
 } from "./integrations.js";
+import {
+  configureWazzupWebhook,
+  getWazzupStatus,
+  listWazzupChannels,
+  parseWazzupWebhook,
+  verifyWazzupWebhook,
+  wazzupConfigured,
+} from "./wazzup.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const DATA_DIR = path.join(__dirname, "data");
@@ -115,10 +123,32 @@ export function startIntegrationWatcher() {
   setInterval(pollForOwnerNotifications, POLL_MS).unref();
 }
 
+function wazzupWebhookUrl() {
+  let url = String(process.env.WAZZUP_WEBHOOK_URL || "").trim();
+  if (!url && process.env.CRM_PUBLIC_URL) {
+    url = `${String(process.env.CRM_PUBLIC_URL).replace(/\/$/, "")}/api/integrations/wazzup/webhook`;
+  }
+  const secret = String(process.env.WAZZUP_WEBHOOK_SECRET || "").trim();
+  if (url && secret && !/[?&]secret=/.test(url)) {
+    url += `${url.includes("?") ? "&" : "?"}secret=${encodeURIComponent(secret)}`;
+  }
+  return url;
+}
+
 export function createIntegrationsRouter() {
   const router = express.Router();
 
-  router.get("/status", requireAdmin, (req, res) => res.json(integrationStatus()));
+  router.get("/status", requireAdmin, async (req, res) => {
+    const status = integrationStatus();
+    if (wazzupConfigured()) {
+      try {
+        status.wazzup = { ...status.wazzup, ...(await getWazzupStatus()) };
+      } catch (error) {
+        status.wazzup = { ...status.wazzup, error: error?.message || "Не удалось проверить Wazzup" };
+      }
+    }
+    res.json(status);
+  });
 
   router.get("/history", requireAdmin, async (req, res) => {
     const items = await readCommunicationHistory();
@@ -151,14 +181,16 @@ export function createIntegrationsRouter() {
 
       await appendCommunicationHistory({
         channel,
+        provider: result.provider || (channel === "whatsapp" ? "meta" : "telegram-bot"),
         direction: "outbound",
         externalId: result.messageId || "",
-        to: recipient,
-        phone: channel === "whatsapp" ? recipient : "",
-        telegram: channel === "telegram" ? normalizeTelegram(telegram) : "",
+        to: result.chatId || recipient,
+        phone: channel === "whatsapp" ? normalizePhone(result.chatId || recipient) : "",
+        telegram: channel === "telegram" ? normalizeTelegram(telegram || result.chatId) : "",
         name,
         text,
         delivery: result.mode,
+        channelId: result.channelId || "",
         createdAt: new Date().toISOString(),
       });
       res.json({ ok: true, ...result });
@@ -176,6 +208,40 @@ export function createIntegrationsRouter() {
       res.json({ ok: true });
     } catch (error) {
       res.status(502).json({ error: error?.message || "Не удалось отправить тест" });
+    }
+  });
+
+  router.get("/wazzup/channels", requireAdmin, async (req, res) => {
+    try {
+      if (!wazzupConfigured()) return res.status(400).json({ error: "WAZZUP_API_KEY не задан" });
+      res.json(await listWazzupChannels({ force: true }));
+    } catch (error) {
+      res.status(502).json({ error: error?.message || "Не удалось получить каналы Wazzup" });
+    }
+  });
+
+  router.post("/wazzup/setup-webhook", requireAdmin, async (req, res) => {
+    try {
+      const url = String(req.body?.url || wazzupWebhookUrl()).trim();
+      if (!url) return res.status(400).json({ error: "Задайте WAZZUP_WEBHOOK_URL или CRM_PUBLIC_URL на сервере" });
+      await configureWazzupWebhook(url);
+      res.json({ ok: true, url });
+    } catch (error) {
+      res.status(502).json({ error: error?.message || "Не удалось подключить webhook Wazzup" });
+    }
+  });
+
+  router.post("/wazzup/webhook", async (req, res) => {
+    if (!verifyWazzupWebhook(req)) return res.sendStatus(403);
+    try {
+      if (req.body?.test === true) return res.sendStatus(200);
+      const messages = parseWazzupWebhook(req.body);
+      for (const message of messages) await appendCommunicationHistory(message);
+      res.sendStatus(200);
+    } catch (error) {
+      console.error("Wazzup webhook failed:", error?.message || error);
+      // Wazzup expects HTTP 200; keep webhook delivery from retrying forever.
+      res.sendStatus(200);
     }
   });
 

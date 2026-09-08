@@ -56,11 +56,15 @@ async function loadHistory(phone, telegram) {
 
 function historyHtml(items) {
   if (!items.length) return `<div class="channel-history-empty">Переписки через CRM пока нет.</div>`;
-  return items.slice(0, 12).map((item) => `<div class="channel-history-item ${item.direction === "outbound" ? "out" : "in"}">
-    <div><b>${item.channel === "whatsapp" ? "WhatsApp" : "Telegram"}</b><span>${item.direction === "outbound" ? "исходящее" : "входящее"}</span></div>
-    <p>${escapeHtml(item.text || "(сообщение без текста)")}</p>
-    <small>${item.createdAt ? new Date(item.createdAt).toLocaleString("ru-RU") : ""}</small>
-  </div>`).join("");
+  return items.slice(0, 12).map((item) => {
+    const base = item.channel === "whatsapp" ? "WhatsApp" : "Telegram";
+    const provider = item.provider === "wazzup" ? " · Wazzup" : "";
+    return `<div class="channel-history-item ${item.direction === "outbound" ? "out" : "in"}">
+      <div><b>${base}${provider}</b><span>${item.direction === "outbound" ? "исходящее" : "входящее"}</span></div>
+      <p>${escapeHtml(item.text || "(сообщение без текста)")}</p>
+      <small>${item.createdAt ? new Date(item.createdAt).toLocaleString("ru-RU") : ""}</small>
+    </div>`;
+  }).join("");
 }
 
 async function openComposer({ channel, name, phone, telegram }) {
@@ -102,7 +106,7 @@ async function openComposer({ channel, name, phone, telegram }) {
         }
         window.open(result.url, "_blank", "noopener,noreferrer");
       } else {
-        notify(`Сообщение отправлено в ${label}`);
+        notify(`Сообщение отправлено в ${label}${result.provider === "wazzup" ? " через Wazzup" : ""}`);
       }
       dialog.close();
     } catch (error) {
@@ -146,21 +150,42 @@ function enhanceClientDialog(dialog) {
   });
 }
 
+function wazzupChannelsHtml(wz) {
+  if (!wz?.configured) return `<small>Добавьте новый API-ключ Wazzup в <code>.env</code> на сервере.</small>`;
+  if (wz.error) return `<small>${escapeHtml(wz.error)}</small>`;
+  const channels = Array.isArray(wz.channels) ? wz.channels : [];
+  if (!channels.length) return `<small>Ключ подключён, но каналов пока не найдено.</small>`;
+  return `<small>${channels.map((item) => `${escapeHtml(item.transport)}: ${escapeHtml(item.plainId || item.channelId)} · ${escapeHtml(item.state)}`).join("<br>")}</small>`;
+}
+
 async function openIntegrationStatus() {
   let status;
   try { status = await channelApi("/api/integrations/status"); }
   catch (error) { return notify(error.message); }
+  const wz = status.wazzup || {};
   const wa = status.whatsapp;
   const tg = status.telegram;
   const dialog = openDialog(`
-    <div class="channel-head"><div><div class="channel-kicker">SATORI / CHANNELS</div><h2>Интеграции</h2><p>WhatsApp и Telegram</p></div><button data-channel-close>×</button></div>
+    <div class="channel-head"><div><div class="channel-kicker">SATORI / CHANNELS</div><h2>Интеграции</h2><p>Wazzup, WhatsApp и Telegram</p></div><button data-channel-close>×</button></div>
     <div class="channel-status-grid">
-      <section><div class="channel-status-icon">WA</div><div><b>WhatsApp</b><span>${wa.configured ? "Cloud API подключён" : "Переход в WhatsApp"}</span><small>${wa.configured ? `Meta Graph ${escapeHtml(wa.graphVersion)}` : "Для отправки прямо из CRM добавьте ключи Meta на сервер"}</small></div></section>
-      <section><div class="channel-status-icon">TG</div><div><b>Telegram</b><span>${tg.configured ? "Bot API подключён" : "Переход в Telegram"}</span><small>${tg.ownerNotifications ? "Уведомления владельцу включены" : "Уведомления владельцу пока не настроены"}</small></div></section>
+      <section><div class="channel-status-icon">WZ</div><div><b>Wazzup</b><span>${wz.configured ? `${Number(wz.active || 0)} активных каналов` : "Не подключён"}</span>${wazzupChannelsHtml(wz)}</div></section>
+      <section><div class="channel-status-icon">WA</div><div><b>WhatsApp</b><span>${wz.configured ? "Через Wazzup" : wa.configured ? "Cloud API подключён" : "Переход в WhatsApp"}</span><small>${wz.configured ? "Wazzup используется как основной транспорт" : wa.configured ? `Meta Graph ${escapeHtml(wa.graphVersion)}` : "Для прямой отправки добавьте ключи Meta"}</small></div></section>
+      <section><div class="channel-status-icon">TG</div><div><b>Telegram</b><span>${wz.configured ? "Через Wazzup при наличии канала" : tg.configured ? "Bot API подключён" : "Переход в Telegram"}</span><small>${tg.ownerNotifications ? "Служебные уведомления владельцу включены" : "Служебные уведомления владельцу пока не настроены"}</small></div></section>
     </div>
-    ${tg.ownerNotifications ? '<button class="secondary channel-test" id="test-owner-tg">Отправить тест в Telegram</button>' : ""}
-    <div class="channel-note">Токены хранятся только в <code>.env</code> на сервере и никогда не показываются в CRM.</div>
+    <div class="channel-send-actions">
+      ${wz.configured ? '<button class="primary" id="setup-wazzup-webhook">Подключить webhook Wazzup</button>' : ""}
+      ${tg.ownerNotifications ? '<button class="secondary" id="test-owner-tg">Тест Telegram</button>' : ""}
+    </div>
+    <div class="channel-note">Ключи хранятся только в <code>.env</code> на сервере и никогда не показываются в CRM. Входящие Wazzup попадают в историю клиента и доступны AI-менеджеру.</div>
   `);
+  dialog.querySelector("#setup-wazzup-webhook")?.addEventListener("click", async (event) => {
+    event.currentTarget.disabled = true;
+    try {
+      await channelApi("/api/integrations/wazzup/setup-webhook", { method: "POST", body: "{}" });
+      notify("Webhook Wazzup подключён");
+    } catch (error) { notify(error.message); }
+    finally { event.currentTarget.disabled = false; }
+  });
   dialog.querySelector("#test-owner-tg")?.addEventListener("click", async (event) => {
     event.currentTarget.disabled = true;
     try { await channelApi("/api/integrations/test-owner-telegram", { method: "POST", body: "{}" }); notify("Тест отправлен в Telegram"); }
