@@ -130,7 +130,7 @@ function summaryText(brief) {
 async function enhanceDealDialog(dialog) {
   if (enhancing || dialog.dataset.briefEnhanced || !lastDealId || !briefToken()) return;
   const form = dialog.querySelector("form#f");
-  if (!form) return;
+  if (!form || !form.querySelector('[name="clientName"]') || !form.querySelector('[name="stage"]')) return;
   enhancing = true;
   try {
     const [bootstrap, aiData] = await Promise.all([
