@@ -24,7 +24,7 @@ let writeQueue = Promise.resolve();
 async function ensureData() {
   await mkdir(DATA_DIR, { recursive: true });
   if (!existsSync(DATA_FILE)) {
-    await writeFile(DATA_FILE, JSON.stringify({ clients: [], deals: [], tasks: [], webOrderStages: {} }, null, 2), "utf-8");
+    await writeFile(DATA_FILE, JSON.stringify({ clients: [], deals: [], tasks: [], webOrderStages: {}, leadStages: {} }, null, 2), "utf-8");
   }
 }
 
@@ -37,16 +37,18 @@ async function readCrm() {
     deals: Array.isArray(data.deals) ? data.deals : [],
     tasks: Array.isArray(data.tasks) ? data.tasks : [],
     webOrderStages: data.webOrderStages && typeof data.webOrderStages === "object" ? data.webOrderStages : {},
+    leadStages: data.leadStages && typeof data.leadStages === "object" ? data.leadStages : {},
   };
 }
 
 function mutate(mutator) {
-  writeQueue = writeQueue.then(async () => {
+  const run = async () => {
     const data = await readCrm();
     const result = await mutator(data);
     await writeFile(DATA_FILE, JSON.stringify(data, null, 2), "utf-8");
     return result;
-  });
+  };
+  writeQueue = writeQueue.then(run, run);
   return writeQueue;
 }
 
@@ -120,7 +122,21 @@ app.get("/api/bootstrap", requireAdmin, async (req, res) => {
       createdAt: o.createdAt,
       trackingCode: o.trackingCode || "",
     }));
-    res.json({ stages: STAGES, contacts: inferredContacts(orders, leads, crm.clients), deals: [...crm.deals, ...webDeals], tasks: crm.tasks, stats: { webOrders: orders.length, leads: leads.length } });
+    const leadDeals = leads.map((l) => ({
+      id: `lead:${l.id}`,
+      source: "lead",
+      sourceId: l.id,
+      title: l.type === "business" ? `B2B: ${l.company || "новая заявка"}` : "Индивидуальный заказ",
+      clientName: l.name || l.company || "Новая заявка",
+      phone: l.phone || l.contact || "",
+      amount: 0,
+      paid: 0,
+      stage: crm.leadStages[l.id] || "Новый запрос",
+      deadline: "",
+      notes: l.idea || l.comment || [l.budget, l.inquiryType, l.volume].filter(Boolean).join(" · "),
+      createdAt: l.createdAt,
+    }));
+    res.json({ stages: STAGES, contacts: inferredContacts(orders, leads, crm.clients), deals: [...crm.deals, ...leadDeals, ...webDeals], tasks: crm.tasks, stats: { webOrders: orders.length, leads: leads.length } });
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: "Не удалось загрузить CRM" });
@@ -153,8 +169,16 @@ app.post("/api/deals", requireAdmin, async (req, res) => {
 });
 
 app.patch("/api/deals/:id", requireAdmin, async (req, res) => {
-  if (String(req.params.id).startsWith("web:")) {
-    const orderId = String(req.params.id).slice(4);
+  const dealId = String(req.params.id);
+  if (dealId.startsWith("lead:")) {
+    const leadId = dealId.slice(5);
+    if (!STAGES.includes(req.body?.stage)) return res.status(400).json({ error: "Некорректный этап" });
+    await mutate((data) => { data.leadStages[leadId] = req.body.stage; return true; });
+    return res.json({ ok: true });
+  }
+
+  if (dealId.startsWith("web:")) {
+    const orderId = dealId.slice(4);
     if (req.body?.stage !== undefined && !STAGES.includes(req.body.stage)) return res.status(400).json({ error: "Некорректный этап" });
     const patch = {};
     if (req.body?.stage !== undefined) {
@@ -168,7 +192,7 @@ app.patch("/api/deals/:id", requireAdmin, async (req, res) => {
   }
 
   const deal = await mutate((data) => {
-    const idx = data.deals.findIndex((item) => item.id === req.params.id);
+    const idx = data.deals.findIndex((item) => item.id === dealId);
     if (idx < 0) return null;
     const patch = { ...req.body };
     if (patch.amount !== undefined) patch.amount = Number(patch.amount || 0);
@@ -182,7 +206,7 @@ app.patch("/api/deals/:id", requireAdmin, async (req, res) => {
 });
 
 app.delete("/api/deals/:id", requireAdmin, async (req, res) => {
-  if (String(req.params.id).startsWith("web:")) return res.status(400).json({ error: "Заказы сайта удаляются только из основной админки" });
+  if (String(req.params.id).startsWith("web:") || String(req.params.id).startsWith("lead:")) return res.status(400).json({ error: "Системные заявки и заказы не удаляются из CRM" });
   const removed = await mutate((data) => { const before = data.deals.length; data.deals = data.deals.filter((item) => item.id !== req.params.id); return data.deals.length !== before; });
   if (!removed) return res.status(404).json({ error: "Сделка не найдена" });
   res.json({ ok: true });
