@@ -37,7 +37,7 @@ let watcherReady = false;
 async function ensureData() {
   await mkdir(DATA_DIR, { recursive: true });
   if (!existsSync(DATA_FILE)) {
-    await writeFile(DATA_FILE, JSON.stringify({ clients: [], deals: [], tasks: [], webOrderStages: {}, leadStages: {} }, null, 2), "utf-8");
+    await writeFile(DATA_FILE, JSON.stringify({ clients: [], deals: [], tasks: [], webOrderStages: {}, leadStages: {}, webOrderBriefs: {}, leadBriefs: {} }, null, 2), "utf-8");
   }
   if (!existsSync(PUSH_FILE)) await writeFile(PUSH_FILE, "[]\n", "utf-8");
 }
@@ -52,6 +52,8 @@ async function readCrm() {
     tasks: Array.isArray(data.tasks) ? data.tasks : [],
     webOrderStages: data.webOrderStages && typeof data.webOrderStages === "object" ? data.webOrderStages : {},
     leadStages: data.leadStages && typeof data.leadStages === "object" ? data.leadStages : {},
+    webOrderBriefs: data.webOrderBriefs && typeof data.webOrderBriefs === "object" ? data.webOrderBriefs : {},
+    leadBriefs: data.leadBriefs && typeof data.leadBriefs === "object" ? data.leadBriefs : {},
   };
 }
 
@@ -234,6 +236,7 @@ async function createAiDeal(input = {}) {
       stage: "Расчёт",
       deadline: "",
       notes: String(input.notes || "").trim(),
+      brief: input.brief && typeof input.brief === "object" ? input.brief : null,
       createdAt: now,
       updatedAt: now,
     };
@@ -314,6 +317,7 @@ app.get("/api/bootstrap", requireAdmin, async (req, res) => {
       stage: crm.webOrderStages[o.id] || mapOrderStage(o),
       deadline: "",
       notes: o.customer?.comment || "",
+      brief: crm.webOrderBriefs[o.id] || null,
       createdAt: o.createdAt,
       trackingCode: o.trackingCode || "",
     }));
@@ -329,6 +333,7 @@ app.get("/api/bootstrap", requireAdmin, async (req, res) => {
       stage: crm.leadStages[l.id] || "Новый запрос",
       deadline: "",
       notes: l.idea || l.comment || [l.budget, l.inquiryType, l.volume].filter(Boolean).join(" · "),
+      brief: crm.leadBriefs[l.id] || null,
       createdAt: l.createdAt,
     }));
     res.json({ stages: STAGES, contacts: inferredContacts(orders, leads, crm.clients), deals: [...crm.deals, ...leadDeals, ...webDeals], tasks: crm.tasks, stats: { webOrders: orders.length, leads: leads.length } });
@@ -358,7 +363,7 @@ app.patch("/api/clients/:id", requireAdmin, async (req, res) => {
 });
 
 app.post("/api/deals", requireAdmin, async (req, res) => {
-  const deal = { id: randomUUID(), source: "manual", title: String(req.body?.title || "Новый заказ").trim(), clientId: String(req.body?.clientId || ""), clientName: String(req.body?.clientName || "").trim(), amount: Number(req.body?.amount || 0), paid: Number(req.body?.paid || 0), stage: STAGES.includes(req.body?.stage) ? req.body.stage : STAGES[0], deadline: String(req.body?.deadline || ""), notes: String(req.body?.notes || "").trim(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+  const deal = { id: randomUUID(), source: "manual", title: String(req.body?.title || "Новый заказ").trim(), clientId: String(req.body?.clientId || ""), clientName: String(req.body?.clientName || "").trim(), amount: Number(req.body?.amount || 0), paid: Number(req.body?.paid || 0), stage: STAGES.includes(req.body?.stage) ? req.body.stage : STAGES[0], deadline: String(req.body?.deadline || ""), notes: String(req.body?.notes || "").trim(), brief: req.body?.brief && typeof req.body.brief === "object" ? req.body.brief : null, createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
   const saved = await mutate((data) => { data.deals.unshift(deal); return deal; });
   res.json(saved);
 });
@@ -367,8 +372,14 @@ app.patch("/api/deals/:id", requireAdmin, async (req, res) => {
   const dealId = String(req.params.id);
   if (dealId.startsWith("lead:")) {
     const leadId = dealId.slice(5);
-    if (!STAGES.includes(req.body?.stage)) return res.status(400).json({ error: "Некорректный этап" });
-    await mutate((data) => { data.leadStages[leadId] = req.body.stage; return true; });
+    if (req.body?.stage !== undefined && !STAGES.includes(req.body.stage)) return res.status(400).json({ error: "Некорректный этап" });
+    await mutate((data) => {
+      data.leadStages = data.leadStages || {};
+      data.leadBriefs = data.leadBriefs || {};
+      if (req.body?.stage !== undefined) data.leadStages[leadId] = req.body.stage;
+      if (req.body?.brief !== undefined) data.leadBriefs[leadId] = req.body.brief && typeof req.body.brief === "object" ? req.body.brief : null;
+      return true;
+    });
     return res.json({ ok: true });
   }
 
@@ -377,12 +388,17 @@ app.patch("/api/deals/:id", requireAdmin, async (req, res) => {
     if (req.body?.stage !== undefined && !STAGES.includes(req.body.stage)) return res.status(400).json({ error: "Некорректный этап" });
     const patch = {};
     if (req.body?.stage !== undefined) {
-      await mutate((data) => { data.webOrderStages[orderId] = req.body.stage; return true; });
+      await mutate((data) => { data.webOrderStages = data.webOrderStages || {}; data.webOrderStages[orderId] = req.body.stage; return true; });
       patch.fulfillmentStatus = mapCrmStageToOrder(req.body.stage);
     }
+    if (req.body?.brief !== undefined) {
+      await mutate((data) => { data.webOrderBriefs = data.webOrderBriefs || {}; data.webOrderBriefs[orderId] = req.body.brief && typeof req.body.brief === "object" ? req.body.brief : null; return true; });
+    }
     if (req.body?.trackingCode !== undefined) patch.trackingCode = String(req.body.trackingCode || "");
-    const updated = await updateOrder(orderId, patch);
-    if (!updated) return res.status(404).json({ error: "Заказ не найден" });
+    if (Object.keys(patch).length) {
+      const updated = await updateOrder(orderId, patch);
+      if (!updated) return res.status(404).json({ error: "Заказ не найден" });
+    }
     return res.json({ ok: true });
   }
 
@@ -393,6 +409,7 @@ app.patch("/api/deals/:id", requireAdmin, async (req, res) => {
     if (patch.amount !== undefined) patch.amount = Number(patch.amount || 0);
     if (patch.paid !== undefined) patch.paid = Number(patch.paid || 0);
     if (patch.stage !== undefined && !STAGES.includes(patch.stage)) delete patch.stage;
+    if (patch.brief !== undefined && (!patch.brief || typeof patch.brief !== "object")) patch.brief = null;
     data.deals[idx] = { ...data.deals[idx], ...patch, id: data.deals[idx].id, source: data.deals[idx].source || "manual", updatedAt: new Date().toISOString() };
     return data.deals[idx];
   });
