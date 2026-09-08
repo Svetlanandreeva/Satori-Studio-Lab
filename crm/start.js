@@ -1,2 +1,2 @@
 import "./adaptive-tone-bootstrap.js";
-import "./server.js";
+await import("./server.js");
