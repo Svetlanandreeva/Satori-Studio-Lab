@@ -1,4 +1,4 @@
-const CACHE = "satori-crm-v7";
+const CACHE = "satori-crm-v8";
 const STATIC = ["/", "/styles.css", "/pwa.css", "/integrations.css", "/parser-history.css", "/ai-manager.css", "/brief.css", "/source-link.css", "/app.js", "/pwa.js", "/integrations-ui.js", "/parser-history-ui.js", "/ai-manager-ui.js", "/brief-ui.js", "/source-link-ui.js", "/manifest.webmanifest", "/brand/favicon.svg"];
 
 self.addEventListener("install", (event) => {
