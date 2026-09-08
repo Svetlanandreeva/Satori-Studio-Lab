@@ -83,6 +83,16 @@ function contactKey(runId, contactId) {
   return `${runId}:${contactId}`;
 }
 
+function identityKey(contact = {}) {
+  const phone = normalizePhone(contact.phone);
+  if (phone) return `phone:${phone}`;
+  const telegram = normalizeTelegram(contact.telegram).toLowerCase();
+  if (telegram) return `telegram:${telegram}`;
+  const email = text(contact.email).toLowerCase();
+  if (email) return `email:${email}`;
+  return "";
+}
+
 function localParts(date = new Date()) {
   const parts = new Intl.DateTimeFormat("en-CA", {
     timeZone: TIMEZONE,
@@ -137,10 +147,14 @@ function publicSettings(state) {
 }
 
 function snapshot(run, contact) {
+  const previousStatus = text(contact.status).toLowerCase();
+  const isDeal = Boolean(contact.importedToCrm) || previousStatus === "deal";
+  const isStopped = ["stopped", "lost", "rejected"].includes(previousStatus);
   return {
     id: contactKey(run.id, contact.id),
     runId: run.id,
     contactId: contact.id,
+    aliases: [],
     competitor: text(run.competitor),
     source: text(run.source),
     sourceUrl: text(contact.sourceUrl || run.sourceUrl),
@@ -151,8 +165,8 @@ function snapshot(run, contact) {
     email: text(contact.email),
     telegram: text(contact.telegram),
     website: text(contact.website),
-    status: "new",
-    stage: "new",
+    status: isDeal ? "deal" : isStopped ? "stopped" : "new",
+    stage: isDeal ? "deal" : isStopped ? "lost" : "new",
     score: 0,
     summary: "",
     draft: "",
@@ -163,7 +177,7 @@ function snapshot(run, contact) {
     dealId: "",
     dealTitle: "",
     paused: false,
-    stopReason: "",
+    stopReason: isStopped ? "Контакт ранее остановлен" : "",
     events: [],
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
@@ -174,26 +188,38 @@ async function syncContacts() {
   const runs = await listParserRuns();
   await mutateState((state) => {
     const known = new Map(state.contacts.map((x) => [x.id, x]));
+    const identities = new Map(state.contacts.map((x) => [identityKey(x), x]).filter(([key]) => key));
     for (const run of runs) {
       for (const contact of run.contacts || []) {
         const id = contactKey(run.id, contact.id);
-        const existing = known.get(id);
+        let existing = known.get(id);
         if (!existing) {
+          const identity = identityKey(contact);
+          const duplicate = identity ? identities.get(identity) : null;
+          if (duplicate) {
+            duplicate.aliases = Array.isArray(duplicate.aliases) ? duplicate.aliases : [];
+            if (!duplicate.aliases.some((alias) => alias.runId === run.id && alias.contactId === contact.id)) {
+              duplicate.aliases.push({ runId: run.id, contactId: contact.id, competitor: text(run.competitor), source: text(run.source) });
+            }
+            duplicate.updatedAt = new Date().toISOString();
+            continue;
+          }
           const item = snapshot(run, contact);
           state.contacts.push(item);
           known.set(id, item);
-        } else {
-          existing.name = text(contact.name) || existing.name;
-          existing.role = text(contact.role) || existing.role;
-          existing.company = text(contact.company) || existing.company;
-          existing.phone = text(contact.phone) || existing.phone;
-          existing.email = text(contact.email) || existing.email;
-          existing.telegram = text(contact.telegram) || existing.telegram;
-          existing.website = text(contact.website) || existing.website;
-          existing.sourceUrl = text(contact.sourceUrl || run.sourceUrl) || existing.sourceUrl;
-          existing.competitor = text(run.competitor) || existing.competitor;
-          existing.source = text(run.source) || existing.source;
+          if (identity) identities.set(identity, item);
+          existing = item;
         }
+        existing.name = text(contact.name) || existing.name;
+        existing.role = text(contact.role) || existing.role;
+        existing.company = text(contact.company) || existing.company;
+        existing.phone = text(contact.phone) || existing.phone;
+        existing.email = text(contact.email) || existing.email;
+        existing.telegram = text(contact.telegram) || existing.telegram;
+        existing.website = text(contact.website) || existing.website;
+        existing.sourceUrl = text(contact.sourceUrl || run.sourceUrl) || existing.sourceUrl;
+        existing.competitor = text(run.competitor) || existing.competitor;
+        existing.source = text(run.source) || existing.source;
       }
     }
     return true;
