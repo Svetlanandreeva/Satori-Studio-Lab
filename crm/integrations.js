@@ -1,4 +1,6 @@
-const GRAPH_VERSION = process.env.WHATSAPP_GRAPH_VERSION || "v26.0";
+function graphVersion() {
+  return process.env.WHATSAPP_GRAPH_VERSION || "v26.0";
+}
 
 export function normalizePhone(value) {
   let digits = String(value || "").replace(/\D/g, "");
@@ -21,7 +23,7 @@ export function integrationStatus() {
     whatsapp: {
       configured: Boolean(process.env.WHATSAPP_ACCESS_TOKEN && process.env.WHATSAPP_PHONE_NUMBER_ID),
       webhookConfigured: Boolean(process.env.WHATSAPP_WEBHOOK_VERIFY_TOKEN),
-      graphVersion: GRAPH_VERSION,
+      graphVersion: graphVersion(),
     },
     telegram: {
       configured: Boolean(process.env.TELEGRAM_BOT_TOKEN),
@@ -59,7 +61,7 @@ export async function sendWhatsAppText({ to, text }) {
   }
   const phone = normalizePhone(to);
   if (!phone) throw new Error("У клиента не указан номер WhatsApp");
-  const data = await jsonRequest(`https://graph.facebook.com/${GRAPH_VERSION}/${process.env.WHATSAPP_PHONE_NUMBER_ID}/messages`, {
+  const data = await jsonRequest(`https://graph.facebook.com/${graphVersion()}/${process.env.WHATSAPP_PHONE_NUMBER_ID}/messages`, {
     method: "POST",
     headers: {
       Authorization: `Bearer ${process.env.WHATSAPP_ACCESS_TOKEN}`,
@@ -83,8 +85,11 @@ export async function sendTelegramText({ chatId, username, text }) {
   // Telegram bots cannot reliably initiate a private conversation by @username.
   // For usernames we open Telegram; once a numeric chat_id is known from a webhook,
   // CRM can send directly through the Bot API.
-  if (!process.env.TELEGRAM_BOT_TOKEN || !/^-?\d+$/.test(recipient)) {
+  if (!/^-?\d+$/.test(recipient)) {
     return { mode: "open", url: telegramOpenUrl(username || recipient) };
+  }
+  if (!process.env.TELEGRAM_BOT_TOKEN) {
+    throw new Error("Telegram Bot API ещё не подключён на сервере");
   }
 
   const data = await jsonRequest(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
