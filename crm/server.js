@@ -10,6 +10,7 @@ import { login, requireAdmin } from "../server/auth.js";
 import { listOrders, updateOrder } from "../server/orders.js";
 import { listLeads } from "../server/leads.js";
 import { createIntegrationsRouter, startIntegrationWatcher } from "./integrations-router.js";
+import { createParserHistoryRouter } from "./parser-history.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 loadEnv({ path: path.join(__dirname, "..", ".env"), quiet: true });
@@ -196,6 +197,7 @@ function mapCrmStageToOrder(stage) {
 
 app.use(express.json({ limit: "1mb" }));
 app.use("/api/integrations", createIntegrationsRouter());
+app.use("/api/parser-history", createParserHistoryRouter());
 app.use("/brand", express.static(BRAND_DIR, { maxAge: "7d" }));
 app.use(express.static(PUBLIC_DIR, { maxAge: "1h" }));
 
