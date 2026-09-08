@@ -9,6 +9,7 @@ import webpush from "web-push";
 import { login, requireAdmin } from "../server/auth.js";
 import { listOrders, updateOrder } from "../server/orders.js";
 import { listLeads } from "../server/leads.js";
+import { createIntegrationsRouter, startIntegrationWatcher } from "./integrations-router.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 loadEnv({ path: path.join(__dirname, "..", ".env"), quiet: true });
@@ -194,6 +195,7 @@ function mapCrmStageToOrder(stage) {
 }
 
 app.use(express.json({ limit: "1mb" }));
+app.use("/api/integrations", createIntegrationsRouter());
 app.use("/brand", express.static(BRAND_DIR, { maxAge: "7d" }));
 app.use(express.static(PUBLIC_DIR, { maxAge: "1h" }));
 
@@ -384,5 +386,6 @@ app.listen(PORT, async () => {
   await ensureVapid();
   await pollSiteActivity();
   setInterval(pollSiteActivity, PUSH_POLL_MS).unref();
+  startIntegrationWatcher();
   console.log(`Satori CRM listening on http://localhost:${PORT}`);
 });

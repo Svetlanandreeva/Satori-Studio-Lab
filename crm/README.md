@@ -15,7 +15,11 @@ CRM живёт в том же репозитории, что и сайт, но �
 - единый пароль с текущей админкой Satori (`ADMIN_PASSWORD`);
 - адаптивная мобильная версия с safe-area для iPhone;
 - установка CRM на экран телефона как PWA;
-- Web Push уведомления о новых заказах и заявках, даже когда CRM закрыта.
+- Web Push уведомления о новых заказах и заявках, даже когда CRM закрыта;
+- WhatsApp и Telegram в карточке клиента;
+- быстрые шаблоны сообщений и история отправок;
+- Telegram-уведомления владельцу о новых заказах/заявках;
+- входящие webhook endpoints WhatsApp и Telegram.
 
 ## Данные
 
@@ -28,7 +32,8 @@ CRM использует существующие данные сайта:
 
 - `crm.json` — клиенты, ручные проекты, задачи и этапы;
 - `push-subscriptions.json` — подписанные устройства;
-- `vapid.json` — серверная пара ключей Web Push.
+- `vapid.json` — серверная пара ключей Web Push;
+- `communications.json` — история сообщений WhatsApp/Telegram, обработанных CRM.
 
 Все JSON-файлы в `crm/data/` исключены из git. На сервере эту папку нужно включить в резервное копирование. Особенно важно не удалять `vapid.json`: при смене VAPID-ключей телефоны придётся подписывать на push заново.
 
@@ -41,7 +46,7 @@ npm install
 npm --prefix crm install
 ```
 
-CRM использует пакет `web-push` для стандартного Web Push без OneSignal/Firebase.
+CRM использует пакет `web-push` для стандартного Web Push без OneSignal/Firebase. Для WhatsApp и Telegram дополнительных npm-пакетов не требуется — используются официальные HTTPS API.
 
 ## Локальный запуск
 
@@ -91,6 +96,68 @@ CRM_VAPID_SUBJECT=https://satorilabural.ru
 
 `CRM_PUSH_POLL_MS` не может быть меньше 5000 мс.
 
+## WhatsApp
+
+Без API-ключей кнопка WhatsApp уже работает в карточке клиента: CRM открывает `wa.me` с подготовленным текстом. После подключения официального Meta WhatsApp Cloud API сообщение отправляется прямо из CRM.
+
+Переменные `.env`:
+
+```bash
+WHATSAPP_ACCESS_TOKEN=...
+WHATSAPP_PHONE_NUMBER_ID=...
+WHATSAPP_GRAPH_VERSION=v26.0
+WHATSAPP_WEBHOOK_VERIFY_TOKEN=придуманный_секрет
+```
+
+Webhook для Meta:
+
+```text
+https://crm.satorilabural.ru/api/integrations/whatsapp/webhook
+```
+
+GET этого адреса используется Meta для проверки webhook, POST — для входящих сообщений. Входящие сообщения сохраняются в `crm/data/communications.json`.
+
+Для production рекомендуется дополнительно задать и проверять подпись Meta App Secret на входящих webhook-запросах.
+
+## Telegram
+
+Без Bot API CRM может открыть чат клиента по `@username` / `t.me/...`. Если клиент уже написал нашему боту и CRM получила его числовой `chat_id` через webhook, следующие сообщения можно отправлять прямо из CRM.
+
+Переменные `.env`:
+
+```bash
+TELEGRAM_BOT_TOKEN=...
+TELEGRAM_OWNER_CHAT_ID=...
+TELEGRAM_WEBHOOK_SECRET=случайный_секрет
+```
+
+`TELEGRAM_OWNER_CHAT_ID` нужен для автоматических уведомлений владельцу о новых заказах и заявках.
+
+Webhook Telegram:
+
+```text
+https://crm.satorilabural.ru/api/integrations/telegram/webhook
+```
+
+При установке webhook через Telegram Bot API нужно передать тот же `TELEGRAM_WEBHOOK_SECRET` как `secret_token`, чтобы Telegram присылал заголовок `X-Telegram-Bot-Api-Secret-Token`.
+
+После настройки в CRM нажать «Связь» → «Отправить тест в Telegram».
+
+## Интерфейс сообщений
+
+В карточке клиента появляются две кнопки:
+
+- `WhatsApp` — сообщение или переход в чат;
+- `Telegram` — сообщение через бота, если известен `chat_id`, иначе переход в Telegram.
+
+Доступны шаблоны:
+
+- первичный ответ;
+- расчёт готов;
+- заказ готов.
+
+Все сообщения, отправленные через API или полученные webhook-ом, показываются в истории клиента.
+
 ## Сервер
 
 Рекомендуемая схема:
@@ -111,6 +178,8 @@ pm2 save
 
 ## Безопасность
 
-CRM не имеет публичного API рабочих данных: endpoints клиентов, проектов, задач и push-подписок защищены bearer-токеном после проверки `ADMIN_PASSWORD`. Сам пароль, VAPID-ключи и push-подписки в репозиторий добавлять нельзя.
+CRM не имеет публичного API рабочих данных: endpoints клиентов, проектов, задач, push-подписок и ручной отправки сообщений защищены bearer-токеном после проверки `ADMIN_PASSWORD`. Сам пароль, API-токены, VAPID-ключи и push-подписки в репозиторий добавлять нельзя.
+
+Публичными остаются только webhook endpoints, которые необходимы Meta/Telegram. WhatsApp использует verification token при подписке webhook; Telegram webhook проверяет `X-Telegram-Bot-Api-Secret-Token`, если задан `TELEGRAM_WEBHOOK_SECRET`.
 
 Для следующего этапа стоит заменить файловое хранение на PostgreSQL и добавить постоянные пользовательские сессии, если CRM начнут использовать несколько сотрудников.
