@@ -11,6 +11,7 @@ import { listOrders, updateOrder } from "../server/orders.js";
 import { listLeads } from "../server/leads.js";
 import { createIntegrationsRouter, startIntegrationWatcher } from "./integrations-router.js";
 import { createParserHistoryRouter } from "./parser-history.js";
+import { createAiSalesManager } from "./ai-sales-manager.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 loadEnv({ path: path.join(__dirname, "..", ".env"), quiet: true });
@@ -158,6 +159,7 @@ async function pollSiteActivity() {
 }
 
 const normalize = (value) => String(value || "").trim().toLowerCase();
+const normalizePhoneLocal = (value) => String(value || "").replace(/\D/g, "").replace(/^8(?=\d{10}$)/, "7");
 
 function inferredContacts(orders, leads, manualClients) {
   const map = new Map();
@@ -195,9 +197,57 @@ function mapCrmStageToOrder(stage) {
   return "Новый";
 }
 
+async function createAiDeal(input = {}) {
+  const now = new Date().toISOString();
+  return mutate((data) => {
+    const already = data.deals.find((deal) => deal.sourceAiId && deal.sourceAiId === input.sourceAiId);
+    if (already) return already;
+
+    const phone = normalizePhoneLocal(input.phone);
+    const email = normalize(input.email);
+    let client = data.clients.find((item) => (phone && normalizePhoneLocal(item.phone) === phone) || (email && normalize(item.email) === email));
+    if (!client) {
+      client = {
+        id: randomUUID(),
+        name: String(input.clientName || input.company || "AI lead").trim(),
+        company: String(input.company || "").trim(),
+        phone: String(input.phone || "").trim(),
+        email: String(input.email || "").trim(),
+        contact: String(input.telegram || "").trim(),
+        notes: "Создано AI-менеджером из контакта парсера",
+        source: "ai-parser",
+        createdAt: now,
+        lastActivity: now,
+      };
+      data.clients.unshift(client);
+    }
+
+    const deal = {
+      id: randomUUID(),
+      source: "ai-parser",
+      sourceAiId: String(input.sourceAiId || ""),
+      title: String(input.title || `${input.company || input.clientName || "AI lead"} — проект`).trim(),
+      clientId: client.id,
+      clientName: client.name,
+      amount: Number(input.amount || 0),
+      paid: 0,
+      stage: "Расчёт",
+      deadline: "",
+      notes: String(input.notes || "").trim(),
+      createdAt: now,
+      updatedAt: now,
+    };
+    data.deals.unshift(deal);
+    return deal;
+  });
+}
+
+const aiManager = createAiSalesManager({ createDeal: createAiDeal });
+
 app.use(express.json({ limit: "1mb" }));
 app.use("/api/integrations", createIntegrationsRouter());
 app.use("/api/parser-history", createParserHistoryRouter());
+app.use("/api/ai-manager", aiManager.router);
 app.use("/brand", express.static(BRAND_DIR, { maxAge: "7d" }));
 app.use(express.static(PUBLIC_DIR, { maxAge: "1h" }));
 
@@ -343,7 +393,7 @@ app.patch("/api/deals/:id", requireAdmin, async (req, res) => {
     if (patch.amount !== undefined) patch.amount = Number(patch.amount || 0);
     if (patch.paid !== undefined) patch.paid = Number(patch.paid || 0);
     if (patch.stage !== undefined && !STAGES.includes(patch.stage)) delete patch.stage;
-    data.deals[idx] = { ...data.deals[idx], ...patch, id: data.deals[idx].id, source: "manual", updatedAt: new Date().toISOString() };
+    data.deals[idx] = { ...data.deals[idx], ...patch, id: data.deals[idx].id, source: data.deals[idx].source || "manual", updatedAt: new Date().toISOString() };
     return data.deals[idx];
   });
   if (!deal) return res.status(404).json({ error: "Сделка не найдена" });
@@ -389,5 +439,6 @@ app.listen(PORT, async () => {
   await pollSiteActivity();
   setInterval(pollSiteActivity, PUSH_POLL_MS).unref();
   startIntegrationWatcher();
+  aiManager.start();
   console.log(`Satori CRM listening on http://localhost:${PORT}`);
 });
