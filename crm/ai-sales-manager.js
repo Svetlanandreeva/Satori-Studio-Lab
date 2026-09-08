@@ -37,6 +37,10 @@ let tickRunning = false;
 
 const STOP_RE = /(не\s*пишите|не\s*интересно|не\s*нужно|отпис|стоп|stop|unsubscribe|remove me|do not contact)/i;
 
+function whatsappApiReady() {
+  return Boolean(process.env.WHATSAPP_ACCESS_TOKEN && process.env.WHATSAPP_PHONE_NUMBER_ID);
+}
+
 async function ensureState() {
   await mkdir(DATA_DIR, { recursive: true });
   if (!existsSync(STATE_FILE)) {
@@ -127,8 +131,8 @@ function publicSettings(state) {
     businessHours: `${String(START_HOUR).padStart(2, "0")}:00–${String(END_HOUR).padStart(2, "0")}:00`,
     dailyLimit: DAILY_LIMIT,
     maxTouches: MAX_TOUCHES,
-    whatsappColdAuto: Boolean(OUTREACH_TEMPLATE),
-    whatsappFollowupAuto: Boolean(FOLLOWUP_TEMPLATE),
+    whatsappColdAuto: Boolean(OUTREACH_TEMPLATE && whatsappApiReady()),
+    whatsappFollowupAuto: Boolean(FOLLOWUP_TEMPLATE && whatsappApiReady()),
   };
 }
 
@@ -352,9 +356,10 @@ async function recordOutbound({ lead, channel, text: messageText, result }) {
 
 async function directChannel(lead) {
   const phone = normalizePhone(lead.phone);
-  if (phone) return { channel: "whatsapp", recipient: phone };
+  if (phone && whatsappApiReady()) return { channel: "whatsapp", recipient: phone };
   const chatId = text(lead.telegramChatId) || await resolveTelegramChatId(lead.telegram);
   if (chatId && /^-?\d+$/.test(chatId)) return { channel: "telegram", recipient: chatId };
+  if (phone) return { channel: "whatsapp", recipient: phone };
   return null;
 }
 
@@ -364,7 +369,7 @@ async function sendInitialAutomatically(lead, state) {
   if (state.usage.sent >= DAILY_LIMIT) return false;
 
   const phone = normalizePhone(lead.phone);
-  if (phone && OUTREACH_TEMPLATE) {
+  if (phone && OUTREACH_TEMPLATE && whatsappApiReady()) {
     const result = await sendWhatsAppTemplate({
       to: phone,
       templateName: OUTREACH_TEMPLATE,
@@ -384,6 +389,7 @@ async function sendInitialAutomatically(lead, state) {
   const channel = await directChannel(lead);
   if (channel?.channel === "telegram" && lead.draft) {
     const result = await sendTelegramText({ chatId: channel.recipient, text: lead.draft });
+    if (result.mode !== "api") return false;
     await recordOutbound({ lead, channel: "telegram", text: lead.draft, result });
     state.usage.sent += 1;
     lead.status = "contacted";
@@ -391,7 +397,7 @@ async function sendInitialAutomatically(lead, state) {
     lead.attempts += 1;
     lead.lastActionAt = new Date().toISOString();
     addEvent(lead, "sent", { channel: "telegram", mode: result.mode });
-    return result.mode === "api";
+    return true;
   }
   return false;
 }
@@ -419,7 +425,7 @@ async function sendFollowupAutomatically(lead, state) {
   resetUsage(state);
   if (state.usage.sent >= DAILY_LIMIT) return false;
   const phone = normalizePhone(lead.phone);
-  if (phone && FOLLOWUP_TEMPLATE) {
+  if (phone && FOLLOWUP_TEMPLATE && whatsappApiReady()) {
     const result = await sendWhatsAppTemplate({
       to: phone,
       templateName: FOLLOWUP_TEMPLATE,
@@ -485,7 +491,10 @@ async function processInitial(lead, state) {
   lead.status = "draft_ready";
   lead.stage = "prepared";
   const sent = await sendInitialAutomatically(lead, state);
-  if (!sent && lead.status !== "contacted") lead.status = "draft_ready";
+  if (!sent && lead.status !== "contacted") {
+    lead.status = "draft_ready";
+    lead.nextFollowUpAt = null;
+  }
   await patchParserContact(lead.runId, lead.contactId, { status: lead.status });
 }
 
@@ -525,6 +534,7 @@ async function processInbound(lead, state, allMessages, createDeal) {
 
 async function processFollowup(lead, state, allMessages) {
   if (lead.paused || lead.dealId || ["stopped", "lost", "human"].includes(lead.status)) return;
+  if (lead.attempts < 1) return;
   if (!lead.nextFollowUpAt || new Date(lead.nextFollowUpAt).getTime() > Date.now()) return;
   if (lead.attempts >= MAX_TOUCHES) {
     lead.status = "human";
@@ -552,7 +562,7 @@ async function tick(createDeal) {
     const allMessages = await readCommunicationHistory();
     await mutateState(async (state) => {
       resetUsage(state);
-      if (!state.settings.enabled) return false;
+      if (!state.settings.enabled || !process.env.OPENAI_API_KEY) return false;
       for (const lead of state.contacts) {
         try {
           await processInbound(lead, state, allMessages, createDeal);
