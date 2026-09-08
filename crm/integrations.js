@@ -68,6 +68,16 @@ function whatsappApiReady() {
   return Boolean(process.env.WHATSAPP_ACCESS_TOKEN && process.env.WHATSAPP_PHONE_NUMBER_ID);
 }
 
+async function sendTelegramBotDirect(chatId, text) {
+  if (!process.env.TELEGRAM_BOT_TOKEN) throw new Error("Telegram Bot API ещё не подключён на сервере");
+  const data = await jsonRequest(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ chat_id: String(chatId), text: String(text || "") }),
+  });
+  return { mode: "api", messageId: data?.result?.message_id || null, provider: "telegram-bot" };
+}
+
 export async function sendWhatsAppText({ to, text }) {
   const phone = normalizePhone(to);
   if (!phone) throw new Error("У клиента не указан номер WhatsApp");
@@ -129,36 +139,30 @@ export async function sendTelegramText({ chatId, username, text }) {
   if (!recipient) throw new Error("У клиента не указан Telegram");
 
   if (wazzupConfigured()) {
-    return sendWazzupText({
-      chatType: "telegram",
-      chatId: /^-?\d+$/.test(recipient) ? recipient : "",
-      username: /^-?\d+$/.test(recipient) ? "" : recipient,
-      text,
-      clearUnanswered: false,
-    });
+    try {
+      return await sendWazzupText({
+        chatType: "telegram",
+        chatId: /^-?\d+$/.test(recipient) ? recipient : "",
+        username: /^-?\d+$/.test(recipient) ? "" : recipient,
+        text,
+        clearUnanswered: false,
+      });
+    } catch (error) {
+      // If Wazzup has no Telegram channel, keep the existing direct fallback.
+      if (!process.env.TELEGRAM_BOT_TOKEN) throw error;
+    }
   }
 
   // Telegram bots cannot reliably initiate a private conversation by @username.
-  // For usernames we open Telegram; once a numeric chat_id is known from a webhook,
-  // CRM can send directly through the Bot API.
   if (!/^-?\d+$/.test(recipient)) {
     return { mode: "open", url: telegramOpenUrl(username || recipient) };
   }
-  if (!process.env.TELEGRAM_BOT_TOKEN) {
-    throw new Error("Telegram Bot API ещё не подключён на сервере");
-  }
-
-  const data = await jsonRequest(`https://api.telegram.org/bot${process.env.TELEGRAM_BOT_TOKEN}/sendMessage`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ chat_id: recipient, text: String(text || "") }),
-  });
-  return { mode: "api", messageId: data?.result?.message_id || null, provider: "telegram-bot" };
+  return sendTelegramBotDirect(recipient, text);
 }
 
 export async function sendOwnerTelegram(text) {
   if (!process.env.TELEGRAM_BOT_TOKEN || !process.env.TELEGRAM_OWNER_CHAT_ID) return { skipped: true };
-  return sendTelegramText({ chatId: process.env.TELEGRAM_OWNER_CHAT_ID, text });
+  return sendTelegramBotDirect(process.env.TELEGRAM_OWNER_CHAT_ID, text);
 }
 
 export function verifyWhatsAppWebhook(query) {
