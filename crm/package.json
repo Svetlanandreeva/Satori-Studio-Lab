@@ -3,7 +3,7 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "start": "node server.js"
+    "start": "node start.js"
   },
   "dependencies": {
     "dotenv": "^17.4.2",
