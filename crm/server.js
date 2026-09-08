@@ -24,7 +24,7 @@ let writeQueue = Promise.resolve();
 async function ensureData() {
   await mkdir(DATA_DIR, { recursive: true });
   if (!existsSync(DATA_FILE)) {
-    await writeFile(DATA_FILE, JSON.stringify({ clients: [], deals: [], tasks: [] }, null, 2), "utf-8");
+    await writeFile(DATA_FILE, JSON.stringify({ clients: [], deals: [], tasks: [], webOrderStages: {} }, null, 2), "utf-8");
   }
 }
 
@@ -36,6 +36,7 @@ async function readCrm() {
     clients: Array.isArray(data.clients) ? data.clients : [],
     deals: Array.isArray(data.deals) ? data.deals : [],
     tasks: Array.isArray(data.tasks) ? data.tasks : [],
+    webOrderStages: data.webOrderStages && typeof data.webOrderStages === "object" ? data.webOrderStages : {},
   };
 }
 
@@ -49,9 +50,7 @@ function mutate(mutator) {
   return writeQueue;
 }
 
-function normalize(value) {
-  return String(value || "").trim().toLowerCase();
-}
+const normalize = (value) => String(value || "").trim().toLowerCase();
 
 function inferredContacts(orders, leads, manualClients) {
   const map = new Map();
@@ -59,40 +58,22 @@ function inferredContacts(orders, leads, manualClients) {
     const key = normalize(contact.phone) || normalize(contact.email) || `${normalize(contact.name)}:${normalize(contact.company)}`;
     if (!key || key === ":") return;
     const prev = map.get(key) || {};
-    map.set(key, { ...prev, ...contact, id: prev.id || contact.id });
+    map.set(key, { ...prev, ...contact, id: contact.source === "manual" ? contact.id : (prev.id || contact.id) });
   };
 
-  manualClients.forEach((c) => put({ ...c, source: "manual" }));
   orders.forEach((o) => {
     const c = o.customer || {};
-    put({
-      id: `order:${o.id}`,
-      name: c.name || "Клиент сайта",
-      company: c.company || "",
-      phone: c.phone || "",
-      email: c.email || "",
-      contact: c.contactHandle || c.contact || "",
-      source: "order",
-      lastActivity: o.createdAt,
-    });
+    put({ id: `order:${o.id}`, name: c.name || "Клиент сайта", company: c.company || "", phone: c.phone || "", email: c.email || "", contact: c.contactHandle || c.contact || "", source: "order", lastActivity: o.createdAt });
   });
-  leads.forEach((l) => put({
-    id: `lead:${l.id}`,
-    name: l.name || "Заявка",
-    company: l.company || "",
-    phone: l.phone || "",
-    email: l.email || "",
-    contact: l.contact || "",
-    source: "lead",
-    lastActivity: l.createdAt,
-  }));
+  leads.forEach((l) => put({ id: `lead:${l.id}`, name: l.name || "Заявка", company: l.company || "", phone: l.phone || "", email: l.email || "", contact: l.contact || "", source: "lead", lastActivity: l.createdAt }));
+  manualClients.forEach((c) => put({ ...c, source: "manual" }));
 
   return [...map.values()].sort((a, b) => String(b.lastActivity || b.createdAt || "").localeCompare(String(a.lastActivity || a.createdAt || "")));
 }
 
 function mapOrderStage(order) {
   const status = order.fulfillmentStatus || "Новый";
-  if (status === "Выполнен") return "Завершено";
+  if (status === "Выполнен" || status === "Отменён") return "Завершено";
   if (status === "Отправлен") return "Доставка";
   if (status === "Собран") return "Готово";
   if (status === "В работе") return "В производстве";
@@ -133,22 +114,13 @@ app.get("/api/bootstrap", requireAdmin, async (req, res) => {
       amount: Number(o.amount || 0),
       paid: o.status === "paid" ? Number(o.amount || 0) : 0,
       paymentStatus: o.status,
-      stage: mapOrderStage(o),
+      stage: crm.webOrderStages[o.id] || mapOrderStage(o),
       deadline: "",
       notes: o.customer?.comment || "",
       createdAt: o.createdAt,
       trackingCode: o.trackingCode || "",
     }));
-    res.json({
-      stages: STAGES,
-      contacts: inferredContacts(orders, leads, crm.clients),
-      deals: [...crm.deals, ...webDeals],
-      tasks: crm.tasks,
-      stats: {
-        webOrders: orders.length,
-        leads: leads.length,
-      },
-    });
+    res.json({ stages: STAGES, contacts: inferredContacts(orders, leads, crm.clients), deals: [...crm.deals, ...webDeals], tasks: crm.tasks, stats: { webOrders: orders.length, leads: leads.length } });
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: "Не удалось загрузить CRM" });
@@ -157,17 +129,7 @@ app.get("/api/bootstrap", requireAdmin, async (req, res) => {
 
 app.post("/api/clients", requireAdmin, async (req, res) => {
   const now = new Date().toISOString();
-  const client = {
-    id: randomUUID(),
-    name: String(req.body?.name || "").trim(),
-    company: String(req.body?.company || "").trim(),
-    phone: String(req.body?.phone || "").trim(),
-    email: String(req.body?.email || "").trim(),
-    contact: String(req.body?.contact || "").trim(),
-    notes: String(req.body?.notes || "").trim(),
-    createdAt: now,
-    lastActivity: now,
-  };
+  const client = { id: randomUUID(), name: String(req.body?.name || "").trim(), company: String(req.body?.company || "").trim(), phone: String(req.body?.phone || "").trim(), email: String(req.body?.email || "").trim(), contact: String(req.body?.contact || "").trim(), notes: String(req.body?.notes || "").trim(), createdAt: now, lastActivity: now };
   if (!client.name) return res.status(400).json({ error: "Укажите имя клиента" });
   await mutate((data) => { data.clients.unshift(client); return client; });
   res.json(client);
@@ -185,20 +147,7 @@ app.patch("/api/clients/:id", requireAdmin, async (req, res) => {
 });
 
 app.post("/api/deals", requireAdmin, async (req, res) => {
-  const deal = {
-    id: randomUUID(),
-    source: "manual",
-    title: String(req.body?.title || "Новый заказ").trim(),
-    clientId: String(req.body?.clientId || ""),
-    clientName: String(req.body?.clientName || "").trim(),
-    amount: Number(req.body?.amount || 0),
-    paid: Number(req.body?.paid || 0),
-    stage: STAGES.includes(req.body?.stage) ? req.body.stage : STAGES[0],
-    deadline: String(req.body?.deadline || ""),
-    notes: String(req.body?.notes || "").trim(),
-    createdAt: new Date().toISOString(),
-    updatedAt: new Date().toISOString(),
-  };
+  const deal = { id: randomUUID(), source: "manual", title: String(req.body?.title || "Новый заказ").trim(), clientId: String(req.body?.clientId || ""), clientName: String(req.body?.clientName || "").trim(), amount: Number(req.body?.amount || 0), paid: Number(req.body?.paid || 0), stage: STAGES.includes(req.body?.stage) ? req.body.stage : STAGES[0], deadline: String(req.body?.deadline || ""), notes: String(req.body?.notes || "").trim(), createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
   const saved = await mutate((data) => { data.deals.unshift(deal); return deal; });
   res.json(saved);
 });
@@ -206,8 +155,12 @@ app.post("/api/deals", requireAdmin, async (req, res) => {
 app.patch("/api/deals/:id", requireAdmin, async (req, res) => {
   if (String(req.params.id).startsWith("web:")) {
     const orderId = String(req.params.id).slice(4);
+    if (req.body?.stage !== undefined && !STAGES.includes(req.body.stage)) return res.status(400).json({ error: "Некорректный этап" });
     const patch = {};
-    if (req.body?.stage !== undefined) patch.fulfillmentStatus = mapCrmStageToOrder(req.body.stage);
+    if (req.body?.stage !== undefined) {
+      await mutate((data) => { data.webOrderStages[orderId] = req.body.stage; return true; });
+      patch.fulfillmentStatus = mapCrmStageToOrder(req.body.stage);
+    }
     if (req.body?.trackingCode !== undefined) patch.trackingCode = String(req.body.trackingCode || "");
     const updated = await updateOrder(orderId, patch);
     if (!updated) return res.status(404).json({ error: "Заказ не найден" });
@@ -230,24 +183,13 @@ app.patch("/api/deals/:id", requireAdmin, async (req, res) => {
 
 app.delete("/api/deals/:id", requireAdmin, async (req, res) => {
   if (String(req.params.id).startsWith("web:")) return res.status(400).json({ error: "Заказы сайта удаляются только из основной админки" });
-  const removed = await mutate((data) => {
-    const before = data.deals.length;
-    data.deals = data.deals.filter((item) => item.id !== req.params.id);
-    return data.deals.length !== before;
-  });
+  const removed = await mutate((data) => { const before = data.deals.length; data.deals = data.deals.filter((item) => item.id !== req.params.id); return data.deals.length !== before; });
   if (!removed) return res.status(404).json({ error: "Сделка не найдена" });
   res.json({ ok: true });
 });
 
 app.post("/api/tasks", requireAdmin, async (req, res) => {
-  const task = {
-    id: randomUUID(),
-    title: String(req.body?.title || "").trim(),
-    due: String(req.body?.due || ""),
-    dealId: String(req.body?.dealId || ""),
-    done: false,
-    createdAt: new Date().toISOString(),
-  };
+  const task = { id: randomUUID(), title: String(req.body?.title || "").trim(), due: String(req.body?.due || ""), dealId: String(req.body?.dealId || ""), done: false, createdAt: new Date().toISOString() };
   if (!task.title) return res.status(400).json({ error: "Напишите задачу" });
   const saved = await mutate((data) => { data.tasks.unshift(task); return task; });
   res.json(saved);
@@ -265,17 +207,13 @@ app.patch("/api/tasks/:id", requireAdmin, async (req, res) => {
 });
 
 app.delete("/api/tasks/:id", requireAdmin, async (req, res) => {
-  const removed = await mutate((data) => {
-    const before = data.tasks.length;
-    data.tasks = data.tasks.filter((item) => item.id !== req.params.id);
-    return data.tasks.length !== before;
-  });
+  const removed = await mutate((data) => { const before = data.tasks.length; data.tasks = data.tasks.filter((item) => item.id !== req.params.id); return data.tasks.length !== before; });
   if (!removed) return res.status(404).json({ error: "Задача не найдена" });
   res.json({ ok: true });
 });
 
 app.get("/health", (req, res) => res.json({ ok: true, service: "satori-crm" }));
-app.get("*", (req, res) => res.sendFile(path.join(PUBLIC_DIR, "index.html")));
+app.get("/{*splat}", (req, res) => res.sendFile(path.join(PUBLIC_DIR, "index.html")));
 
 app.listen(PORT, () => {
   console.log(`Satori CRM listening on http://localhost:${PORT}`);
