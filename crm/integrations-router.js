@@ -37,16 +37,16 @@ async function ensureHistory() {
   if (!existsSync(HISTORY_FILE)) await writeFile(HISTORY_FILE, "[]\n", "utf-8");
 }
 
-async function readHistory() {
+export async function readCommunicationHistory() {
   await ensureHistory();
   const raw = await readFile(HISTORY_FILE, "utf-8");
   const data = raw.trim() ? JSON.parse(raw) : [];
   return Array.isArray(data) ? data : [];
 }
 
-function appendHistory(item) {
+export function appendCommunicationHistory(item) {
   const run = async () => {
-    const items = await readHistory();
+    const items = await readCommunicationHistory();
     const duplicate = item.externalId && items.some((x) => x.channel === item.channel && x.externalId === item.externalId);
     if (!duplicate) {
       items.unshift({ id: randomUUID(), ...item });
@@ -71,11 +71,11 @@ function matchHistory(items, { phone, telegram }) {
   });
 }
 
-async function resolveTelegramChatId(contact) {
+export async function resolveTelegramChatId(contact) {
   const normalized = normalizeTelegram(contact);
   if (/^-?\d+$/.test(normalized)) return normalized;
   if (!normalized) return "";
-  const items = await readHistory();
+  const items = await readCommunicationHistory();
   const found = items.find((item) => item.channel === "telegram" && item.direction === "inbound" && normalizeTelegram(item.username).toLowerCase() === normalized.toLowerCase() && /^-?\d+$/.test(String(item.from || "")));
   return found?.from || "";
 }
@@ -121,7 +121,7 @@ export function createIntegrationsRouter() {
   router.get("/status", requireAdmin, (req, res) => res.json(integrationStatus()));
 
   router.get("/history", requireAdmin, async (req, res) => {
-    const items = await readHistory();
+    const items = await readCommunicationHistory();
     res.json(matchHistory(items, { phone: req.query.phone, telegram: req.query.telegram }).slice(0, 50));
   });
 
@@ -149,7 +149,7 @@ export function createIntegrationsRouter() {
         return res.status(400).json({ error: "Неизвестный канал" });
       }
 
-      await appendHistory({
+      await appendCommunicationHistory({
         channel,
         direction: "outbound",
         externalId: result.messageId || "",
@@ -188,7 +188,7 @@ export function createIntegrationsRouter() {
   router.post("/whatsapp/webhook", async (req, res) => {
     try {
       const messages = parseWhatsAppWebhook(req.body);
-      for (const message of messages) await appendHistory({ ...message, phone: normalizePhone(message.from) });
+      for (const message of messages) await appendCommunicationHistory({ ...message, phone: normalizePhone(message.from) });
       res.sendStatus(200);
     } catch (error) {
       console.error("WhatsApp webhook failed:", error?.message || error);
@@ -200,7 +200,7 @@ export function createIntegrationsRouter() {
     if (!verifyTelegramWebhook(req.headers)) return res.sendStatus(403);
     try {
       const messages = parseTelegramWebhook(req.body);
-      for (const message of messages) await appendHistory({ ...message, telegram: message.username || message.from });
+      for (const message of messages) await appendCommunicationHistory({ ...message, telegram: message.username || message.from });
       res.sendStatus(200);
     } catch (error) {
       console.error("Telegram webhook failed:", error?.message || error);
