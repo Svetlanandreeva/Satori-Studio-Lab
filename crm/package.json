@@ -1,0 +1,13 @@
+{
+  "name": "satori-crm",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "dotenv": "^17.4.2",
+    "express": "^5.2.1",
+    "web-push": "3.6.7"
+  }
+}
