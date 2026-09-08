@@ -95,7 +95,14 @@ function ensureContainer(main: HTMLElement) {
   return container;
 }
 
+function rowsSignature(rows: SummaryRow[], page: "orders" | "leads") {
+  return `${page}:${rows.map((row) => [row.id, row.name, row.date, row.status, row.code, row.crmNumber].join("|")).join(";")}`;
+}
+
 function renderRows(container: HTMLElement, rows: SummaryRow[], page: "orders" | "leads") {
+  const signature = rowsSignature(rows, page);
+  if (container.dataset.signature === signature) return;
+  container.dataset.signature = signature;
   const noun = page === "orders" ? "Заказов" : "Заявок";
   container.innerHTML = `
     <div class="fa-crm-summary-head">
@@ -155,20 +162,25 @@ async function refresh(force = false) {
 
   main.classList.add("fa-crm-summary-mode");
   const subtitle = main.querySelector<HTMLElement>(".fa-page-head p");
-  if (subtitle) subtitle.textContent = "Работа по заявкам ведётся в Satori CRM. На сайте остаётся только служебная сводка.";
+  const subtitleText = "Работа по заявкам ведётся в Satori CRM. На сайте остаётся только служебная сводка.";
+  if (subtitle && subtitle.textContent !== subtitleText) subtitle.textContent = subtitleText;
   const container = ensureContainer(main);
 
   if (currentPage !== page) {
     currentPage = page;
     lastLoadedAt = 0;
     lastRows = [];
+    delete container.dataset.signature;
   }
 
   if (lastRows.length) renderRows(container, lastRows, page);
   if (loading || (!force && Date.now() - lastLoadedAt < 4000)) return;
 
   loading = true;
-  if (!lastRows.length) container.innerHTML = '<div class="fa-crm-loading">Загружаем данные CRM…</div>';
+  if (!lastRows.length) {
+    delete container.dataset.signature;
+    container.innerHTML = '<div class="fa-crm-loading">Загружаем данные CRM…</div>';
+  }
   try {
     const rows = await loadRows(page);
     if (getPage().page !== page) return;
@@ -176,6 +188,7 @@ async function refresh(force = false) {
     lastLoadedAt = Date.now();
     renderRows(container, rows, page);
   } catch (error) {
+    delete container.dataset.signature;
     container.innerHTML = `<div class="fa-crm-error">${esc(error instanceof Error ? error.message : "Ошибка загрузки")}</div>`;
   } finally {
     loading = false;
