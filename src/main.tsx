@@ -25,8 +25,11 @@ import { startAdminCrmSummary } from "./adminCrmSummary";
 import { startCoverSync } from "./coverSync";
 import { startMadeToOrderPresentation } from "./madeToOrderPresentation";
 import { startSeoEnhancements } from "./seoEnhancements";
+import { prepareSeoRoute, startSeoRoutes } from "./seoRoutes";
 
 const isAdmin = window.location.pathname.startsWith("/admin");
+if (!isAdmin) prepareSeoRoute();
+
 createRoot(document.getElementById("root")!).render(isAdmin ? <AdminFigmaApp /> : <App />);
 
 // Storefront enhancements also contain the admin controls for the three cards
@@ -50,5 +53,6 @@ if (!isAdmin) {
   startRemoveQuickBuy();
   startCoverSync();
   startMadeToOrderPresentation();
+  startSeoRoutes();
   startSeoEnhancements();
 }
