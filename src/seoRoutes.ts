@@ -112,19 +112,28 @@ function enhanceHero() {
 
   const buttonRow = collectionButton?.parentElement;
   if (buttonRow && !hero.querySelector("[data-satori-business-cta]")) {
+    // Keep the third CTA inside the same desktop row instead of forcing it to
+    // 100% width, which pushed it below the Hero crop. On small screens it can
+    // wrap naturally beneath the two main actions without changing Hero width.
+    buttonRow.style.alignItems = "center";
+    buttonRow.style.rowGap = "8px";
+
     const business = document.createElement("button");
     business.type = "button";
     business.dataset.satoriBusinessCta = "1";
     business.dataset.satoriRoute = "/business";
     business.textContent = "Для дизайнеров и бизнеса →";
-    business.style.width = "100%";
-    business.style.marginTop = "2px";
-    business.style.padding = "0";
+    business.style.width = "auto";
+    business.style.flex = "0 0 auto";
+    business.style.marginTop = "0";
+    business.style.padding = "10px 4px";
     business.style.border = "0";
     business.style.background = "transparent";
     business.style.color = "rgba(236,230,223,.82)";
     business.style.fontFamily = "Inter, sans-serif";
-    business.style.fontSize = "12px";
+    business.style.fontSize = "11px";
+    business.style.lineHeight = "1.2";
+    business.style.whiteSpace = "nowrap";
     business.style.textAlign = "left";
     business.style.cursor = "pointer";
     buttonRow.appendChild(business);
