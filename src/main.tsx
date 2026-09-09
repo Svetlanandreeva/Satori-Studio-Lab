@@ -18,7 +18,7 @@ import { startAdminPanelLayoutFix } from "./adminPanelLayoutFix";
 import { startAdminProductLinks } from "./adminProductLinks";
 import { startPageTransitions } from "./pageTransitions";
 import { startCheckoutAddressGuard } from "./checkoutAddressGuard";
-import { startRemoveQuickBuy } from "./removeQuickBuy";
+import { startStorefrontCleanup } from "./storefrontCleanup";
 import { startAdminOrderDrawer } from "./adminOrderDrawer";
 import { startAdminOrderCounters } from "./adminOrderCounters";
 import { startAdminCrmSummary } from "./adminCrmSummary";
@@ -32,8 +32,7 @@ if (!isAdmin) prepareSeoRoute();
 
 createRoot(document.getElementById("root")!).render(isAdmin ? <AdminFigmaApp /> : <App />);
 
-// Storefront enhancements also contain the admin controls for the three cards
-// directly below Hero. Inspiration controls are shared with the Figma admin home.
+// Shared storefront/admin enhancements for managed homepage media and covers.
 startStorefrontEnhancements();
 startInspirationCoverManager();
 startAdminPanelLayoutFix();
@@ -48,9 +47,9 @@ if (isAdmin) {
 if (!isAdmin) {
   startFeaturedSwitcher();
   startBrandCopyEnhancements();
+  startStorefrontCleanup();
   startPageTransitions();
   startCheckoutAddressGuard();
-  startRemoveQuickBuy();
   startCoverSync();
   startMadeToOrderPresentation();
   startSeoRoutes();
