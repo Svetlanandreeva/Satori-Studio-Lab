@@ -1,89 +1,144 @@
+<!DOCTYPE html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
 
-  <!DOCTYPE html>
-  <html lang="ru">
-    <head>
+    <!-- Preload the hero background photo (server/data/hero.json → /api/hero).
+         If someone changes the hero photo via the admin panel, update this
+         hash to match or the preload just wastes a request. -->
+    <link rel="preload" as="image" type="image/avif"
+          href="/uploads/33acce5b-c596-469c-8a25-ce50fee6ec36.jpeg?w=1600&fmt=avif"
+          imagesrcset="/uploads/33acce5b-c596-469c-8a25-ce50fee6ec36.jpeg?w=1280&fmt=avif 1280w,
+                       /uploads/33acce5b-c596-469c-8a25-ce50fee6ec36.jpeg?w=1600&fmt=avif 1600w"
+          imagesizes="100vw" fetchpriority="high">
 
-      <meta charset="UTF-8" />
-      <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>SATORI — светильники, декор и мебель на заказ</title>
+    <meta name="description" content="SATORI — интерьерная студия: авторские светильники, декор и мебель на заказ. Индивидуальный дизайн, производство в России и Китае, доставка по России." />
+    <meta name="robots" content="index,follow,max-image-preview:large,max-snippet:-1,max-video-preview:-1" />
+    <meta name="theme-color" content="#F0EAE2" />
+    <link rel="canonical" href="https://satorilabural.ru/" />
 
-      <!-- Preload the hero background photo (server/data/hero.json → /api/hero).
-           If someone changes the hero photo via the admin panel, update this
-           hash to match or the preload just wastes a request. Full-bleed at
-           w=1600 sizes="100vw" — matches the <Picture> call in HomePage's hero. -->
-      <link rel="preload" as="image" type="image/avif"
-            href="/uploads/33acce5b-c596-469c-8a25-ce50fee6ec36.jpeg?w=1600&fmt=avif"
-            imagesrcset="/uploads/33acce5b-c596-469c-8a25-ce50fee6ec36.jpeg?w=1280&fmt=avif 1280w,
-                         /uploads/33acce5b-c596-469c-8a25-ce50fee6ec36.jpeg?w=1600&fmt=avif 1600w"
-            imagesizes="100vw" fetchpriority="high">
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
+    <link rel="icon" href="/favicon.ico" sizes="any" />
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
 
-      <title>SATORI — предметы интерьера и авторский свет</title>
-      <meta name="description" content="SATORI — студия предметного дизайна и интерьерных объектов в Екатеринбурге: авторские светильники, декор, украшения и изделия на заказ. Собственное производство, доставка по России." />
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="SATORI" />
+    <meta property="og:title" content="SATORI — интерьерная студия и предметы на заказ" />
+    <meta property="og:description" content="Авторские светильники, декор, мебель и интерьерные объекты. Индивидуальный дизайн, производство в России и Китае, доставка по России." />
+    <meta property="og:image" content="https://satorilabural.ru/og-image.png" />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:image:alt" content="SATORI — студия предметного дизайна и интерьерных объектов" />
+    <meta property="og:url" content="https://satorilabural.ru/" />
+    <meta property="og:locale" content="ru_RU" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="SATORI — светильники, декор и мебель на заказ" />
+    <meta name="twitter:description" content="Интерьерная студия SATORI: авторские предметы, индивидуальный дизайн и производство под проект." />
+    <meta name="twitter:image" content="https://satorilabural.ru/og-image.png" />
 
-      <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
-      <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png" />
-      <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png" />
-      <link rel="icon" href="/favicon.ico" sizes="any" />
-      <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@graph": [
+        {
+          "@type": "Organization",
+          "@id": "https://satorilabural.ru/#organization",
+          "name": "SATORI LAB",
+          "url": "https://satorilabural.ru/",
+          "logo": "https://satorilabural.ru/og-image.png",
+          "email": "studiosatori@yandex.com",
+          "telephone": "+7 993 519-51-41",
+          "sameAs": [
+            "https://t.me/she_knows_s",
+            "https://instagram.com/_satori_studio_",
+            "https://vk.ru/satory_lab"
+          ]
+        },
+        {
+          "@type": "LocalBusiness",
+          "@id": "https://satorilabural.ru/#studio",
+          "name": "SATORI LAB",
+          "url": "https://satorilabural.ru/",
+          "image": "https://satorilabural.ru/og-image.png",
+          "description": "Студия предметного дизайна: авторские светильники, декор, мебель и интерьерные объекты на заказ. Индивидуальное производство в России и с фабриками в Китае.",
+          "email": "studiosatori@yandex.com",
+          "telephone": "+7 993 519-51-41",
+          "priceRange": "₽₽",
+          "address": {
+            "@type": "PostalAddress",
+            "addressLocality": "Екатеринбург",
+            "addressCountry": "RU"
+          },
+          "areaServed": {
+            "@type": "Country",
+            "name": "Россия"
+          },
+          "parentOrganization": {
+            "@id": "https://satorilabural.ru/#organization"
+          }
+        },
+        {
+          "@type": "WebSite",
+          "@id": "https://satorilabural.ru/#website",
+          "url": "https://satorilabural.ru/",
+          "name": "SATORI LAB",
+          "inLanguage": "ru-RU",
+          "publisher": {
+            "@id": "https://satorilabural.ru/#organization"
+          }
+        }
+      ]
+    }
+    </script>
 
-      <meta property="og:type" content="website" />
-      <meta property="og:site_name" content="Satori" />
-      <meta property="og:title" content="SATORI — студия предметного дизайна и интерьерных объектов" />
-      <meta property="og:description" content="Авторские светильники, декор, украшения и предметы для пространства. Собственное производство в Екатеринбурге, индивидуальные заказы и доставка по России." />
-      <meta property="og:image" content="https://satorilabural.ru/og-image.png" />
-      <meta property="og:image:width" content="1200" />
-      <meta property="og:image:height" content="630" />
-      <meta property="og:url" content="https://satorilabural.ru/" />
-      <meta property="og:locale" content="ru_RU" />
-      <meta name="twitter:card" content="summary_large_image" />
-      <meta name="twitter:title" content="SATORI — предметы интерьера и авторский свет" />
-      <meta name="twitter:description" content="Студия предметного дизайна: авторские светильники, декор, украшения и изделия на заказ из Екатеринбурга." />
-      <meta name="twitter:image" content="https://satorilabural.ru/og-image.png" />
+    <style>html, body { height: 100%; margin: 0; } #root { height: 100%; }</style>
 
-      <style>html, body { height: 100%; margin: 0; } #root { height: 100%; }</style>
-      <!-- dataLayer must exist before the Metrika tag reads ecommerce:"dataLayer" -->
-      <script type="text/javascript">
-          window.dataLayer = window.dataLayer || [];
-      </script>
-      <!-- Yandex.Metrika counter -->
-      <script type="text/javascript">
-          (function(m,e,t,r,i,k,a){
-              m[i]=m[i]||function(){(m[i].a=m[i].a||[]).push(arguments)};
-              m[i].l=1*new Date();
-              for (var j = 0; j < document.scripts.length; j++) {if (document.scripts[j].src === r) { return; }}
-              k=e.createElement(t),a=e.getElementsByTagName(t)[0],k.async=1,k.src=r,a.parentNode.insertBefore(k,a)
-          })(window, document,'script','https://mc.yandex.ru/metrika/tag.js?id=110458266', 'ym');
+    <!-- dataLayer must exist before the Metrika tag reads ecommerce:"dataLayer" -->
+    <script type="text/javascript">
+      window.dataLayer = window.dataLayer || [];
+    </script>
 
-          ym(110458266, 'init', {ssr:true, webvisor:true, clickmap:true, ecommerce:"dataLayer", referrer: document.referrer, url: location.href, accurateTrackBounce:true, trackLinks:true, trackHash:true});
-      </script>
-      <!-- /Yandex.Metrika counter -->
+    <!-- Yandex.Metrika counter -->
+    <script type="text/javascript">
+      (function(m,e,t,r,i,k,a){
+          m[i]=m[i]||function(){(m[i].a=m[i].a||[]).push(arguments)};
+          m[i].l=1*new Date();
+          for (var j = 0; j < document.scripts.length; j++) {if (document.scripts[j].src === r) { return; }}
+          k=e.createElement(t),a=e.getElementsByTagName(t)[0],k.async=1,k.src=r,a.parentNode.insertBefore(k,a)
+      })(window, document,'script','https://mc.yandex.ru/metrika/tag.js?id=110458266', 'ym');
 
-      <!-- Top.Mail.Ru counter (VK Реклама pixel) -->
-      <script type="text/javascript">
-          var _tmr = window._tmr || (window._tmr = []);
-          _tmr.push({id: "3786706", type: "pageView", start: (new Date()).getTime()});
-          (function (d, w, id) {
-          if (d.getElementById(id)) return;
-          var ts = d.createElement("script"); ts.type = "text/javascript"; ts.async = true; ts.id = id;
-          ts.src = "https://top-fwz1.mail.ru/js/code.js";
-          var f = function () {var s = d.getElementsByTagName("script")[0]; s.parentNode.insertBefore(ts, s);};
-          if (w.opera == "[object Opera]") { d.addEventListener("DOMContentLoaded", f, false); } else { f(); }
-          })(document, window, "tmr-code");
-      </script>
-      <!-- /Top.Mail.Ru counter -->
+      ym(110458266, 'init', {ssr:true, webvisor:true, clickmap:true, ecommerce:"dataLayer", referrer: document.referrer, url: location.href, accurateTrackBounce:true, trackLinks:true, trackHash:true});
+    </script>
+    <!-- /Yandex.Metrika counter -->
 
-      <!-- BotFaqtor anti-fraud counter -->
-      <script type="text/javascript">window._ab_id_=184489</script>
-      <script src="https://cdn.botfaqtor.ru/one.js" defer></script>
-      <!-- /BotFaqtor -->
+    <!-- Top.Mail.Ru counter (VK Реклама pixel) -->
+    <script type="text/javascript">
+      var _tmr = window._tmr || (window._tmr = []);
+      _tmr.push({id: "3786706", type: "pageView", start: (new Date()).getTime()});
+      (function (d, w, id) {
+      if (d.getElementById(id)) return;
+      var ts = d.createElement("script"); ts.type = "text/javascript"; ts.async = true; ts.id = id;
+      ts.src = "https://top-fwz1.mail.ru/js/code.js";
+      var f = function () {var s = d.getElementsByTagName("script")[0]; s.parentNode.insertBefore(ts, s);};
+      if (w.opera == "[object Opera]") { d.addEventListener("DOMContentLoaded", f, false); } else { f(); }
+      })(document, window, "tmr-code");
+    </script>
+    <!-- /Top.Mail.Ru counter -->
 
-    </head>
+    <!-- BotFaqtor anti-fraud counter -->
+    <script type="text/javascript">window._ab_id_=184489</script>
+    <script src="https://cdn.botfaqtor.ru/one.js" defer></script>
+    <!-- /BotFaqtor -->
+  </head>
 
-    <body>
-      <noscript><div><img src="https://mc.yandex.ru/watch/110458266" style="position:absolute; left:-9999px;" alt="" /></div></noscript>
-      <noscript><div><img src="https://top-fwz1.mail.ru/counter?id=3786706;js=na" style="position:absolute;left:-9999px;" alt="" /></div></noscript>
-      <div id="root"></div>
-      <script type="module" src="/src/main.tsx"></script>
-
-    </body>
-  </html>
-  
+  <body>
+    <noscript><div><img src="https://mc.yandex.ru/watch/110458266" style="position:absolute; left:-9999px;" alt="" /></div></noscript>
+    <noscript><div><img src="https://top-fwz1.mail.ru/counter?id=3786706;js=na" style="position:absolute;left:-9999px;" alt="" /></div></noscript>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
