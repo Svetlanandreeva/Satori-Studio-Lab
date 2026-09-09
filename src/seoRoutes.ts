@@ -99,7 +99,7 @@ function enhanceHero() {
     (button) => norm(button.textContent) === "Смотреть коллекцию",
   );
   const secondButton = Array.from(hero.querySelectorAll<HTMLButtonElement>("button")).find(
-    (button) => norm(button.textContent) === "Новинки",
+    (button) => norm(button.textContent) === "Новинки" || norm(button.textContent) === "Создать под заказ",
   );
 
   if (collectionButton) collectionButton.dataset.satoriRoute = "/catalog";
@@ -110,34 +110,10 @@ function enhanceHero() {
     secondButton.dataset.satoriRoute = "/custom";
   }
 
-  const buttonRow = collectionButton?.parentElement;
-  if (buttonRow && !hero.querySelector("[data-satori-business-cta]")) {
-    // Keep the third CTA inside the same desktop row instead of forcing it to
-    // 100% width, which pushed it below the Hero crop. On small screens it can
-    // wrap naturally beneath the two main actions without changing Hero width.
-    buttonRow.style.alignItems = "center";
-    buttonRow.style.rowGap = "8px";
-
-    const business = document.createElement("button");
-    business.type = "button";
-    business.dataset.satoriBusinessCta = "1";
-    business.dataset.satoriRoute = "/business";
-    business.textContent = "Для дизайнеров и бизнеса →";
-    business.style.width = "auto";
-    business.style.flex = "0 0 auto";
-    business.style.marginTop = "0";
-    business.style.padding = "10px 4px";
-    business.style.border = "0";
-    business.style.background = "transparent";
-    business.style.color = "rgba(236,230,223,.82)";
-    business.style.fontFamily = "Inter, sans-serif";
-    business.style.fontSize = "11px";
-    business.style.lineHeight = "1.2";
-    business.style.whiteSpace = "nowrap";
-    business.style.textAlign = "left";
-    business.style.cursor = "pointer";
-    buttonRow.appendChild(business);
-  }
+  // The main Hero intentionally has only two primary actions. A third business
+  // CTA previously wrapped below the row and was clipped by the Hero container.
+  // Business remains available in the main navigation and dedicated /business page.
+  hero.querySelectorAll<HTMLElement>("[data-satori-business-cta]").forEach((el) => el.remove());
 }
 
 function bindSemanticRoutes() {
@@ -151,7 +127,7 @@ function bindSemanticRoutes() {
     else if (text === "лимит. серия" || text === "лимитированная серия") route = ROUTES.limited;
     else if (text === "о студии") route = ROUTES.about;
     else if (text === "на заказ" || text === "обсудить объект" || text === "создать под заказ") route = ROUTES.custom;
-    else if (text === "бизнесу" || text === "для дизайнеров и бизнеса →") route = ROUTES.business;
+    else if (text === "бизнесу") route = ROUTES.business;
     else if (text === "faq") route = ROUTES.faq;
 
     if (!route) continue;
@@ -167,13 +143,12 @@ function handleNavigationClick(event: MouseEvent) {
   const route = target.dataset.satoriRoute;
   if (!route) return;
 
-  // The second Hero button used to open Catalog in React. Override that one
-  // click and delegate to the real "На заказ" navigation button instead.
-  if (target.dataset.satoriHeroCustom === "1" || target.dataset.satoriBusinessCta === "1") {
+  // The second Hero button used to open Catalog in React. Override that click
+  // and delegate to the real "На заказ" navigation button instead.
+  if (target.dataset.satoriHeroCustom === "1") {
     event.preventDefault();
     event.stopPropagation();
-    const labels = route === "/business" ? ROUTE_LABELS["/business"] : ROUTE_LABELS["/custom"];
-    const destination = findButton(labels);
+    const destination = findButton(ROUTE_LABELS["/custom"]);
     if (destination && destination !== target) destination.click();
     pushRoute(route);
     return;
