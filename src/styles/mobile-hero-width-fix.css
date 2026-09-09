@@ -3,8 +3,8 @@ a.fixed.bottom-6.right-6[href^="https://t.me/"] {
   display: none !important;
 }
 
-/* Mobile Hero: keep the same width as the cards below, make it full viewport height,
-   and keep the copy low but safely above the mobile browser toolbar. */
+/* Mobile Hero: same width as the cards below, but not taller than the usable screen.
+   Leave room for the site header and mobile browser chrome so the full copy + CTA stay visible. */
 @media (max-width: 767px) {
   #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(1) {
     width: 100% !important;
@@ -19,26 +19,26 @@ a.fixed.bottom-6.right-6[href^="https://t.me/"] {
   #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(1) > div {
     width: 100% !important;
     max-width: 100% !important;
-    min-height: 100svh !important;
-    height: 100svh !important;
+    min-height: 560px !important;
+    height: clamp(560px, calc(100svh - 150px), 740px) !important;
     margin-left: 0 !important;
     margin-right: 0 !important;
     border-radius: 30px !important;
     overflow: hidden !important;
   }
 
-  /* The original wrapper has h-full + justify-center. Override both so the copy
-     sits low, while the buttons remain fully visible above Safari's bottom bar. */
+  /* Anchor the content in the lower part of the hero, but high enough that both
+     CTA buttons are always visible above Safari/Chrome's bottom controls. */
   #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(1) > div > div.relative {
     position: absolute !important;
     left: 22px !important;
     right: 22px !important;
     top: auto !important;
-    bottom: calc(env(safe-area-inset-bottom, 0px) + 72px) !important;
+    bottom: calc(env(safe-area-inset-bottom, 0px) + 28px) !important;
     width: auto !important;
     height: auto !important;
     min-height: 0 !important;
-    max-height: none !important;
+    max-height: calc(100% - 110px) !important;
     padding: 0 !important;
     margin: 0 !important;
     transform: none !important;
