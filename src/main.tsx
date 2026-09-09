@@ -24,6 +24,7 @@ import { startAdminOrderCounters } from "./adminOrderCounters";
 import { startAdminCrmSummary } from "./adminCrmSummary";
 import { startCoverSync } from "./coverSync";
 import { startMadeToOrderPresentation } from "./madeToOrderPresentation";
+import { startSeoEnhancements } from "./seoEnhancements";
 
 const isAdmin = window.location.pathname.startsWith("/admin");
 createRoot(document.getElementById("root")!).render(isAdmin ? <AdminFigmaApp /> : <App />);
@@ -49,4 +50,5 @@ if (!isAdmin) {
   startRemoveQuickBuy();
   startCoverSync();
   startMadeToOrderPresentation();
+  startSeoEnhancements();
 }
