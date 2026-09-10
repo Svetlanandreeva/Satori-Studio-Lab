@@ -75,6 +75,13 @@ function satoriCommercePatches() {
 
   function navigate(p: Page) {`,
         )
+
+        if (!code.includes('const CATEGORIES = ["Декор", "Лампы", "Мебель", "Украшения"];')) {
+          throw new Error('SATORI build patch failed: storefront furniture category was not applied')
+        }
+        if (!code.includes('const cartHydrated = useRef(false);') || !code.includes('satori_cart_v1')) {
+          throw new Error('SATORI build patch failed: persistent cart was not applied')
+        }
       }
 
       if (file.endsWith('/src/AdminFigmaApp.tsx')) {
@@ -82,6 +89,9 @@ function satoriCommercePatches() {
           'const CATEGORIES = ["Декор", "Лампы", "Украшения"];',
           'const CATEGORIES = ["Декор", "Лампы", "Мебель", "Украшения"];',
         )
+        if (!code.includes('const CATEGORIES = ["Декор", "Лампы", "Мебель", "Украшения"];')) {
+          throw new Error('SATORI build patch failed: admin furniture category was not applied')
+        }
       }
 
       return code
