@@ -15,7 +15,7 @@ const ROUTE_LABELS: Record<string, string[]> = {
   "/custom": ["На заказ"],
   "/business": ["Бизнесу"],
   "/faq": ["FAQ"],
-  "/delivery": ["Доставка и оплата", "Доставка"],
+  "/delivery": ["Доставка и оплата", "Доставка", "Доставка и возврат"],
 };
 
 function norm(value: string | null | undefined) {
@@ -44,9 +44,9 @@ function pushRoute(path: string, replace = false) {
 }
 
 /**
- * Product pages historically used ?p=ID. Keep that query for App.tsx so the
- * existing product loader works, while exposing a clean /product/ID URL to
- * people and search engines.
+ * Product pages historically use ?p=ID internally. Add it before React mounts
+ * so old loading logic keeps working; once the product screen is rendered we
+ * remove only that internal query parameter from the visible address bar.
  */
 export function prepareSeoRoute() {
   const match = cleanPath().match(/^\/product\/(\d+)$/);
@@ -56,6 +56,22 @@ export function prepareSeoRoute() {
     params.set("p", match[1]);
     history.replaceState({}, "", `${cleanPath()}?${params.toString()}${window.location.hash}`);
   }
+}
+
+function cleanProductQueryWhenReady() {
+  const path = cleanPath();
+  if (!/^\/product\/\d+$/.test(path)) return;
+  const params = new URLSearchParams(window.location.search);
+  if (!params.has("p")) return;
+
+  const productReady = Array.from(document.querySelectorAll<HTMLButtonElement>("button")).some(
+    (button) => norm(button.textContent).toLowerCase() === "в корзину",
+  );
+  if (!productReady) return;
+
+  params.delete("p");
+  const query = params.toString();
+  history.replaceState({}, "", `${path}${query ? `?${query}` : ""}${window.location.hash}`);
 }
 
 function routeToCurrentPage() {
@@ -110,9 +126,7 @@ function enhanceHero() {
     secondButton.dataset.satoriRoute = "/custom";
   }
 
-  // The main Hero intentionally has only two primary actions. A third business
-  // CTA previously wrapped below the row and was clipped by the Hero container.
-  // Business remains available in the main navigation and dedicated /business page.
+  // Keep the Hero to two primary actions so the row stays stable at all widths.
   hero.querySelectorAll<HTMLElement>("[data-satori-business-cta]").forEach((el) => el.remove());
 }
 
@@ -129,6 +143,7 @@ function bindSemanticRoutes() {
     else if (text === "на заказ" || text === "обсудить объект" || text === "создать под заказ") route = ROUTES.custom;
     else if (text === "бизнесу") route = ROUTES.business;
     else if (text === "faq") route = ROUTES.faq;
+    else if (text === "доставка" || text === "доставка и возврат" || text === "доставка и оплата") route = ROUTES.delivery;
 
     if (!route) continue;
     button.dataset.satoriSemanticRouteBound = "1";
@@ -175,9 +190,11 @@ function addCrawlableSectionLinks() {
 
   const links: Array<[string, string]> = [
     ["Каталог", "/catalog"],
+    ["Лимитированная серия", "/limited"],
     ["На заказ", "/custom"],
     ["Для бизнеса", "/business"],
     ["О студии", "/about"],
+    ["Доставка и возврат", "/delivery"],
     ["FAQ", "/faq"],
   ];
   for (const [label, href] of links) {
@@ -191,13 +208,18 @@ function addCrawlableSectionLinks() {
   footer.appendChild(nav);
 }
 
+function scanSeoRoutes() {
+  enhanceHero();
+  bindSemanticRoutes();
+  addCrawlableSectionLinks();
+  cleanProductQueryWhenReady();
+}
+
 export function startSeoRoutes() {
   if (window.location.pathname.startsWith("/admin")) return;
 
   routeToCurrentPage();
-  enhanceHero();
-  bindSemanticRoutes();
-  addCrawlableSectionLinks();
+  scanSeoRoutes();
 
   document.addEventListener("click", handleNavigationClick, true);
 
@@ -207,9 +229,7 @@ export function startSeoRoutes() {
     scheduled = true;
     requestAnimationFrame(() => {
       scheduled = false;
-      enhanceHero();
-      bindSemanticRoutes();
-      addCrawlableSectionLinks();
+      scanSeoRoutes();
     });
   });
   const root = document.getElementById("root");
