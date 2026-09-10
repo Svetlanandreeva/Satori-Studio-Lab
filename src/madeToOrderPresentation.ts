@@ -36,6 +36,12 @@ function removeGridBanners() {
 }
 
 function currentProductId() {
+  const pathMatch = window.location.pathname.match(/^\/product\/(\d+)\/?$/);
+  if (pathMatch) {
+    const id = Number(pathMatch[1]);
+    return Number.isFinite(id) ? id : null;
+  }
+
   const raw = new URLSearchParams(window.location.search).get("p");
   if (!raw) return null;
   const id = Number(raw);
@@ -122,5 +128,6 @@ export function startMadeToOrderPresentation() {
   const observer = new MutationObserver(schedule);
   observer.observe(root, { childList: true, subtree: true });
   window.addEventListener("popstate", schedule);
+  window.addEventListener("satori-route-change", schedule);
   window.setTimeout(scan, 0);
 }
