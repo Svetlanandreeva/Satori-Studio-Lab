@@ -32,6 +32,9 @@ const LEGACY_COPY = new Map<string, string>([
   ],
 ]);
 
+const DELIVERY_OLD = "Стоимость доставки рассчитывается при оформлении заказа и зависит от региона и веса.";
+const DELIVERY_NEW = "Стоимость доставки рассчитывается отдельно после оформления заказа и зависит от региона, способа доставки и веса. Перед отправкой согласуем стоимость с вами.";
+
 function replaceLegacyCopy(root: ParentNode = document) {
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
   const nodes: Text[] = [];
@@ -43,8 +46,17 @@ function replaceLegacyCopy(root: ParentNode = document) {
   for (const textNode of nodes) {
     const raw = textNode.nodeValue;
     if (!raw) continue;
+
     const replacement = LEGACY_COPY.get(normalize(raw));
-    if (replacement) textNode.nodeValue = replacement;
+    if (replacement) {
+      textNode.nodeValue = replacement;
+      continue;
+    }
+
+    let updated = raw;
+    if (updated.includes(DELIVERY_OLD)) updated = updated.replace(DELIVERY_OLD, DELIVERY_NEW);
+    updated = updated.replace(/©\s*2024\s+Сатори/g, `© ${new Date().getFullYear()} Сатори`);
+    if (updated !== raw) textNode.nodeValue = updated;
   }
 }
 
