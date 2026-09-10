@@ -26,6 +26,7 @@ import { startCoverSync } from "./coverSync";
 import { startMadeToOrderPresentation } from "./madeToOrderPresentation";
 import { startSeoEnhancements } from "./seoEnhancements";
 import { prepareSeoRoute, startSeoRoutes } from "./seoRoutes";
+import { startMetrikaSpaTracking } from "./metrikaSpa";
 
 const isAdmin = window.location.pathname.startsWith("/admin");
 if (!isAdmin) prepareSeoRoute();
@@ -45,6 +46,7 @@ if (isAdmin) {
 }
 
 if (!isAdmin) {
+  startMetrikaSpaTracking();
   startFeaturedSwitcher();
   startBrandCopyEnhancements();
   startStorefrontCleanup();
