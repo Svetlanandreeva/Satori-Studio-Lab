@@ -3,6 +3,7 @@ import { existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { getProduct } from "./products.js";
+import { getPayment } from "./yookassa.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ORDERS_FILE = path.join(__dirname, "data", "orders.json");
@@ -108,6 +109,21 @@ async function canonicalizeItems(items) {
   return canonical;
 }
 
+async function verifyPaidTransition(order, patch) {
+  if (patch?.status !== "paid" || order?.status === "paid") return;
+  if (!order?.paymentId) throw new Error("Нельзя подтвердить оплату без paymentId");
+
+  const payment = await getPayment(order.paymentId);
+  const paymentAmount = Number(payment?.amount?.value);
+  const amountMatches = Number.isFinite(paymentAmount) && Math.abs(paymentAmount - Number(order.amount)) < 0.01;
+  const metadataMatches = String(payment?.metadata?.orderId || "") === String(order.id);
+  const currencyMatches = payment?.amount?.currency === "RUB";
+
+  if (payment?.status !== "succeeded" || !amountMatches || !metadataMatches || !currencyMatches) {
+    throw new Error("ЮKassa не подтвердила оплату этого заказа");
+  }
+}
+
 export async function listOrders() {
   return enrichOrders(await readOrders());
 }
@@ -171,6 +187,9 @@ export async function updateOrder(id, patch) {
     const orders = await readOrders();
     const idx = orders.findIndex((o) => o.id === id);
     if (idx === -1) return null;
+
+    await verifyPaidTransition(orders[idx], patch);
+
     orders[idx] = { ...orders[idx], ...patch, crmNumber: orders[idx].crmNumber || crmNumber(id) };
     await writeFile(ORDERS_FILE, JSON.stringify(orders, null, 2), "utf-8");
     return orders[idx];
