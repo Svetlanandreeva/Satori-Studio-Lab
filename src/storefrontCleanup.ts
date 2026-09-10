@@ -6,6 +6,14 @@ const LEGACY_COPY = new Map<string, string>([
     "«Сатори» — японское слово для мгновенного озарения. Каждое изделие: от 3D-модели в Nomad Sculpt до финишной обработки руками мастера.",
     "SATORI — студия предметного дизайна и интерьерных объектов. Создаём свет, декор, мебель и предметы для пространства, сочетая ручную работу, разные материалы и проверенное производство.",
   ],
+  [
+    "Студия началась с одного принтера и Nomad Sculpt на iPad. Хотелось создавать предметы с характером, историей, тактильностью.",
+    "Студия началась с желания создавать предметы с характером, историей и тактильностью — без привязки к одному материалу или технологии.",
+  ],
+  [
+    "Три года спустя принтер тот же — но опыта и отточенных процессов стало гораздо больше.",
+    "Сегодня мы работаем со своей мастерской и партнёрскими производствами в России и Китае, подбирая материал и технологию под конкретный объект.",
+  ],
   ["Концепция в Nomad Sculpt", "Идея и эскиз"],
   [
     "Органическое 3D-лепление на iPad — как настоящая скульптура, только цифровая.",
@@ -60,6 +68,26 @@ function replaceLegacyCopy(root: ParentNode = document) {
   }
 }
 
+function polishLegacyStats() {
+  document.querySelectorAll<HTMLElement>("p").forEach((label) => {
+    const text = normalize(label.textContent || "").toLowerCase();
+    if (text !== "принтер" && text !== "принтер в студии" && text !== "ручная работа") return;
+
+    const card = label.parentElement;
+    if (!card) return;
+    const lines = Array.from(card.querySelectorAll<HTMLElement>("p"));
+    if (lines.length < 2) return;
+
+    if (text === "принтер" || text === "принтер в студии") {
+      lines[0].textContent = "RU + CN";
+      lines[1].textContent = "производство и фабрики";
+    } else if (text === "ручная работа") {
+      lines[0].textContent = "под ключ";
+      lines[1].textContent = "от идеи до поставки";
+    }
+  });
+}
+
 function removeQuickBuy() {
   document.querySelectorAll<HTMLButtonElement>("button").forEach((button) => {
     if (normalize(button.textContent || "") === "Купить в 1 клик") button.remove();
@@ -103,6 +131,7 @@ function silenceLegacyHeroMediaWhenCarouselIsActive() {
 
 function scan() {
   replaceLegacyCopy();
+  polishLegacyStats();
   removeQuickBuy();
   removeBrandVideoLink();
   removeFloatingTelegram();
