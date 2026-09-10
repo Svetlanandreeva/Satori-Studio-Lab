@@ -2,6 +2,7 @@ import { readFile, writeFile } from "node:fs/promises";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import { getProduct } from "./products.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ORDERS_FILE = path.join(__dirname, "data", "orders.json");
@@ -60,10 +61,51 @@ function hasCompleteDeliveryAddress(customer) {
   const address = String(customer.address || "").trim();
   const parts = address.split(/[\s,]+/).filter(Boolean);
 
-  // The checkout used to accept any non-empty string, so values such as
-  // "Чита" passed validation. For courier/post delivery we need at least a
-  // meaningful street/address fragment and a house number.
+  // A city alone is not enough for courier/post delivery: require a meaningful
+  // street fragment plus a house number.
   return address.length >= 8 && parts.length >= 2 && /\d/.test(address);
+}
+
+function hasValidPhone(customer) {
+  const digits = String(customer?.phone || "").replace(/\D/g, "");
+  return digits.length >= 10 && digits.length <= 15;
+}
+
+function hasValidEmail(customer) {
+  const email = String(customer?.email || "").trim();
+  return !email || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
+}
+
+async function canonicalizeItems(items) {
+  if (!Array.isArray(items) || items.length === 0) {
+    throw new Error("Корзина пуста");
+  }
+  if (items.length > 30) {
+    throw new Error("Слишком много позиций в одном заказе");
+  }
+
+  const canonical = [];
+  for (const item of items) {
+    const id = Number(item?.id);
+    const qty = Number(item?.qty);
+    if (!Number.isInteger(id) || id <= 0 || !Number.isInteger(qty) || qty < 1 || qty > 99) {
+      throw new Error("Проверьте количество товаров в корзине");
+    }
+
+    const product = await getProduct(id);
+    if (!product) {
+      throw new Error("Один из товаров больше недоступен. Обновите корзину и попробуйте снова");
+    }
+
+    const currentPrice = Number(product.price);
+    const submittedPrice = Number(item?.price);
+    if (!Number.isFinite(currentPrice) || currentPrice < 0 || submittedPrice !== currentPrice) {
+      throw new Error(`Цена товара «${product.name}» изменилась. Обновите страницу перед оплатой`);
+    }
+
+    canonical.push({ id: product.id, name: product.name, price: currentPrice, qty });
+  }
+  return canonical;
 }
 
 export async function listOrders() {
@@ -85,10 +127,39 @@ export async function createOrder(order) {
   if (!hasCompleteDeliveryAddress(order?.customer)) {
     throw new Error("Укажите полный адрес доставки: город, улицу и номер дома");
   }
+  if (!hasValidPhone(order?.customer)) {
+    throw new Error("Проверьте номер телефона");
+  }
+  if (!hasValidEmail(order?.customer)) {
+    throw new Error("Проверьте адрес электронной почты");
+  }
+
+  const items = await canonicalizeItems(order?.items);
+  const canonicalSubtotal = items.reduce((sum, item) => sum + item.price * item.qty, 0);
+  const submittedSubtotal = Number(order?.subtotal);
+  const discount = Number(order?.discount || 0);
+  const amount = Number(order?.amount);
+
+  if (!Number.isFinite(submittedSubtotal) || submittedSubtotal !== canonicalSubtotal) {
+    throw new Error("Состав корзины изменился. Обновите страницу перед оплатой");
+  }
+  if (!Number.isFinite(discount) || discount < 0 || discount > canonicalSubtotal) {
+    throw new Error("Некорректная скидка в заказе");
+  }
+  if (!Number.isFinite(amount) || amount !== canonicalSubtotal - discount || amount < 0) {
+    throw new Error("Итоговая сумма заказа изменилась. Обновите страницу перед оплатой");
+  }
 
   return withWriteLock(async () => {
     const orders = await readOrders();
-    const linkedOrder = { ...order, crmNumber: order.crmNumber || crmNumber(order.id) };
+    const linkedOrder = {
+      ...order,
+      items,
+      subtotal: canonicalSubtotal,
+      amount,
+      discount,
+      crmNumber: order.crmNumber || crmNumber(order.id),
+    };
     orders.push(linkedOrder);
     await writeFile(ORDERS_FILE, JSON.stringify(orders, null, 2), "utf-8");
     return linkedOrder;
