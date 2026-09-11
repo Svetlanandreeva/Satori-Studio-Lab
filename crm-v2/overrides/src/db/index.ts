@@ -13,19 +13,9 @@ if (!fs.existsSync(dataDir)) {
 
 function createDatabase(): Database.Database {
   const db = new Database(DB_PATH, { timeout: 15000 });
-
-  try {
-    db.pragma("journal_mode = WAL");
-  } catch {}
-
-  try {
-    db.pragma("busy_timeout = 15000");
-  } catch {}
-
-  try {
-    db.pragma("foreign_keys = ON");
-  } catch {}
-
+  try { db.pragma("journal_mode = WAL"); } catch {}
+  try { db.pragma("busy_timeout = 15000"); } catch {}
+  try { db.pragma("foreign_keys = ON"); } catch {}
   return db;
 }
 
@@ -82,9 +72,7 @@ function initTables(db: Database.Database): void {
   ];
 
   for (const sql of tables) {
-    try {
-      db.exec(sql);
-    } catch {}
+    try { db.exec(sql); } catch {}
   }
 
   try {
@@ -99,10 +87,9 @@ function initTables(db: Database.Database): void {
 
 function seedDefaultStages(db: Database.Database): void {
   try {
-    const result = db
-      .prepare("SELECT COUNT(*) as count FROM pipeline_stages")
-      .get() as { count: number } | undefined;
-
+    const result = db.prepare("SELECT COUNT(*) as count FROM pipeline_stages").get() as
+      | { count: number }
+      | undefined;
     if (!result || result.count > 0) return;
 
     const defaultStages = [
@@ -119,7 +106,6 @@ function seedDefaultStages(db: Database.Database): void {
     const insert = db.prepare(
       `INSERT OR IGNORE INTO pipeline_stages (id, name, "order", color, is_won, is_lost) VALUES (?, ?, ?, ?, ?, ?)`
     );
-
     const seedAll = db.transaction(() => {
       for (const stage of defaultStages) {
         insert.run(
@@ -132,7 +118,6 @@ function seedDefaultStages(db: Database.Database): void {
         );
       }
     });
-
     seedAll();
   } catch {}
 }
@@ -185,9 +170,17 @@ function mergeDuplicateContacts(db: Database.Database): number {
           continue;
         }
 
-        const canonical = db
-          .prepare("SELECT * FROM contacts WHERE id = ?")
-          .get(canonicalId) as Record<string, unknown> | undefined;
+        const canonical = db.prepare(
+          "SELECT email, phone, company, notes, qualification FROM contacts WHERE id = ?"
+        ).get(canonicalId) as
+          | {
+              email: string | null;
+              phone: string | null;
+              company: string | null;
+              notes: string | null;
+              qualification: string | null;
+            }
+          | undefined;
         if (!canonical) continue;
 
         const mergedNotes = [canonical.notes, row.notes]
@@ -243,25 +236,37 @@ function removeExactDuplicateDeals(db: Database.Database): number {
          FROM deals
          ORDER BY created_at ASC, id ASC`
       )
-      .all() as Array<Record<string, unknown>>;
+      .all() as Array<{
+        id: string;
+        contact_id: string;
+        title: string;
+        value: number;
+        stage_id: string;
+        expected_close: number | null;
+        probability: number;
+        notes: string | null;
+        created_at: number;
+      }>;
 
     const seen = new Map<string, string>();
     let removed = 0;
     const transaction = db.transaction(() => {
       for (const row of rows) {
+        const legacyMarker = (row.notes || "").toLowerCase().includes("legacy");
+        const identityTimestamp = legacyMarker ? "legacy-import" : row.created_at;
         const key = JSON.stringify([
           row.contact_id,
           row.title,
           row.value,
           row.stage_id,
-          row.expected_close ?? null,
+          row.expected_close,
           row.probability,
-          row.notes ?? null,
-          row.created_at,
+          row.notes,
+          identityTimestamp,
         ]);
         const canonicalId = seen.get(key);
         if (!canonicalId) {
-          seen.set(key, String(row.id));
+          seen.set(key, row.id);
           continue;
         }
         db.prepare("UPDATE activities SET deal_id = ? WHERE deal_id = ?").run(canonicalId, row.id);
@@ -284,7 +289,7 @@ seedDefaultStages(sqlite);
 const mergedContacts = mergeDuplicateContacts(sqlite);
 const removedDeals = removeExactDuplicateDeals(sqlite);
 if (mergedContacts || removedDeals) {
-  console.log(`CRM dedupe: merged ${mergedContacts} contacts, removed ${removedDeals} exact duplicate deals`);
+  console.log(`CRM dedupe: merged ${mergedContacts} contacts, removed ${removedDeals} duplicate deals`);
 }
 
 export const db = drizzle(sqlite, { schema });
