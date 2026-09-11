@@ -20,7 +20,7 @@ function toast(text){
 }
 async function registration(){
   if(!("serviceWorker" in navigator)) return null;
-  await navigator.serviceWorker.register("/sw.js");
+  await navigator.serviceWorker.register("/sw.js?v=19");
   return navigator.serviceWorker.ready;
 }
 function base64Key(value){
@@ -76,26 +76,59 @@ async function enablePush(){
     toast("Уведомления включены");
   }catch(error){toast(error.message||"Не удалось включить уведомления");}
 }
+
+function ensureButton({id, text, className, onClick, prepend=true}){
+  const actions=document.querySelector(".actions");
+  if(!actions) return null;
+  let button=document.getElementById(id);
+  if(!button){
+    button=document.createElement("button");
+    button.type="button";
+    button.id=id;
+    button.addEventListener("click",onClick);
+    if(prepend) actions.prepend(button); else actions.appendChild(button);
+  }
+  if(button.className!==className) button.className=className;
+  if(button.textContent!==text) button.textContent=text;
+  return button;
+}
+
 function injectControls(){
   if(injecting) return;
   injecting=true;
   try{
     const actions=document.querySelector(".actions");
     if(!actions||!token()) return;
-    document.querySelector("#pwa-install")?.remove();
-    document.querySelector("#push-toggle")?.remove();
-    if(!isStandalone()){
-      const install=document.createElement("button");install.type="button";install.id="pwa-install";install.className="secondary pwa-action";install.textContent="＋ На экран";install.addEventListener("click",installApp);actions.prepend(install);
+
+    const install=document.getElementById("pwa-install");
+    if(isStandalone()) {
+      install?.remove();
+    } else {
+      ensureButton({id:"pwa-install",text:"＋ На экран",className:"secondary pwa-action",onClick:installApp});
     }
-    if(pushState!=="unsupported"){
-      const push=document.createElement("button");push.type="button";push.id="push-toggle";push.className=`secondary pwa-action ${pushState==="enabled"?"is-on":""}`;push.textContent=pushLabel();push.addEventListener("click",enablePush);actions.prepend(push);
+
+    const push=document.getElementById("push-toggle");
+    if(pushState==="unsupported") {
+      push?.remove();
+    } else {
+      ensureButton({
+        id:"push-toggle",
+        text:pushLabel(),
+        className:`secondary pwa-action ${pushState==="enabled"?"is-on":""}`.trim(),
+        onClick:enablePush,
+      });
     }
   }finally{injecting=false;}
 }
 
 window.addEventListener("beforeinstallprompt",event=>{event.preventDefault();deferredInstallPrompt=event;injectControls();});
 window.addEventListener("appinstalled",()=>{deferredInstallPrompt=null;injectControls();});
-const observer=new MutationObserver(()=>injectControls());
-observer.observe(document.querySelector("#app"),{childList:true,subtree:true});
+
+const app=document.querySelector("#app");
+if(app){
+  const observer=new MutationObserver(()=>injectControls());
+  observer.observe(app,{childList:true,subtree:true});
+}
+
 registration().catch(()=>null);
 refreshPush().then(injectControls);
