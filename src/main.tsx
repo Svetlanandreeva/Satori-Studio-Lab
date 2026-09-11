@@ -29,6 +29,7 @@ import { prepareSeoRoute, startSeoRoutes } from "./seoRoutes";
 import { startMetrikaSpaTracking } from "./metrikaSpa";
 import { startContactOverrides } from "./contactOverrides";
 import { startDesignerExperience } from "./designerExperience";
+import { startDesignerReadability } from "./designerReadability";
 
 const isAdmin = window.location.pathname.startsWith("/admin");
 if (!isAdmin) prepareSeoRoute();
@@ -60,4 +61,5 @@ if (!isAdmin) {
   startSeoEnhancements();
   startContactOverrides();
   startDesignerExperience();
+  startDesignerReadability();
 }
