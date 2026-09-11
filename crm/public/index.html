@@ -9,7 +9,6 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Satori CRM" />
     <title>SATORI — CRM</title>
-    <script>try{if(!localStorage.getItem('satori_crm_token'))document.documentElement.classList.add('crm-login-visible')}catch{}</script>
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="icon" href="/brand/favicon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="/brand/apple-touch-icon.png" />
@@ -23,25 +22,12 @@
     <link rel="stylesheet" href="/ai-manager.css" />
     <link rel="stylesheet" href="/brief.css" />
     <link rel="stylesheet" href="/source-link.css" />
-    <style>
-      .crm-login-visible #crm-integrations-button,
-      .crm-login-visible #crm-ai-manager-button,
-      .crm-login-visible #crm-parser-history-button,
-      .crm-login-visible .channel-fab,
-      .crm-login-visible .ai-fab,
-      .crm-login-visible .parser-fab { display:none !important; }
-    </style>
   </head>
   <body>
     <div id="app"></div>
     <script src="/boot-guard.js"></script>
     <script type="module" src="/app.js"></script>
+    <script type="module" src="/post-auth-loader.js"></script>
     <script type="module" src="/pwa.js"></script>
-    <script type="module" src="/integrations-ui.js"></script>
-    <script type="module" src="/parser-history-ui.js"></script>
-    <script type="module" src="/ai-manager-ui.js"></script>
-    <script type="module" src="/brief-ui.js"></script>
-    <script type="module" src="/source-link-ui.js"></script>
-    <script type="module" src="/auth-ui.js"></script>
   </body>
 </html>
