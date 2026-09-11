@@ -70,6 +70,43 @@ function initTables(db: Database.Database): void {
       key TEXT PRIMARY KEY,
       value TEXT NOT NULL
     )`,
+    `CREATE TABLE IF NOT EXISTS email_threads (
+      id TEXT PRIMARY KEY,
+      thread_key TEXT NOT NULL UNIQUE,
+      subject TEXT NOT NULL DEFAULT 'Без темы',
+      remote_email TEXT NOT NULL,
+      remote_name TEXT,
+      contact_id TEXT REFERENCES contacts(id) ON DELETE SET NULL,
+      is_service INTEGER NOT NULL DEFAULT 0,
+      unread_count INTEGER NOT NULL DEFAULT 0,
+      last_message_at INTEGER NOT NULL,
+      last_snippet TEXT,
+      last_direction TEXT NOT NULL DEFAULT 'incoming',
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    )`,
+    `CREATE TABLE IF NOT EXISTS email_messages (
+      id TEXT PRIMARY KEY,
+      thread_id TEXT NOT NULL REFERENCES email_threads(id) ON DELETE CASCADE,
+      message_id TEXT NOT NULL UNIQUE,
+      in_reply_to TEXT,
+      "references" TEXT,
+      direction TEXT NOT NULL,
+      folder TEXT,
+      remote_uid INTEGER,
+      from_email TEXT NOT NULL,
+      from_name TEXT,
+      to_email TEXT NOT NULL,
+      subject TEXT NOT NULL DEFAULT 'Без темы',
+      body_text TEXT NOT NULL DEFAULT '',
+      is_service INTEGER NOT NULL DEFAULT 0,
+      is_read INTEGER NOT NULL DEFAULT 0,
+      received_at INTEGER NOT NULL,
+      created_at INTEGER NOT NULL
+    )`,
+    `CREATE INDEX IF NOT EXISTS idx_email_threads_last_message ON email_threads(last_message_at DESC)`,
+    `CREATE INDEX IF NOT EXISTS idx_email_threads_contact ON email_threads(contact_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_email_messages_thread_time ON email_messages(thread_id, received_at ASC)`,
   ];
 
   for (const sql of tables) {
@@ -228,6 +265,7 @@ function mergeDuplicateContacts(db: Database.Database): number {
 
         db.prepare("UPDATE deals SET contact_id = ? WHERE contact_id = ?").run(canonicalId, row.id);
         db.prepare("UPDATE activities SET contact_id = ? WHERE contact_id = ?").run(canonicalId, row.id);
+        db.prepare("UPDATE email_threads SET contact_id = ? WHERE contact_id = ?").run(canonicalId, row.id);
         db.prepare("DELETE FROM contacts WHERE id = ?").run(row.id);
         merged += 1;
 
