@@ -1,0 +1,60 @@
+name: Diagnose CRM v2 UI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/diagnose-crm-v2-ui.yml'
+  workflow_dispatch:
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.DEPLOY_SSH_KEY }}
+      - run: ssh-keyscan -H 194.226.97.103 >> ~/.ssh/known_hosts
+      - name: Check rendered HTML and Next assets
+        run: |
+          ssh root@194.226.97.103 'python3 -' <<'PY'
+          import re, urllib.request
+          base='http://127.0.0.1:3020'
+          html=urllib.request.urlopen(base+'/', timeout=20).read().decode('utf-8','replace')
+          print('root_bytes=', len(html.encode()))
+          for needle in ['SATORI CRM','Главная','Воронка','_next/static']:
+              print(f'contains[{needle}]={needle in html}')
+          assets=[]
+          for u in re.findall(r'(?:src|href)=["\']([^"\']+)["\']', html):
+              if u.startswith('/_next/') and u not in assets:
+                  assets.append(u)
+          print('asset_count=', len(assets))
+          failures=[]
+          for u in assets:
+              try:
+                  r=urllib.request.urlopen(base+u, timeout=20)
+                  data=r.read()
+                  ctype=r.headers.get('content-type','')
+                  print(f'{r.status} {len(data)} {ctype} {u}')
+                  if r.status != 200 or len(data) < 10:
+                      failures.append(u)
+              except Exception as e:
+                  print('ERR', u, repr(e))
+                  failures.append(u)
+          if failures:
+              raise SystemExit('Broken assets: '+', '.join(failures))
+          PY
+
+      - name: Check service logs and deployed static files
+        run: |
+          ssh root@194.226.97.103 'bash -se' <<'REMOTE'
+          set -eu
+          echo '=== service ==='
+          systemctl is-active satori-crm-v2
+          echo '=== static files ==='
+          find /var/www/satori/crm-v2/.next/static -type f | wc -l
+          du -sh /var/www/satori/crm-v2/.next/static
+          echo '=== recent service log ==='
+          journalctl -u satori-crm-v2 -n 80 --no-pager
+          REMOTE
