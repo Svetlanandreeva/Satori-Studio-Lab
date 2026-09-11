@@ -63,6 +63,8 @@ jobs:
           # Russian locale/currency and Satori branding.
           p = root / 'src/app/layout.tsx'
           s = p.read_text().replace('<html lang="es"', '<html lang="ru"')
+          s = s.replace('title: "Auto-CRM - Tu CRM con Inteligencia Artificial"', 'title: "SATORI — CRM"')
+          s = s.replace('description:\n    "CRM conversacional con pipeline de ventas, clasificacion automatica de leads y seguimiento inteligente. Construido con Claude Code."', 'description: "Satori CRM — клиенты, сделки и производство"')
           p.write_text(s)
 
           for rel in ['src/components/layout/Sidebar.tsx', 'src/components/layout/MobileNav.tsx']:
@@ -110,6 +112,14 @@ jobs:
           for old, new in mapping.items():
               s = s.replace(old, new)
           p.write_text(s)
+
+          # This domain previously hosted our PWA CRM. Browsers can still have
+          # that old root-scoped service worker and Cache Storage registered.
+          # Keep a self-removing worker at the same URL so those old clients
+          # delete the legacy caches and release the scope after the cutover.
+          p = root / 'public/sw.js'
+          p.parent.mkdir(parents=True, exist_ok=True)
+          p.write_text("""// Legacy Satori CRM PWA cleanup worker.\nself.addEventListener('install', () => self.skipWaiting());\nself.addEventListener('activate', (event) => {\n  event.waitUntil((async () => {\n    try {\n      const keys = await caches.keys();\n      await Promise.all(keys.map((key) => caches.delete(key)));\n    } catch (_) {}\n    try { await self.clients.claim(); } catch (_) {}\n    try { await self.registration.unregister(); } catch (_) {}\n    try {\n      const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });\n      for (const client of windows) {\n        try { await client.navigate(client.url); } catch (_) {}\n      }\n    } catch (_) {}\n  })());\n});\nself.addEventListener('fetch', (event) => event.respondWith(fetch(event.request)));\n""")
           PY
 
       - name: Install and build Auto-CRM
@@ -120,6 +130,7 @@ jobs:
           npm ci
           npm run build
           test -f .next/standalone/server.js
+          test -f public/sw.js
 
       - name: Assemble standalone artifact
         run: |
@@ -157,13 +168,13 @@ jobs:
           chown -R www-data:www-data /var/lib/satori-auto-crm
           REMOTE
 
-      - name: Replace temporary v2 staging app
+      - name: Replace Auto-CRM application without touching SQLite data
         run: |
           ssh root@194.226.97.103 'systemctl stop satori-crm-v2 2>/dev/null || true'
           rsync -az --delete /tmp/satori-auto-crm-runtime/ root@194.226.97.103:/var/www/satori/crm-v2/
           ssh root@194.226.97.103 'chown -R www-data:www-data /var/www/satori/crm-v2'
 
-      - name: Start Auto-CRM stage on 3020
+      - name: Start Auto-CRM on 3020
         run: |
           ssh root@194.226.97.103 'bash -se' <<'REMOTE'
           set -eu
@@ -207,37 +218,43 @@ jobs:
           test "$node_count" -ge 1
           REMOTE
 
-      - name: Set Satori pipeline for empty v2 database
+      - name: Initialize Satori pipeline only for an empty database
         run: |
           ssh root@194.226.97.103 'bash -se' <<'REMOTE'
           set -eu
           contacts=$(curl -fsS http://127.0.0.1:3020/api/contacts)
           deals=$(curl -fsS http://127.0.0.1:3020/api/deals)
-          python3 - "$contacts" "$deals" <<'PY'
+          state=$(python3 - "$contacts" "$deals" <<'PY'
           import json, sys
-          if len(json.loads(sys.argv[1])) or len(json.loads(sys.argv[2])):
-              raise SystemExit('CRM v2 already has data; refusing to replace pipeline stages')
+          has_data = bool(len(json.loads(sys.argv[1])) or len(json.loads(sys.argv[2])))
+          print('existing' if has_data else 'empty')
           PY
-          curl --fail --silent --show-error -X PUT http://127.0.0.1:3020/api/pipeline \
-            -H 'Content-Type: application/json' \
-            --data '{"stages":[{"name":"Новый запрос","order":1,"color":"#64748b"},{"name":"Расчёт","order":2,"color":"#2563eb"},{"name":"Согласовано","order":3,"color":"#8b5cf6"},{"name":"В производстве","order":4,"color":"#ea580c"},{"name":"Готово","order":5,"color":"#0f766e"},{"name":"Доставка","order":6,"color":"#0891b2"},{"name":"Завершено","order":7,"color":"#16a34a","isWon":true},{"name":"Отказ","order":8,"color":"#dc2626","isLost":true}]}' \
-            >/tmp/satori-auto-stages.json
-          python3 - <<'PY'
+          )
+          if [ "$state" = 'existing' ]; then
+            echo 'Existing CRM data detected; preserving current pipeline and migrated records'
+          else
+            curl --fail --silent --show-error -X PUT http://127.0.0.1:3020/api/pipeline \
+              -H 'Content-Type: application/json' \
+              --data '{"stages":[{"name":"Новый запрос","order":1,"color":"#64748b"},{"name":"Расчёт","order":2,"color":"#2563eb"},{"name":"Согласовано","order":3,"color":"#8b5cf6"},{"name":"В производстве","order":4,"color":"#ea580c"},{"name":"Готово","order":5,"color":"#0f766e"},{"name":"Доставка","order":6,"color":"#0891b2"},{"name":"Завершено","order":7,"color":"#16a34a","isWon":true},{"name":"Отказ","order":8,"color":"#dc2626","isLost":true}]}' \
+              >/tmp/satori-auto-stages.json
+            python3 - <<'PY'
           import json
           data=json.load(open('/tmp/satori-auto-stages.json'))
           assert len(data) == 8, data
           print('Satori pipeline ready:', ', '.join(x['name'] for x in data))
           PY
+          fi
           REMOTE
 
-      - name: Verify v2 and preserve legacy rollback
+      - name: Verify v2, cleanup worker and legacy rollback
         run: |
           ssh root@194.226.97.103 'bash -se' <<'REMOTE'
           set -eu
-          curl --fail --silent http://127.0.0.1:3020/ >/dev/null
+          curl --fail --silent http://127.0.0.1:3020/ | grep -q 'Dashboard'
           curl --fail --silent http://127.0.0.1:3020/api/contacts >/dev/null
           curl --fail --silent http://127.0.0.1:3020/api/deals >/dev/null
           curl --fail --silent http://127.0.0.1:3020/api/pipeline | grep -q 'Новый запрос'
+          curl --fail --silent http://127.0.0.1:3020/sw.js | grep -q 'cleanup worker'
           systemctl is-active --quiet satori-crm
           curl --fail --silent http://127.0.0.1:3010/health >/dev/null
           # The prior temporary alive-home v2 database contained no Satori data.
