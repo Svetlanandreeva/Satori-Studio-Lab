@@ -2,12 +2,11 @@ from pathlib import Path
 
 ROOT = Path('/tmp/satori-auto-crm')
 
-# User-facing Spanish strings in the pinned Auto-CRM upstream.
-# Keep this as an explicit replacement table so upstream code identifiers and API paths stay untouched.
+# Replace Spanish user-facing phrases only. Avoid bare English words such as
+# Dashboard/Pipeline/Deals because they are also part of component/type names.
 REPLACEMENTS = {
     # Global / dashboard
     'Buscar contactos, deals...': 'Поиск клиентов и сделок...',
-    'Dashboard': 'Главная',
     'Resumen de tu pipeline de ventas': 'Обзор клиентов, сделок и воронки продаж',
     'Bienvenido a Auto-CRM': 'Добро пожаловать в SATORI CRM',
     'Tu CRM esta listo. Aqui tienes como comenzar:': 'CRM готова к работе.',
@@ -76,8 +75,7 @@ REPLACEMENTS = {
     'Temperatura': 'Статус',
     'Fecha': 'Дата',
     'Sin email': 'Нет email',
-    ' contactos': ' клиентов',
-    ' de ': ' из ',
+    '{filtered.length} de {contacts.length} contactos': '{filtered.length} из {contacts.length} клиентов',
 
     # Contact form
     'El nombre es requerido': 'Укажите имя',
@@ -103,7 +101,6 @@ REPLACEMENTS = {
     'Crear': 'Создать',
 
     # Deals
-    'Deals': 'Сделки',
     'No hay deals': 'Сделок пока нет',
     'Crea tu primer deal para comenzar a gestionar tu pipeline.': 'Создайте первую сделку для работы с воронкой.',
     'Crear deal': 'Создать сделку',
@@ -150,9 +147,9 @@ REPLACEMENTS = {
     'Hace ${Math.floor(diffDays / 7)} semanas': '${Math.floor(diffDays / 7)} нед. назад',
 
     # Pipeline
-    'Pipeline': 'Воронка',
     'Pipeline de ventas': 'Воронка продаж',
     'Arrastra los deals entre etapas para actualizar su estado': 'Перетаскивайте сделки между этапами',
+    'Arrastra y suelta deals entre etapas': 'Перетаскивайте сделки между этапами',
     'Sin deals en esta etapa': 'На этом этапе сделок нет',
 
     # Settings / generic API feedback
@@ -174,6 +171,28 @@ for path in ROOT.joinpath('src').rglob('*'):
         text = text.replace(old, new)
     if text != original:
         path.write_text(text, encoding='utf-8')
+
+# Translate the few English labels that also exist inside code identifiers by
+# targeting their JSX/string context instead of replacing the bare word.
+TARGETED = {
+    'src/app/page.tsx': {
+        '>Dashboard</h1>': '>Главная</h1>',
+    },
+    'src/app/pipeline/page.tsx': {
+        '>Pipeline</h1>': '>Воронка</h1>',
+    },
+    'src/app/deals/page.tsx': {
+        '>Deals</h1>': '>Сделки</h1>',
+    },
+}
+for rel, mapping in TARGETED.items():
+    path = ROOT / rel
+    if not path.exists():
+        continue
+    text = path.read_text(encoding='utf-8')
+    for old, new in mapping.items():
+        text = text.replace(old, new)
+    path.write_text(text, encoding='utf-8')
 
 # Russian locale/currency and Need Number source are structural changes rather than translations.
 types = ROOT / 'src/types/index.ts'
@@ -198,4 +217,4 @@ if config.exists():
     text = config.read_text(encoding='utf-8').replace('"language": "es"', '"language": "ru"')
     config.write_text(text, encoding='utf-8')
 
-print('Russian localization applied')
+print('Russian localization applied without touching code identifiers')
