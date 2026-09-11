@@ -111,3 +111,51 @@ export const crmSettings = sqliteTable("crm_settings", {
   key: text("key").primaryKey(),
   value: text("value").notNull(),
 });
+
+export const emailThreads = sqliteTable("email_threads", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  threadKey: text("thread_key").notNull().unique(),
+  subject: text("subject").notNull().default("Без темы"),
+  remoteEmail: text("remote_email").notNull(),
+  remoteName: text("remote_name"),
+  contactId: text("contact_id").references(() => contacts.id, { onDelete: "set null" }),
+  isService: integer("is_service", { mode: "boolean" }).notNull().default(false),
+  unreadCount: integer("unread_count").notNull().default(0),
+  lastMessageAt: integer("last_message_at", { mode: "timestamp" }).notNull(),
+  lastSnippet: text("last_snippet"),
+  lastDirection: text("last_direction").notNull().default("incoming"),
+  createdAt: integer("created_at", { mode: "timestamp" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+  updatedAt: integer("updated_at", { mode: "timestamp" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+});
+
+export const emailMessages = sqliteTable("email_messages", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  threadId: text("thread_id")
+    .notNull()
+    .references(() => emailThreads.id, { onDelete: "cascade" }),
+  messageId: text("message_id").notNull().unique(),
+  inReplyTo: text("in_reply_to"),
+  references: text("references"),
+  direction: text("direction").notNull(),
+  folder: text("folder"),
+  remoteUid: integer("remote_uid"),
+  fromEmail: text("from_email").notNull(),
+  fromName: text("from_name"),
+  toEmail: text("to_email").notNull(),
+  subject: text("subject").notNull().default("Без темы"),
+  bodyText: text("body_text").notNull().default(""),
+  isService: integer("is_service", { mode: "boolean" }).notNull().default(false),
+  isRead: integer("is_read", { mode: "boolean" }).notNull().default(false),
+  receivedAt: integer("received_at", { mode: "timestamp" }).notNull(),
+  createdAt: integer("created_at", { mode: "timestamp" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+});
