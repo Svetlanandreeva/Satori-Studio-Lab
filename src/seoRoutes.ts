@@ -4,6 +4,7 @@ const ROUTES: Record<string, string> = {
   about: "/about",
   custom: "/custom",
   business: "/business",
+  designers: "/designers",
   faq: "/faq",
   delivery: "/delivery",
 };
@@ -14,6 +15,9 @@ const ROUTE_LABELS: Record<string, string[]> = {
   "/about": ["О студии"],
   "/custom": ["На заказ"],
   "/business": ["Бизнесу"],
+  // Designers reuse the existing B2B React screen and are transformed by
+  // designerExperience.ts into a dedicated professional landing page.
+  "/designers": ["Бизнесу"],
   "/faq": ["FAQ"],
   "/delivery": ["Доставка и оплата", "Доставка", "Доставка и возврат"],
 };
@@ -84,6 +88,13 @@ function routeToCurrentPage() {
     const target = findButton(labels);
     if (target) {
       target.click();
+      // The designers route intentionally renders the existing B2B React page.
+      // Its own click navigation points to /business, so restore the public
+      // professional URL after React has switched screens.
+      if (path === ROUTES.designers) {
+        history.replaceState({}, "", ROUTES.designers);
+        window.dispatchEvent(new Event("satori-route-change"));
+      }
       return;
     }
     if (++attempts < 30) window.setTimeout(open, 60);
@@ -192,6 +203,7 @@ function addCrawlableSectionLinks() {
     ["Каталог", "/catalog"],
     ["Лимитированная серия", "/limited"],
     ["На заказ", "/custom"],
+    ["Дизайнерам и архитекторам", "/designers"],
     ["Для бизнеса", "/business"],
     ["О студии", "/about"],
     ["Доставка и возврат", "/delivery"],
