@@ -49,7 +49,7 @@ jobs:
         run: |
           ssh root@194.226.97.103 'set -eu; systemctl restart satori-backend; systemctl is-active --quiet satori-backend; curl --fail --silent --show-error --retry 10 --retry-connrefused --retry-delay 2 --max-time 10 -o /dev/null http://127.0.0.1:3001/api/products'
 
-      - name: Deploy CRM
+      - name: Deploy legacy CRM rollback service
         run: |
           ssh root@194.226.97.103 'mkdir -p /var/www/satori/crm'
           rsync -az --delete \
@@ -58,7 +58,7 @@ jobs:
             --exclude '.env' \
             crm/ root@194.226.97.103:/var/www/satori/crm/
 
-      - name: Install CRM dependencies and restart service
+      - name: Install rollback CRM dependencies and restart service
         run: |
           ssh root@194.226.97.103 'bash -se' <<'REMOTE'
           set -eu
@@ -71,7 +71,7 @@ jobs:
 
           cat >/etc/systemd/system/satori-crm.service <<'UNIT'
           [Unit]
-          Description=Satori CRM
+          Description=Satori CRM legacy rollback
           After=network.target
 
           [Service]
@@ -113,20 +113,18 @@ jobs:
           for (const key of ['stages', 'contacts', 'deals', 'tasks']) {
             if (!Array.isArray(data[key])) throw new Error(`CRM bootstrap field ${key} is invalid`);
           }
-          console.log(`CRM bootstrap OK: ${data.deals.length} deals, ${data.contacts.length} contacts`);
+          console.log(`Rollback CRM bootstrap OK: ${data.deals.length} deals, ${data.contacts.length} contacts`);
           NODE
           REMOTE
 
-      - name: Verify CRM HTTPS and static application
+      - name: Verify protected Auto-CRM entrypoint
         run: |
-          curl --fail --silent --show-error --retry 5 --retry-delay 2 --max-time 15 \
+          code=$(curl --silent --show-error --retry 5 --retry-delay 2 --max-time 15 \
             --resolve crm.satorilabural.online:443:194.226.97.103 \
-            https://crm.satorilabural.online/health -o crm-health.json
-          grep -q '"ok"' crm-health.json
-          curl --fail --silent --show-error --retry 5 --retry-delay 2 --max-time 15 \
-            --resolve crm.satorilabural.online:443:194.226.97.103 \
-            https://crm.satorilabural.online/app.js -o crm-app.js
-          grep -q 'const root' crm-app.js
+            -o /dev/null -w '%{http_code}' \
+            https://crm.satorilabural.online/)
+          test "$code" = '401'
+          echo 'Protected Auto-CRM endpoint is reachable and requires authentication'
 
       - name: Verify published version
         run: |
