@@ -130,7 +130,7 @@ export async function DELETE(
   const contactDeals = db.select().from(deals).where(eq(deals.contactId, id)).all();
   const contactActivities = db.select().from(activities).where(eq(activities.contactId, id)).all();
 
-  const transaction = db.transaction(() => {
+  db.transaction(() => {
     for (const activity of contactActivities) {
       db.delete(activities).where(eq(activities.id, activity.id)).run();
     }
@@ -139,7 +139,6 @@ export async function DELETE(
     }
     db.delete(contacts).where(eq(contacts.id, id)).run();
   });
-  transaction();
 
   return NextResponse.json({ success: true });
 }
