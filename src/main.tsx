@@ -27,6 +27,7 @@ import { startMadeToOrderPresentation } from "./madeToOrderPresentation";
 import { startSeoEnhancements } from "./seoEnhancements";
 import { prepareSeoRoute, startSeoRoutes } from "./seoRoutes";
 import { startMetrikaSpaTracking } from "./metrikaSpa";
+import { startContactOverrides } from "./contactOverrides";
 
 const isAdmin = window.location.pathname.startsWith("/admin");
 if (!isAdmin) prepareSeoRoute();
@@ -56,4 +57,5 @@ if (!isAdmin) {
   startMadeToOrderPresentation();
   startSeoRoutes();
   startSeoEnhancements();
+  startContactOverrides();
 }
