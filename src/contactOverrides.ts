@@ -70,51 +70,46 @@ function ensureFooterStyles() {
   style.id = "satori-footer-contact-layout-styles";
   style.textContent = `
     .satori-footer-primary-contacts {
-      display: grid;
-      grid-template-columns: repeat(2, minmax(0, 1fr));
-      gap: 12px;
-      margin: 4px 0 30px;
-      max-width: 720px;
+      margin-top: 18px;
+      padding-top: 15px;
+      border-top: 1px solid rgba(236,230,223,.12);
+      display: flex;
+      flex-direction: column;
+      gap: 9px;
+      max-width: 320px;
     }
     .satori-footer-primary-link {
-      min-height: 58px;
       display: flex;
       align-items: center;
       justify-content: space-between;
       gap: 12px;
-      padding: 0 18px;
-      border: 1px solid rgba(236,230,223,.16);
-      border-radius: 18px;
       color: #ECE6DF;
       text-decoration: none;
-      font: 500 13px/1.2 Inter, sans-serif;
-      transition: border-color .2s ease, background .2s ease, transform .2s ease;
-    }
-    .satori-footer-primary-link:hover {
-      border-color: rgba(236,230,223,.34);
-      background: rgba(236,230,223,.05);
-      transform: translateY(-1px);
+      font: 500 12px/1.35 Inter, sans-serif;
+      transition: color .2s ease, opacity .2s ease;
     }
     .satori-footer-primary-link::after {
       content: "↗";
-      color: #B3A89A;
-      font-size: 15px;
+      color: #8F8578;
+      font-size: 12px;
     }
+    .satori-footer-primary-link:hover { color: #fff; }
+
     .satori-footer-secondary-contacts,
     [data-satori-management-contact] {
-      width: min(1180px, calc(100% - 40px));
-      margin-left: auto;
-      margin-right: auto;
+      width: 100%;
+      box-sizing: border-box;
     }
     .satori-footer-secondary-contacts {
-      margin-top: 28px;
-      padding-top: 18px;
-      border-top: 1px solid rgba(236,230,223,.12);
+      margin-top: 22px;
+      padding-top: 16px;
+      border-top: 1px solid rgba(236,230,223,.10);
       display: flex;
       flex-wrap: wrap;
       align-items: center;
-      gap: 10px 20px;
+      gap: 8px 20px;
       font: 400 11px/1.4 Inter, sans-serif;
+      color: #8F8578;
     }
     .satori-footer-secondary-link {
       color: #8F8578;
@@ -122,22 +117,36 @@ function ensureFooterStyles() {
       transition: color .2s ease;
     }
     .satori-footer-secondary-link:hover { color: #ECE6DF; }
+
+    [data-satori-management-contact] {
+      margin-top: 10px;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 7px 14px;
+      font: 400 10px/1.4 Inter, sans-serif;
+      color: rgba(143,133,120,.78);
+    }
+    .satori-management-label {
+      color: #8F8578;
+      font-weight: 600;
+      letter-spacing: .04em;
+    }
+
     .satori-footer-admin-entry {
       margin-left: auto;
-      color: rgba(179,168,154,.32);
+      color: rgba(143,133,120,.28);
       text-decoration: none;
-      font: 400 9px/1 Inter, sans-serif;
+      font: 400 8px/1 Inter, sans-serif;
       letter-spacing: .08em;
       text-transform: uppercase;
-      transition: color .2s ease;
     }
-    .satori-footer-admin-entry:hover { color: #B3A89A; }
-    @media (max-width: 640px) {
-      .satori-footer-primary-contacts { grid-template-columns: 1fr; gap: 9px; }
-      .satori-footer-primary-link { min-height: 54px; border-radius: 16px; }
-      .satori-footer-secondary-contacts,
-      [data-satori-management-contact] { width: calc(100% - 40px); }
-      .satori-footer-admin-entry { margin-left: 0; width: 100%; padding-top: 6px; }
+    .satori-footer-admin-entry:hover { color: #8F8578; }
+
+    @media (max-width: 767px) {
+      .satori-footer-primary-contacts { max-width: none; }
+      .satori-footer-secondary-contacts { gap: 10px 16px; }
+      .satori-footer-admin-entry { margin-left: 0; width: 100%; padding-top: 4px; }
     }
   `;
   document.head.appendChild(style);
@@ -156,25 +165,43 @@ function findLegacyContactRow(footer: HTMLElement) {
   }) || null;
 }
 
+function hideLegacyContactLabel(footer: HTMLElement) {
+  Array.from(footer.querySelectorAll<HTMLElement>("p,span")).forEach((el) => {
+    if (el.textContent?.trim().toUpperCase() === "КОНТАКТЫ") {
+      el.style.display = "none";
+    }
+  });
+}
+
+function findNewsletterColumn(footer: HTMLElement): HTMLElement | null {
+  const title = Array.from(footer.querySelectorAll<HTMLElement>("p")).find((el) =>
+    el.textContent?.toUpperCase().includes("БУДЬТЕ В КУРСЕ НОВИНОК"),
+  );
+  return title?.parentElement as HTMLElement | null;
+}
+
 function ensureFooterContactLayout() {
   const footer = document.querySelector<HTMLElement>("footer");
   if (!footer) return;
 
   const legacyRow = findLegacyContactRow(footer);
-  if (legacyRow && legacyRow.style.display !== "none") legacyRow.style.display = "none";
+  if (legacyRow) legacyRow.style.setProperty("display", "none", "important");
+  hideLegacyContactLabel(footer);
 
-  if (!footer.querySelector("#satori-footer-primary-contacts")) {
-    const primary = document.createElement("div");
+  let primary = footer.querySelector<HTMLElement>("#satori-footer-primary-contacts");
+  if (!primary) {
+    primary = document.createElement("div");
     primary.id = "satori-footer-primary-contacts";
     primary.className = "satori-footer-primary-contacts";
     primary.append(
-      makeLink(`Telegram  @${MAIN_TELEGRAM_HANDLE}`, MAIN_TELEGRAM_URL, "satori-footer-primary-link", "telegram_click"),
+      makeLink(`Telegram @${MAIN_TELEGRAM_HANDLE}`, MAIN_TELEGRAM_URL, "satori-footer-primary-link", "telegram_click"),
       makeLink(EMAIL, `mailto:${EMAIL}`, "satori-footer-primary-link"),
     );
-
-    if (legacyRow?.parentElement) legacyRow.parentElement.insertBefore(primary, legacyRow);
-    else footer.prepend(primary);
   }
+
+  const newsletter = findNewsletterColumn(footer);
+  if (newsletter && primary.parentElement !== newsletter) newsletter.appendChild(primary);
+  else if (!newsletter && !primary.isConnected) footer.prepend(primary);
 
   let secondary = footer.querySelector<HTMLElement>("#satori-footer-secondary-contacts");
   if (!secondary) {
@@ -187,45 +214,49 @@ function ensureFooterContactLayout() {
       makeLink("ВКонтакте", VK_URL, "satori-footer-secondary-link"),
       makeLink("Instagram", INSTAGRAM_URL, "satori-footer-secondary-link"),
     );
+  }
+
+  const sellerLine = Array.from(footer.querySelectorAll<HTMLElement>("p")).find((el) =>
+    el.textContent?.trim().startsWith("Продавец:"),
+  );
+  if (sellerLine?.parentElement && secondary.parentElement !== sellerLine.parentElement) {
+    sellerLine.parentElement.insertBefore(secondary, sellerLine);
+  } else if (!secondary.isConnected) {
     footer.appendChild(secondary);
   }
 }
 
 function ensureManagementContact() {
   const footer = document.querySelector<HTMLElement>("footer");
-  if (!footer || footer.querySelector("[data-satori-management-contact]")) return;
+  if (!footer) return;
 
-  const block = document.createElement("div");
-  block.setAttribute("data-satori-management-contact", "true");
-  block.style.cssText = [
-    "margin-top:14px",
-    "padding-top:14px",
-    "border-top:1px solid rgba(236,230,223,.08)",
-    "display:flex",
-    "flex-wrap:wrap",
-    "align-items:center",
-    "gap:8px 16px",
-    "font-family:Inter,sans-serif",
-    "font-size:10px",
-    "color:#8F8578"
-  ].join(";");
+  let block = footer.querySelector<HTMLElement>("[data-satori-management-contact]");
+  if (!block) {
+    block = document.createElement("div");
+    block.setAttribute("data-satori-management-contact", "true");
 
-  const label = document.createElement("span");
-  label.textContent = "Контакт руководства";
-  label.style.cssText = "font-weight:600;color:#B3A89A;letter-spacing:.04em";
+    const label = document.createElement("span");
+    label.className = "satori-management-label";
+    label.textContent = "Руководство";
 
-  const phone = makeLink(MANAGEMENT_PHONE, `tel:${MANAGEMENT_PHONE_HREF}`, "satori-footer-secondary-link");
-  const telegram = makeLink(`Telegram @${MANAGEMENT_TELEGRAM_HANDLE}`, MANAGEMENT_TELEGRAM_URL, "satori-footer-secondary-link");
+    const phone = makeLink(MANAGEMENT_PHONE, `tel:${MANAGEMENT_PHONE_HREF}`, "satori-footer-secondary-link");
+    const telegram = makeLink(`Telegram @${MANAGEMENT_TELEGRAM_HANDLE}`, MANAGEMENT_TELEGRAM_URL, "satori-footer-secondary-link");
+    block.append(label, phone, telegram);
+  }
 
-  block.append(label, phone, telegram);
-  footer.appendChild(block);
+  const secondary = footer.querySelector<HTMLElement>("#satori-footer-secondary-contacts");
+  if (secondary?.parentElement && block.parentElement !== secondary.parentElement) {
+    secondary.insertAdjacentElement("afterend", block);
+  } else if (!block.isConnected) {
+    footer.appendChild(block);
+  }
 }
 
 function hideFloatingTelegram() {
   document.querySelectorAll<HTMLAnchorElement>('a[href*="t.me/"]').forEach((link) => {
     if (link.closest("footer")) return;
     if (link.classList.contains("fixed") || getComputedStyle(link).position === "fixed") {
-      if (link.style.display !== "none") link.style.display = "none";
+      link.style.setProperty("display", "none", "important");
     }
   });
 }
@@ -235,21 +266,17 @@ function ensurePrivateAdminEntry() {
 
   document.querySelectorAll<HTMLAnchorElement>('a[href="/admin"], a[href^="/admin?"]').forEach((link) => {
     if (link.dataset.satoriPrivateAdmin === "1") return;
-    if (link.style.display !== "none") link.style.setProperty("display", "none", "important");
+    link.style.setProperty("display", "none", "important");
   });
   document.querySelectorAll<HTMLElement>(".satori-admin-top-link").forEach((link) => {
-    if (link.style.display !== "none") link.style.setProperty("display", "none", "important");
+    link.style.setProperty("display", "none", "important");
   });
 
   if (!footer) return;
 
   let ownerMode = false;
-  try {
-    ownerMode = Boolean(localStorage.getItem("satori_admin_token"));
-  } catch {}
-  try {
-    ownerMode = ownerMode || new URLSearchParams(window.location.search).get("admin") === "1";
-  } catch {}
+  try { ownerMode = Boolean(localStorage.getItem("satori_admin_token")); } catch {}
+  try { ownerMode = ownerMode || new URLSearchParams(window.location.search).get("admin") === "1"; } catch {}
 
   const existing = footer.querySelector<HTMLAnchorElement>('[data-satori-private-admin="1"]');
   if (!ownerMode) {
