@@ -34,26 +34,36 @@ async function directLogin(form) {
   }
 
   try {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), 12000);
     const loginResponse = await fetch("/api/login", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ password }),
       cache: "no-store",
+      signal: controller.signal,
     });
+    clearTimeout(timeout);
     const loginPayload = await loginResponse.json().catch(() => ({}));
     if (!loginResponse.ok) throw new Error(loginPayload.error || `Ошибка входа (${loginResponse.status})`);
     if (!loginPayload.token) throw new Error("Сервер не вернул сессию");
 
+    const verifyController = new AbortController();
+    const verifyTimeout = setTimeout(() => verifyController.abort(), 12000);
     const verify = await fetch("/api/bootstrap", {
       headers: { Authorization: `Bearer ${loginPayload.token}` },
       cache: "no-store",
+      signal: verifyController.signal,
     });
+    clearTimeout(verifyTimeout);
     if (!verify.ok) throw new Error(`Сессия не подтвердилась (${verify.status})`);
 
     localStorage.setItem(AUTH_TOKEN_KEY, loginPayload.token);
+    document.documentElement.classList.remove("crm-login-visible");
     location.reload();
   } catch (error) {
-    showLoginMessage(error?.message || "Не удалось войти");
+    const message = error?.name === "AbortError" ? "Сервер долго не отвечает. Попробуйте ещё раз." : (error?.message || "Не удалось войти");
+    showLoginMessage(message);
     if (button) {
       button.disabled = false;
       button.textContent = "Войти";
@@ -74,7 +84,6 @@ function enhanceLogin() {
     if (error) error.remove();
   });
 
-  // Capture the submit before the legacy app handler so only one request runs.
   form.addEventListener("submit", (event) => {
     event.preventDefault();
     event.stopImmediatePropagation();
@@ -87,10 +96,13 @@ function syncAuthUi() {
   document.documentElement.classList.toggle("crm-login-visible", loginVisible() || !localStorage.getItem(AUTH_TOKEN_KEY));
 }
 
-// Do not remove/recreate floating controls here: other CRM modules own them.
-// We only toggle a CSS state, avoiding a MutationObserver feedback loop.
-const authObserver = new MutationObserver(() => queueMicrotask(syncAuthUi));
-authObserver.observe(document.querySelector("#app") || document.body, { childList: true, subtree: true });
+// Observe only the app root. Never remove controls from the DOM here: doing so
+// can fight with feature modules that own those controls and freeze the page.
+const appRoot = document.querySelector("#app");
+if (appRoot) {
+  const authObserver = new MutationObserver(() => queueMicrotask(syncAuthUi));
+  authObserver.observe(appRoot, { childList: true, subtree: true });
+}
 window.addEventListener("storage", syncAuthUi);
 window.addEventListener("pageshow", syncAuthUi);
 syncAuthUi();
