@@ -32,10 +32,17 @@ function crmNumber(id) {
   return `S-${String(id || "").replace(/-/g, "").slice(0, 8).toUpperCase()}`;
 }
 
+function normalizeFulfillmentStatus(value) {
+  // Preserve compatibility with orders created before the explicit customer
+  // handoff status was introduced.
+  return value === "Отправлен" ? "Отправлен клиенту" : (value || "Новый");
+}
+
 function fallbackCrmStatus(order) {
-  const status = order?.fulfillmentStatus || "Новый";
-  if (status === "Выполнен" || status === "Отменён") return "Завершено";
-  if (status === "Отправлен") return "Доставка";
+  const status = normalizeFulfillmentStatus(order?.fulfillmentStatus);
+  if (status === "Выполнен") return "Завершено";
+  if (status === "Отменён") return "Отказ";
+  if (status === "Отправлен клиенту") return "Отправлен клиенту";
   if (status === "Собран") return "Готово";
   if (status === "В работе") return "В производстве";
   return "Новый запрос";
@@ -45,6 +52,7 @@ async function enrichOrders(orders) {
   const stages = await readCrmStages();
   return orders.map((order) => ({
     ...order,
+    fulfillmentStatus: normalizeFulfillmentStatus(order.fulfillmentStatus),
     crmNumber: order.crmNumber || crmNumber(order.id),
     crmStatus: stages[order.id] || order.crmStatus || fallbackCrmStatus(order),
     crmId: `web:${order.id}`,
@@ -174,6 +182,7 @@ export async function createOrder(order) {
       subtotal: canonicalSubtotal,
       amount,
       discount,
+      fulfillmentStatus: normalizeFulfillmentStatus(order.fulfillmentStatus),
       crmNumber: order.crmNumber || crmNumber(order.id),
     };
     orders.push(linkedOrder);
@@ -190,7 +199,16 @@ export async function updateOrder(id, patch) {
 
     await verifyPaidTransition(orders[idx], patch);
 
-    orders[idx] = { ...orders[idx], ...patch, crmNumber: orders[idx].crmNumber || crmNumber(id) };
+    const normalizedPatch = { ...patch };
+    if (normalizedPatch.fulfillmentStatus !== undefined) {
+      normalizedPatch.fulfillmentStatus = normalizeFulfillmentStatus(normalizedPatch.fulfillmentStatus);
+    }
+    orders[idx] = {
+      ...orders[idx],
+      ...normalizedPatch,
+      fulfillmentStatus: normalizeFulfillmentStatus(normalizedPatch.fulfillmentStatus ?? orders[idx].fulfillmentStatus),
+      crmNumber: orders[idx].crmNumber || crmNumber(id),
+    };
     await writeFile(ORDERS_FILE, JSON.stringify(orders, null, 2), "utf-8");
     return orders[idx];
   });
