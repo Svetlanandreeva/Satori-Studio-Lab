@@ -73,6 +73,23 @@ export const dealEconomics = sqliteTable("deal_economics", {
     .$defaultFn(() => new Date()),
 });
 
+export const businessExpenses = sqliteTable("business_expenses", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  month: text("month").notNull(),
+  name: text("name").notNull(),
+  category: text("category").notNull().default("other"),
+  amount: integer("amount").notNull().default(0),
+  notes: text("notes"),
+  createdAt: integer("created_at", { mode: "timestamp" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+  updatedAt: integer("updated_at", { mode: "timestamp" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+});
+
 export const activities = sqliteTable("activities", {
   id: text("id")
     .primaryKey()
