@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm";
 import {
   CLOSED_QUALIFICATIONS,
   LEAD_QUALIFICATION_LABELS,
+  SPAM_STAGE_NAME,
   isLeadQualification,
   type LeadQualification,
 } from "@/lib/lead-qualification";
@@ -88,25 +89,57 @@ export async function PUT(
       })
       .run();
 
-    if (CLOSED_QUALIFICATIONS.has(qualification)) {
-      const lostStage = db
-        .select()
-        .from(pipelineStages)
-        .all()
-        .find((stage) => stage.isLost);
-      if (lostStage) {
-        const currentDeals = db.select().from(deals).where(eq(deals.contactId, id)).all();
-        for (const deal of currentDeals) {
-          const stage = db
-            .select()
-            .from(pipelineStages)
-            .where(eq(pipelineStages.id, deal.stageId))
-            .get();
-          if (!stage?.isWon && !stage?.isLost) {
+    const stages = db.select().from(pipelineStages).all();
+    const sandboxStage = stages.find((stage) => stage.name === SPAM_STAGE_NAME);
+    const currentDeals = db.select().from(deals).where(eq(deals.contactId, id)).all();
+
+    if (qualification === "spam" && sandboxStage) {
+      for (const deal of currentDeals) {
+        const stage = stages.find((item) => item.id === deal.stageId);
+        if (stage?.isWon) continue;
+        db.update(deals)
+          .set({ stageId: sandboxStage.id, probability: 0, updatedAt: new Date() })
+          .where(eq(deals.id, deal.id))
+          .run();
+      }
+      db.insert(activities)
+        .values({
+          type: "note",
+          description: "Лид перемещён в Песочницу как спам",
+          contactId: id,
+          createdAt: new Date(),
+        })
+        .run();
+    } else {
+      if (existing.qualification === "spam" && sandboxStage) {
+        const firstActiveStage = stages
+          .filter(
+            (stage) =>
+              stage.name !== SPAM_STAGE_NAME && !stage.isWon && !stage.isLost
+          )
+          .sort((a, b) => a.order - b.order)[0];
+        if (firstActiveStage) {
+          for (const deal of currentDeals) {
+            if (deal.stageId !== sandboxStage.id) continue;
             db.update(deals)
-              .set({ stageId: lostStage.id, probability: 0, updatedAt: new Date() })
+              .set({ stageId: firstActiveStage.id, probability: 10, updatedAt: new Date() })
               .where(eq(deals.id, deal.id))
               .run();
+          }
+        }
+      }
+
+      if (CLOSED_QUALIFICATIONS.has(qualification)) {
+        const lostStage = stages.find((stage) => stage.isLost);
+        if (lostStage) {
+          for (const deal of currentDeals) {
+            const stage = stages.find((item) => item.id === deal.stageId);
+            if (!stage?.isWon && !stage?.isLost) {
+              db.update(deals)
+                .set({ stageId: lostStage.id, probability: 0, updatedAt: new Date() })
+                .where(eq(deals.id, deal.id))
+                .run();
+            }
           }
         }
       }
