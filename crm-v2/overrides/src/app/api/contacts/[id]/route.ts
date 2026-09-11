@@ -6,6 +6,7 @@ import {
   CLOSED_QUALIFICATIONS,
   LEAD_QUALIFICATION_LABELS,
   isLeadQualification,
+  type LeadQualification,
 } from "@/lib/lead-qualification";
 
 export async function GET(
@@ -60,7 +61,7 @@ export async function PUT(
   if (body.notes !== undefined) updateData.notes = body.notes ? String(body.notes) : null;
 
   let qualificationChanged = false;
-  let qualification: typeof existing.qualification | null = null;
+  let qualification: LeadQualification | null = null;
   if (body.qualification !== undefined) {
     if (!isLeadQualification(body.qualification)) {
       return NextResponse.json({ error: "Неизвестный статус квалификации" }, { status: 400 });
