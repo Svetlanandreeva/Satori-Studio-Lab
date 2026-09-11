@@ -16,9 +16,13 @@ import {
   Kanban,
   Link2,
   Loader2,
+  Mail,
   MessageCircle,
   PhoneIncoming,
+  RefreshCw,
   Send,
+  ShieldCheck,
+  WandSparkles,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -29,6 +33,81 @@ interface IntegrationState {
   needNumberProjectId: string;
   needNumberCreateDeal: boolean;
   needNumberWebhookPath: string;
+  emailConfigured: boolean;
+  emailPasswordConfigured: boolean;
+  emailAddress: string;
+  emailUsername: string;
+  emailImapHost: string;
+  emailImapPort: number;
+  emailImapSecure: boolean;
+  emailSmtpHost: string;
+  emailSmtpPort: number;
+  emailSmtpSecure: boolean;
+  emailFromName: string;
+  emailIgnoreSenders: string;
+  emailIgnoreSubjects: string;
+  emailSyncDays: number;
+  emailLastSyncAt: string;
+  emailLastSyncError: string;
+}
+
+interface MailForm {
+  address: string;
+  username: string;
+  password: string;
+  imapHost: string;
+  imapPort: string;
+  imapSecure: boolean;
+  smtpHost: string;
+  smtpPort: string;
+  smtpSecure: boolean;
+  fromName: string;
+  ignoreSenders: string;
+  ignoreSubjects: string;
+  syncDays: string;
+}
+
+const emptyMail: MailForm = {
+  address: "",
+  username: "",
+  password: "",
+  imapHost: "",
+  imapPort: "993",
+  imapSecure: true,
+  smtpHost: "",
+  smtpPort: "465",
+  smtpSecure: true,
+  fromName: "Satori Studio",
+  ignoreSenders: "",
+  ignoreSubjects: "",
+  syncDays: "365",
+};
+
+function mailPreset(address: string): Partial<MailForm> {
+  const domain = address.trim().toLowerCase().split("@")[1] || "";
+  if (domain === "gmail.com" || domain === "googlemail.com") {
+    return { imapHost: "imap.gmail.com", imapPort: "993", imapSecure: true, smtpHost: "smtp.gmail.com", smtpPort: "465", smtpSecure: true };
+  }
+  if (domain.includes("yandex.")) {
+    return { imapHost: "imap.yandex.ru", imapPort: "993", imapSecure: true, smtpHost: "smtp.yandex.ru", smtpPort: "465", smtpSecure: true };
+  }
+  if (["mail.ru", "inbox.ru", "bk.ru", "list.ru"].includes(domain)) {
+    return { imapHost: "imap.mail.ru", imapPort: "993", imapSecure: true, smtpHost: "smtp.mail.ru", smtpPort: "465", smtpSecure: true };
+  }
+  if (["outlook.com", "hotmail.com", "live.com"].includes(domain)) {
+    return { imapHost: "outlook.office365.com", imapPort: "993", imapSecure: true, smtpHost: "smtp.office365.com", smtpPort: "587", smtpSecure: false };
+  }
+  if (domain) {
+    return { imapHost: `imap.${domain}`, imapPort: "993", imapSecure: true, smtpHost: `smtp.${domain}`, smtpPort: "465", smtpSecure: true };
+  }
+  return {};
+}
+
+function lastSyncText(value: string) {
+  if (!value) return "Ещё не синхронизировалась";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return new Intl.DateTimeFormat("ru-RU", { dateStyle: "short", timeStyle: "short" }).format(date);
 }
 
 export default function SettingsPage() {
@@ -40,6 +119,7 @@ export default function SettingsPage() {
   const [telegramChatId, setTelegramChatId] = useState("");
   const [projectId, setProjectId] = useState("1474");
   const [createDeal, setCreateDeal] = useState(true);
+  const [mail, setMail] = useState<MailForm>(emptyMail);
   const [busy, setBusy] = useState<string | null>(null);
   const [origin, setOrigin] = useState("");
 
@@ -51,6 +131,21 @@ export default function SettingsPage() {
     setTelegramChatId(data.telegramChatId || "");
     setProjectId(data.needNumberProjectId || "1474");
     setCreateDeal(data.needNumberCreateDeal);
+    setMail({
+      address: data.emailAddress || "",
+      username: data.emailUsername || data.emailAddress || "",
+      password: "",
+      imapHost: data.emailImapHost || "",
+      imapPort: String(data.emailImapPort || 993),
+      imapSecure: data.emailImapSecure ?? true,
+      smtpHost: data.emailSmtpHost || "",
+      smtpPort: String(data.emailSmtpPort || 465),
+      smtpSecure: data.emailSmtpSecure ?? true,
+      fromName: data.emailFromName || "Satori Studio",
+      ignoreSenders: data.emailIgnoreSenders || "",
+      ignoreSubjects: data.emailIgnoreSubjects || "",
+      syncDays: String(data.emailSyncDays || 365),
+    });
   };
 
   useEffect(() => {
@@ -146,6 +241,88 @@ export default function SettingsPage() {
     } finally {
       setBusy(null);
     }
+  };
+
+  const emailPayload = () => ({
+    emailAddress: mail.address,
+    emailUsername: mail.username || mail.address,
+    emailPassword: mail.password,
+    emailImapHost: mail.imapHost,
+    emailImapPort: Number(mail.imapPort) || 993,
+    emailImapSecure: mail.imapSecure,
+    emailSmtpHost: mail.smtpHost,
+    emailSmtpPort: Number(mail.smtpPort) || 465,
+    emailSmtpSecure: mail.smtpSecure,
+    emailFromName: mail.fromName,
+    emailIgnoreSenders: mail.ignoreSenders,
+    emailIgnoreSubjects: mail.ignoreSubjects,
+    emailSyncDays: Number(mail.syncDays) || 365,
+  });
+
+  const persistEmail = async () => {
+    const response = await fetch("/api/integrations/settings", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(emailPayload()),
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(data.error || "Не удалось сохранить почту");
+    setIntegration(data);
+    setMail((current) => ({ ...current, password: "" }));
+    return data as IntegrationState;
+  };
+
+  const saveEmail = async () => {
+    setBusy("email-save");
+    try {
+      await persistEmail();
+      toast.success("Почта сохранена");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Ошибка сохранения почты");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const testEmail = async () => {
+    setBusy("email-test");
+    try {
+      await persistEmail();
+      const response = await fetch("/api/integrations/email/test", { method: "POST" });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Подключение не прошло проверку");
+      toast.success("IMAP и SMTP работают — почта подключена");
+      await loadIntegration();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Ошибка подключения почты");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const syncEmail = async () => {
+    setBusy("email-sync");
+    try {
+      const response = await fetch("/api/integrations/email/sync", { method: "POST" });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Не удалось синхронизировать почту");
+      toast.success(data.imported ? `Загружено новых писем: ${data.imported}` : "Почта синхронизирована");
+      await loadIntegration();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Ошибка синхронизации");
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const autoMail = () => {
+    const preset = mailPreset(mail.address);
+    setMail((current) => ({
+      ...current,
+      ...preset,
+      username: current.username || current.address,
+    }));
+    toast.success("Серверы подставлены — проверь и сохрани");
   };
 
   const copyWebhook = async () => {
@@ -340,6 +517,116 @@ export default function SettingsPage() {
             <div className="flex items-center gap-2 text-xs text-muted-foreground">
               <CheckCircle2 className="h-4 w-4" />
               Дубли проверяются по нормализованному номеру телефона.
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card className="xl:col-span-2">
+          <CardHeader>
+            <CardTitle className="text-base flex items-center justify-between gap-3">
+              <span className="flex items-center gap-2"><Mail className="h-4 w-4" /> Почта → CRM-чат</span>
+              <Badge variant={integration?.emailConfigured ? "default" : "outline"}>
+                {integration?.emailConfigured ? "Подключена" : "Не настроена"}
+              </Badge>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-5">
+            <div className="rounded-lg bg-muted/50 p-3 text-sm">
+              Входящие письма от людей попадают в раздел <b>«Почта»</b> и автоматически связываются с клиентом по email. No-reply, рассылки, автоответы и заданные ниже отправители уходят в отдельную вкладку <b>«Сервисные»</b>. Отвечать можно прямо из CRM — как в обычном чате.
+            </div>
+
+            <div className="grid gap-4 lg:grid-cols-2">
+              <div className="space-y-2">
+                <Label>Email</Label>
+                <div className="flex gap-2">
+                  <Input
+                    type="email"
+                    placeholder="hello@satori.ru"
+                    value={mail.address}
+                    onChange={(event) => setMail((current) => ({ ...current, address: event.target.value }))}
+                  />
+                  <Button type="button" variant="outline" onClick={autoMail} title="Подставить IMAP/SMTP по домену">
+                    <WandSparkles className="h-4 w-4" />
+                  </Button>
+                </div>
+              </div>
+              <div className="space-y-2">
+                <Label>Имя отправителя</Label>
+                <Input value={mail.fromName} onChange={(event) => setMail((current) => ({ ...current, fromName: event.target.value }))} />
+              </div>
+              <div className="space-y-2">
+                <Label>Логин</Label>
+                <Input placeholder="Обычно совпадает с email" value={mail.username} onChange={(event) => setMail((current) => ({ ...current, username: event.target.value }))} />
+              </div>
+              <div className="space-y-2">
+                <Label>Пароль / пароль приложения</Label>
+                <Input
+                  type="password"
+                  autoComplete="new-password"
+                  placeholder={integration?.emailPasswordConfigured ? "Пароль сохранён — оставь пустым, чтобы не менять" : "Пароль приложения"}
+                  value={mail.password}
+                  onChange={(event) => setMail((current) => ({ ...current, password: event.target.value }))}
+                />
+                <p className="text-[11px] text-muted-foreground">Пароль хранится только на сервере CRM и никогда не возвращается в браузер.</p>
+              </div>
+            </div>
+
+            <div className="grid gap-4 lg:grid-cols-2">
+              <div className="rounded-lg border p-4 space-y-3">
+                <div className="font-medium text-sm">Входящие — IMAP</div>
+                <div className="grid grid-cols-[1fr_110px] gap-2">
+                  <Input placeholder="imap.example.com" value={mail.imapHost} onChange={(event) => setMail((current) => ({ ...current, imapHost: event.target.value }))} />
+                  <Input inputMode="numeric" value={mail.imapPort} onChange={(event) => setMail((current) => ({ ...current, imapPort: event.target.value }))} />
+                </div>
+                <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={mail.imapSecure} onChange={(event) => setMail((current) => ({ ...current, imapSecure: event.target.checked }))} /> SSL/TLS</label>
+              </div>
+              <div className="rounded-lg border p-4 space-y-3">
+                <div className="font-medium text-sm">Исходящие — SMTP</div>
+                <div className="grid grid-cols-[1fr_110px] gap-2">
+                  <Input placeholder="smtp.example.com" value={mail.smtpHost} onChange={(event) => setMail((current) => ({ ...current, smtpHost: event.target.value }))} />
+                  <Input inputMode="numeric" value={mail.smtpPort} onChange={(event) => setMail((current) => ({ ...current, smtpPort: event.target.value }))} />
+                </div>
+                <label className="flex items-center gap-2 text-sm"><input type="checkbox" checked={mail.smtpSecure} onChange={(event) => setMail((current) => ({ ...current, smtpSecure: event.target.checked }))} /> SSL/TLS сразу (обычно порт 465)</label>
+              </div>
+            </div>
+
+            <div className="grid gap-4 lg:grid-cols-3">
+              <div className="space-y-2">
+                <Label>История, дней</Label>
+                <Input inputMode="numeric" value={mail.syncDays} onChange={(event) => setMail((current) => ({ ...current, syncDays: event.target.value }))} />
+                <p className="text-[11px] text-muted-foreground">По умолчанию подтягиваем год истории из Входящих и Отправленных.</p>
+              </div>
+              <div className="space-y-2">
+                <Label>Сервисные отправители</Label>
+                <Input placeholder="noreply@..., @service.ru" value={mail.ignoreSenders} onChange={(event) => setMail((current) => ({ ...current, ignoreSenders: event.target.value }))} />
+                <p className="text-[11px] text-muted-foreground">Через запятую. Они не создают клиентов.</p>
+              </div>
+              <div className="space-y-2">
+                <Label>Сервисные слова в теме</Label>
+                <Input placeholder="код подтверждения, security alert" value={mail.ignoreSubjects} onChange={(event) => setMail((current) => ({ ...current, ignoreSubjects: event.target.value }))} />
+                <p className="text-[11px] text-muted-foreground">Через запятую. Письма останутся доступными в «Сервисных».</p>
+              </div>
+            </div>
+
+            <div className="flex flex-wrap gap-2">
+              <Button onClick={saveEmail} disabled={busy !== null || !mail.address || !mail.imapHost || !mail.smtpHost}>
+                {busy === "email-save" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Сохранить почту
+              </Button>
+              <Button variant="outline" onClick={testEmail} disabled={busy !== null || !mail.address || !mail.imapHost || !mail.smtpHost}>
+                {busy === "email-test" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ShieldCheck className="mr-2 h-4 w-4" />}
+                Проверить IMAP + SMTP
+              </Button>
+              <Button variant="outline" onClick={syncEmail} disabled={busy !== null || !integration?.emailConfigured}>
+                {busy === "email-sync" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
+                Синхронизировать сейчас
+              </Button>
+            </div>
+
+            <div className="rounded-lg border p-3 text-xs text-muted-foreground">
+              <div><b>Последняя синхронизация:</b> {lastSyncText(integration?.emailLastSyncAt || "")}</div>
+              {integration?.emailLastSyncError && <div className="mt-1 text-red-600"><b>Последняя ошибка:</b> {integration.emailLastSyncError}</div>}
+              <div className="mt-2">После подключения сервер проверяет почту автоматически каждую минуту. Ручная кнопка нужна только если хочешь увидеть письмо сразу.</div>
             </div>
           </CardContent>
         </Card>
