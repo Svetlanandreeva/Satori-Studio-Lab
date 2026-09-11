@@ -55,6 +55,24 @@ export const deals = sqliteTable("deals", {
     .$defaultFn(() => new Date()),
 });
 
+export const dealEconomics = sqliteTable("deal_economics", {
+  dealId: text("deal_id")
+    .primaryKey()
+    .references(() => deals.id, { onDelete: "cascade" }),
+  receivedAmount: integer("received_amount").notNull().default(0),
+  productionCost: integer("production_cost").notNull().default(0),
+  paymentCommission: integer("payment_commission").notNull().default(0),
+  deliveryCost: integer("delivery_cost").notNull().default(0),
+  packagingCost: integer("packaging_cost").notNull().default(0),
+  contractorCost: integer("contractor_cost").notNull().default(0),
+  taxCost: integer("tax_cost").notNull().default(0),
+  otherCost: integer("other_cost").notNull().default(0),
+  notes: text("notes"),
+  updatedAt: integer("updated_at", { mode: "timestamp" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+});
+
 export const activities = sqliteTable("activities", {
   id: text("id")
     .primaryKey()
