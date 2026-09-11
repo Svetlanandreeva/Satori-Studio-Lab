@@ -1,0 +1,44 @@
+name: NextCRM server preflight
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/nextcrm-preflight.yml'
+  workflow_dispatch:
+
+jobs:
+  preflight:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.DEPLOY_SSH_KEY }}
+      - name: Trust server
+        run: ssh-keyscan -H 194.226.97.103 >> ~/.ssh/known_hosts
+      - name: Inspect server for NextCRM
+        run: |
+          ssh root@194.226.97.103 'bash -se' <<'REMOTE'
+          set -u
+          echo '=== OS ==='
+          cat /etc/os-release | grep -E '^(PRETTY_NAME|VERSION_ID)=' || true
+          echo '=== CPU ==='
+          nproc || true
+          echo '=== RAM ==='
+          free -h || true
+          echo '=== DISK ==='
+          df -h / /var/www || true
+          echo '=== NODE ==='
+          node --version || true
+          echo '=== DOCKER ==='
+          docker --version || true
+          docker compose version || true
+          echo '=== RUNNING CONTAINERS ==='
+          docker ps --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}' 2>/dev/null || true
+          echo '=== PORTS ==='
+          ss -ltnp | grep -E ':(3000|3001|3010|3020|5432|9000|8288)\b' || true
+          echo '=== SERVICES ==='
+          systemctl is-active satori-backend || true
+          systemctl is-active satori-crm || true
+          REMOTE
