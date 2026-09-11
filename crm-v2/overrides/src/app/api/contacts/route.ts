@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { contacts } from "@/db/schema";
-import { eq, like, or, desc, and } from "drizzle-orm";
+import { desc } from "drizzle-orm";
 import { isLeadQualification } from "@/lib/lead-qualification";
 
 function phoneIdentity(value: unknown): string | null {
@@ -19,33 +19,34 @@ function emailIdentity(value: unknown): string | null {
 
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
-  const search = searchParams.get("search");
+  const search = (searchParams.get("search") || "").trim().toLowerCase();
   const temperature = searchParams.get("temperature");
   const source = searchParams.get("source");
   const qualification = searchParams.get("qualification");
 
-  const conditions = [];
-  if (search) {
-    conditions.push(
-      or(
-        like(contacts.name, `%${search}%`),
-        like(contacts.email, `%${search}%`),
-        like(contacts.company, `%${search}%`),
-        like(contacts.phone, `%${search}%`)
-      )
-    );
-  }
-  if (temperature) conditions.push(eq(contacts.temperature, temperature));
-  if (source) conditions.push(eq(contacts.source, source));
-  if (qualification && isLeadQualification(qualification)) {
-    conditions.push(eq(contacts.qualification, qualification));
-  }
+  const results = db
+    .select()
+    .from(contacts)
+    .orderBy(desc(contacts.createdAt))
+    .all()
+    .filter((contact) => {
+      const matchesSearch =
+        !search ||
+        contact.name.toLowerCase().includes(search) ||
+        contact.email?.toLowerCase().includes(search) ||
+        contact.company?.toLowerCase().includes(search) ||
+        contact.phone?.toLowerCase().includes(search);
+      const matchesTemperature = !temperature || contact.temperature === temperature;
+      const matchesSource = !source || contact.source === source;
+      const matchesQualification =
+        !qualification ||
+        !isLeadQualification(qualification) ||
+        contact.qualification === qualification;
+      return Boolean(
+        matchesSearch && matchesTemperature && matchesSource && matchesQualification
+      );
+    });
 
-  let query = db.select().from(contacts);
-  if (conditions.length === 1) query = query.where(conditions[0]) as typeof query;
-  if (conditions.length > 1) query = query.where(and(...conditions)) as typeof query;
-
-  const results = query.orderBy(desc(contacts.createdAt)).all();
   return NextResponse.json(results);
 }
 
