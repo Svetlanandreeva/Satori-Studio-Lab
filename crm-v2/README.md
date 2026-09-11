@@ -1,18 +1,29 @@
 # Satori CRM v2
 
-Satori CRM v2 is deployed from the MIT-licensed upstream project:
+Satori CRM v2 is based on the MIT-licensed **Auto-CRM** project:
 
-- Upstream: https://github.com/alive-home/crm
-- Pinned revision: `b2642a2f20705eb5511ccbd3c1553b98cc7de018`
-- License: MIT (the upstream `LICENSE` file is preserved in the deployed source)
+- Upstream: https://github.com/Hainrixz/auto-crm
+- Pinned revision: `0aef51a9aef0487c59b964b4eea9d964a2321f0c`
+- License: MIT. The upstream `LICENSE` notice is preserved in the staged/production application.
 
-We intentionally do not vendor the whole upstream application into the Satori website repository. The deployment workflow clones the pinned upstream revision on the server, applies a small Satori compatibility patch for a local libSQL/SQLite database, builds it, and runs it as an independent service.
+Why this base fits Satori:
 
-Production plan:
+- local SQLite database, no external database subscription;
+- dashboard and KPI cards;
+- drag-and-drop sales pipeline;
+- contacts and deals;
+- activity timeline, notes and follow-ups;
+- WhatsApp quick actions;
+- webhook/API for incoming website leads;
+- CSV import/export;
+- optional AI/MCP layer that can be replaced by Satori's OpenAI manager.
 
-- Existing CRM remains on `127.0.0.1:3010` during migration/rollback window.
-- CRM v2 stages on `127.0.0.1:3020`.
-- Persistent v2 database lives outside the source tree at `/var/lib/satori-crm-v2/crm.db`.
-- After data migration and acceptance checks, Nginx can switch `crm.satorilabural.online` from port 3010 to 3020 without changing the website.
+Deployment architecture:
 
-The Satori-specific integrations (website intake/status sync, Wazzup, AI brief manager) are added as adapters after the base CRM is verified stable rather than mixed into the upstream application bootstrap.
+- Current legacy CRM remains on `127.0.0.1:3010` during the migration window.
+- Auto-CRM v2 stages on `127.0.0.1:3020`.
+- Its persistent SQLite database lives at `/var/lib/satori-auto-crm/crm.db`, outside the deployment directory.
+- The app is built in GitHub Actions using Node 22 and deployed as a Next.js standalone build, so the small VPS does not need to compile Next.js.
+- After migration and validation, Nginx will switch `crm.satorilabural.online` from port 3010 to port 3020. The legacy service is retained temporarily for rollback.
+
+Satori-specific work is applied as a thin layer on top of the ready CRM: Russian labels/stages, website intake/status mapping, structured technical brief, Wazzup transport, and the OpenAI sales manager.
