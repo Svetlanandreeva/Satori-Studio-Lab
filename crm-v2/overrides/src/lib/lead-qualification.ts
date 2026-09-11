@@ -7,6 +7,8 @@ export type LeadQualification =
   | "spam"
   | "duplicate";
 
+export const SPAM_STAGE_NAME = "Песочница / Спам";
+
 export const LEAD_QUALIFICATION_OPTIONS: Array<{
   value: LeadQualification;
   label: string;
@@ -17,7 +19,7 @@ export const LEAD_QUALIFICATION_OPTIONS: Array<{
   { value: "qualified", label: "Квалифицирован", description: "Есть подходящий запрос и потенциал сделки" },
   { value: "unqualified", label: "Не квалифицирован", description: "Не проходит квалификацию" },
   { value: "not_target", label: "Не целевой", description: "Не относится к целевой аудитории Satori" },
-  { value: "spam", label: "Спам", description: "Мусорный или нежелательный лид" },
+  { value: "spam", label: "Спам", description: "Мусорный или нежелательный лид — уходит в Песочницу" },
   { value: "duplicate", label: "Дубль", description: "Повтор существующего клиента или лида" },
 ];
 
