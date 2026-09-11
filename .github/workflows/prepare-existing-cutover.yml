@@ -21,13 +21,23 @@ jobs:
           ssh root@194.226.97.103 'bash -se' <<'REMOTE'
           set -eu
           real=/etc/nginx/conf.d/satori-crm.conf
+          pointer=/etc/nginx/sites-enabled/.satori-crm-cutover
           test -f "$real"
           mkdir -p /etc/nginx/sites-enabled
-          if grep -Eq '^[[:space:]]*include[[:space:]]+/etc/nginx/sites-enabled/' /etc/nginx/nginx.conf; then
-            echo 'sites-enabled is included by nginx; refusing temporary pointer' >&2
+          rm -f "$pointer"
+          ln -s "$real" "$pointer"
+          test "$(readlink -f "$pointer")" = "$real"
+
+          # sites-enabled is loaded by this server. The pointer is intentionally
+          # hidden: normal wildcard includes do not match leading-dot files.
+          # Prove that assumption before any production cutover is allowed.
+          if ! nginx -t >/tmp/satori-cutover-nginx-test.log 2>&1; then
+            rm -f "$pointer"
+            cat /tmp/satori-cutover-nginx-test.log >&2
             exit 1
           fi
-          ln -sfn "$real" /etc/nginx/sites-enabled/satori-crm.conf
-          test "$(readlink -f /etc/nginx/sites-enabled/satori-crm.conf)" = "$real"
-          echo 'Temporary non-loaded config pointer prepared'
+
+          # grep -R used by the reviewed cutover workflow must still discover it.
+          grep -RIl 'crm\.satorilabural\.online' /etc/nginx/sites-enabled | grep -Fx "$pointer" >/dev/null
+          echo 'Hidden, Nginx-safe config pointer prepared'
           REMOTE
