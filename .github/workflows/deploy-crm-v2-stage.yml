@@ -1,0 +1,186 @@
+name: Deploy CRM v2 stage
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'crm-v2/**'
+      - '.github/workflows/deploy-crm-v2-stage.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: crm-v2-stage
+  cancel-in-progress: true
+
+env:
+  UPSTREAM_REPO: https://github.com/alive-home/crm.git
+  UPSTREAM_SHA: b2642a2f20705eb5511ccbd3c1553b98cc7de018
+
+jobs:
+  build-and-stage:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+
+      - name: Fetch pinned MIT CRM
+        run: |
+          git clone --filter=blob:none "$UPSTREAM_REPO" /tmp/satori-crm-v2
+          cd /tmp/satori-crm-v2
+          git checkout --detach "$UPSTREAM_SHA"
+          test -f LICENSE
+          grep -q 'MIT License' LICENSE
+
+      - name: Patch local SQLite support
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('/tmp/satori-crm-v2/server/turso.ts')
+          s = p.read_text()
+          old = '''  const missing = [!url && URL_VAR, !authToken && TOKEN_VAR].filter(name => name !== false)
+          if (!url || !authToken) {
+            throw new Error(
+              `${missing.join(" and ")} ${missing.length > 1 ? "are" : "is"} not set. The CRM lives in Turso and ` +
+                "there is no local fallback and no default URL: incomplete config must fail loudly rather than " +
+                "serve, or write to, the wrong database.",
+            )
+          }
+
+          client = createClient({ url, authToken })'''
+          new = '''  const localFile = Boolean(url?.startsWith("file:"))
+          const missing = [!url && URL_VAR, !localFile && !authToken && TOKEN_VAR].filter(name => name !== false)
+          if (!url || (!localFile && !authToken)) {
+            throw new Error(
+              `${missing.join(" and ")} ${missing.length > 1 ? "are" : "is"} not set. ` +
+                "Set a database URL; remote libSQL/Turso URLs also require an auth token.",
+            )
+          }
+
+          // Satori runs this MIT-licensed CRM as a single-tenant internal service.
+          // @libsql/client supports file: URLs, so the small VPS can use a local
+          // persistent SQLite file without a separate database service.
+          client = createClient(authToken ? { url, authToken } : { url })'''
+          if old not in s:
+              raise SystemExit('Expected upstream turso.ts block not found; pinned source changed')
+          p.write_text(s.replace(old, new))
+          PY
+
+      - name: Build upstream CRM
+        working-directory: /tmp/satori-crm-v2
+        run: |
+          bun install --frozen-lockfile
+          bun run build
+
+      - uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.DEPLOY_SSH_KEY }}
+
+      - name: Trust production server
+        run: ssh-keyscan -H 194.226.97.103 >> ~/.ssh/known_hosts
+
+      - name: Install Bun runtime on server
+        run: |
+          ssh root@194.226.97.103 'bash -se' <<'REMOTE'
+          set -eu
+          if ! command -v bun >/dev/null 2>&1; then
+            curl -fsSL https://bun.sh/install | bash >/dev/null
+            install -m 0755 /root/.bun/bin/bun /usr/local/bin/bun
+          elif [ ! -x /usr/local/bin/bun ]; then
+            install -m 0755 "$(command -v bun)" /usr/local/bin/bun
+          fi
+          /usr/local/bin/bun --version
+          mkdir -p /var/www/satori/crm-v2 /var/lib/satori-crm-v2
+          chown -R www-data:www-data /var/lib/satori-crm-v2
+          REMOTE
+
+      - name: Upload CRM v2 source and build
+        run: |
+          rsync -az --delete \
+            --exclude '.git/' \
+            --exclude 'node_modules/' \
+            /tmp/satori-crm-v2/ root@194.226.97.103:/var/www/satori/crm-v2/
+
+      - name: Install runtime dependencies, migrate and start stage
+        run: |
+          ssh root@194.226.97.103 'bash -se' <<'REMOTE'
+          set -eu
+          cd /var/www/satori/crm-v2
+          /usr/local/bin/bun install --production --frozen-lockfile
+
+          # The database lives outside the deploy directory so --delete deploys
+          # can never remove client data.
+          TURSO_DATABASE_URL_CRM='file:/var/lib/satori-crm-v2/crm.db' \
+            /usr/local/bin/bun scripts/migrate.ts
+          chown -R www-data:www-data /var/lib/satori-crm-v2
+
+          cat >/usr/local/bin/satori-crm-v2-start <<'START'
+          #!/usr/bin/env bash
+          set -eu
+          if [ -f /var/www/satori/.env ]; then
+            set -a
+            . /var/www/satori/.env
+            set +a
+          elif [ -f /var/www/satori/backend/.env ]; then
+            set -a
+            . /var/www/satori/backend/.env
+            set +a
+          fi
+          : "${ADMIN_PASSWORD:?ADMIN_PASSWORD is required for CRM v2}"
+          export CRM_PASSWORD="$ADMIN_PASSWORD"
+          export TURSO_DATABASE_URL_CRM='file:/var/lib/satori-crm-v2/crm.db'
+          unset TURSO_API_KEY_CRM || true
+          export NODE_ENV=production
+          export PORT=3020
+          cd /var/www/satori/crm-v2
+          exec /usr/local/bin/bun run server.ts
+          START
+          chmod 0755 /usr/local/bin/satori-crm-v2-start
+
+          cat >/etc/systemd/system/satori-crm-v2.service <<'UNIT'
+          [Unit]
+          Description=Satori CRM v2 (MIT upstream)
+          After=network.target
+
+          [Service]
+          Type=simple
+          User=www-data
+          Group=www-data
+          WorkingDirectory=/var/www/satori/crm-v2
+          ExecStart=/usr/local/bin/satori-crm-v2-start
+          Restart=always
+          RestartSec=3
+          NoNewPrivileges=true
+          PrivateTmp=true
+
+          [Install]
+          WantedBy=multi-user.target
+          UNIT
+
+          # www-data needs to read the existing env only through the startup
+          # wrapper. The source itself stays read-only to the service account.
+          if [ -f /var/www/satori/.env ]; then chmod 0640 /var/www/satori/.env; chgrp www-data /var/www/satori/.env; fi
+          if [ -f /var/www/satori/backend/.env ]; then chmod 0640 /var/www/satori/backend/.env; chgrp www-data /var/www/satori/backend/.env; fi
+
+          systemctl daemon-reload
+          systemctl enable satori-crm-v2 >/dev/null 2>&1 || true
+          systemctl restart satori-crm-v2
+          systemctl is-active --quiet satori-crm-v2
+          curl --fail --silent --show-error --retry 12 --retry-connrefused --retry-delay 2 \
+            http://127.0.0.1:3020/health
+          REMOTE
+
+      - name: Verify login gate and old CRM rollback service
+        run: |
+          ssh root@194.226.97.103 'bash -se' <<'REMOTE'
+          set -eu
+          # v2 must be healthy but protected before any domain cutover.
+          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3020/)" = "302"
+          curl --fail --silent http://127.0.0.1:3020/login | grep -qi 'password'
+          # Keep old CRM alive on 3010 until migration and cutover are complete.
+          systemctl is-active --quiet satori-crm
+          curl --fail --silent http://127.0.0.1:3010/health >/dev/null
+          REMOTE
