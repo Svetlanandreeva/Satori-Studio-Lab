@@ -1,27 +1,5 @@
-/* Keep the admin entry available on tablets and phones.
-   storefront-enhancements.css intentionally hid it below 1024px; this override
-   restores a compact pill without crowding the cart/menu controls. */
-@media (max-width: 1023px) {
-  #root > div > header > div:first-child > div:last-child {
-    min-width: 0 !important;
-    gap: 8px !important;
-  }
-
-  .satori-admin-top-link {
-    display: inline-flex !important;
-    min-height: 32px !important;
-    padding: 0 10px !important;
-    flex: 0 0 auto !important;
-    font-size: 8.5px !important;
-    letter-spacing: .06em !important;
-    background: rgba(255,255,255,.32) !important;
-  }
-}
-
-@media (max-width: 390px) {
-  .satori-admin-top-link {
-    min-height: 30px !important;
-    padding: 0 8px !important;
-    font-size: 8px !important;
-  }
+/* Public storefront must never advertise the admin panel entry.
+   The owner-only footer link is injected only when an admin token is present. */
+.satori-admin-top-link {
+  display: none !important;
 }
