@@ -23,6 +23,7 @@ export async function GET(request: NextRequest) {
   const temperature = searchParams.get("temperature");
   const source = searchParams.get("source");
   const qualification = searchParams.get("qualification");
+  const includeSpam = searchParams.get("includeSpam") === "1";
 
   const results = db
     .select()
@@ -30,6 +31,7 @@ export async function GET(request: NextRequest) {
     .orderBy(desc(contacts.createdAt))
     .all()
     .filter((contact) => {
+      if (!includeSpam && contact.qualification === "spam") return false;
       const matchesSearch =
         !search ||
         contact.name.toLowerCase().includes(search) ||
