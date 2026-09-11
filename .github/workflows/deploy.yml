@@ -7,7 +7,7 @@ on:
 
 concurrency:
   group: production-deploy
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 jobs:
   deploy:
@@ -34,11 +34,9 @@ jobs:
       - name: Trust the server's host key
         run: ssh-keyscan -H 194.226.97.103 >> ~/.ssh/known_hosts
 
-      # Frontend is a full rebuild every time — safe to mirror exactly.
       - name: Deploy frontend
         run: rsync -az --delete dist/ root@194.226.97.103:/var/www/satori/frontend/
 
-      # Backend: only sync code. Never touch live data/uploads/secrets.
       - name: Deploy backend
         run: |
           rsync -az \
@@ -51,8 +49,6 @@ jobs:
         run: |
           ssh root@194.226.97.103 'set -eu; systemctl restart satori-backend; systemctl is-active --quiet satori-backend; curl --fail --silent --show-error --retry 10 --retry-connrefused --retry-delay 2 --max-time 10 -o /dev/null http://127.0.0.1:3001/api/products'
 
-      # CRM is deployed independently from the storefront. Preserve runtime
-      # JSON data and secrets; source code/static assets are mirrored exactly.
       - name: Deploy CRM
         run: |
           ssh root@194.226.97.103 'mkdir -p /var/www/satori/crm'
@@ -69,8 +65,6 @@ jobs:
           cd /var/www/satori/crm
           npm install --omit=dev --no-audit --no-fund
 
-          # CRM reads ../.env. Reuse the existing backend env only when a
-          # dedicated root env has not already been created.
           if [ ! -e /var/www/satori/.env ] && [ -f /var/www/satori/backend/.env ]; then
             ln -s /var/www/satori/backend/.env /var/www/satori/.env
           fi
@@ -98,7 +92,6 @@ jobs:
           systemctl is-active --quiet satori-crm
           curl --fail --silent --show-error --retry 12 --retry-connrefused --retry-delay 2 --max-time 10 http://127.0.0.1:3010/health >/dev/null
 
-          # Validate the real authenticated bootstrap without printing secrets.
           node --input-type=module <<'NODE'
           import { config } from 'dotenv';
           config({ path: '/var/www/satori/.env', quiet: true });
