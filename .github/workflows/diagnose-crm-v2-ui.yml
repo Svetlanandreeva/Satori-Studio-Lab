@@ -10,12 +10,13 @@ on:
 jobs:
   diagnose:
     runs-on: ubuntu-latest
-    timeout-minutes: 8
+    timeout-minutes: 10
     steps:
       - uses: webfactory/ssh-agent@v0.9.0
         with:
           ssh-private-key: ${{ secrets.DEPLOY_SSH_KEY }}
       - run: ssh-keyscan -H 194.226.97.103 >> ~/.ssh/known_hosts
+
       - name: Check rendered HTML and Next assets
         run: |
           ssh root@194.226.97.103 'python3 -' <<'PY'
@@ -45,6 +46,51 @@ jobs:
           if failures:
               raise SystemExit('Broken assets: '+', '.join(failures))
           PY
+
+      - name: Render CRM in headless Chrome through SSH tunnel
+        run: |
+          set -eu
+          ssh -f -N -L 3020:127.0.0.1:3020 root@194.226.97.103
+          CHROME=$(command -v google-chrome || command -v google-chrome-stable || command -v chromium || true)
+          test -n "$CHROME"
+          mkdir -p /tmp/crm-browser-check
+          cd /tmp/crm-browser-check
+          npm init -y >/dev/null 2>&1
+          npm install --no-save playwright-core@1.55.0 >/dev/null 2>&1
+          CHROME="$CHROME" node <<'NODE'
+          const { chromium } = require('playwright-core');
+          (async () => {
+            const browser = await chromium.launch({ executablePath: process.env.CHROME, headless: true, args: ['--no-sandbox'] });
+            const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+            const consoleErrors = [];
+            const pageErrors = [];
+            const failedRequests = [];
+            page.on('console', msg => { if (msg.type() === 'error') consoleErrors.push(msg.text()); });
+            page.on('pageerror', err => pageErrors.push(String(err)));
+            page.on('requestfailed', req => failedRequests.push(`${req.url()} :: ${req.failure()?.errorText || 'failed'}`));
+            const response = await page.goto('http://127.0.0.1:3020/', { waitUntil: 'networkidle', timeout: 30000 });
+            await page.waitForTimeout(1500);
+            const metrics = await page.evaluate(() => ({
+              title: document.title,
+              bodyTextLength: document.body?.innerText?.trim().length || 0,
+              bodyChildCount: document.body?.children?.length || 0,
+              h1: document.querySelector('h1')?.textContent?.trim() || '',
+              navText: Array.from(document.querySelectorAll('nav a')).slice(0, 8).map(a => a.textContent?.trim()).filter(Boolean),
+              bodyBg: getComputedStyle(document.body).backgroundColor,
+              bodyColor: getComputedStyle(document.body).color,
+            }));
+            console.log('http_status=', response?.status());
+            console.log('metrics=', JSON.stringify(metrics));
+            console.log('console_errors=', JSON.stringify(consoleErrors));
+            console.log('page_errors=', JSON.stringify(pageErrors));
+            console.log('failed_requests=', JSON.stringify(failedRequests));
+            await page.screenshot({ path: 'crm-browser.png', fullPage: true });
+            if (!response || response.status() !== 200) throw new Error('CRM root did not return 200');
+            if (metrics.bodyTextLength < 20 || !metrics.h1) throw new Error('Browser rendered an effectively blank CRM page');
+            if (pageErrors.length) throw new Error('Browser page errors detected');
+            await browser.close();
+          })().catch(err => { console.error(err); process.exit(1); });
+          NODE
 
       - name: Check service logs and deployed static files
         run: |
