@@ -2,7 +2,37 @@ import { NextRequest, NextResponse } from "next/server";
 import {
   INTEGRATION_KEYS,
   getSetting,
+  telegramApiRequest,
 } from "@/lib/satori-integrations";
+
+interface TelegramUpdate {
+  message?: {
+    chat?: {
+      id?: number | string;
+      username?: string;
+      first_name?: string;
+      type?: string;
+    };
+  };
+  edited_message?: {
+    chat?: {
+      id?: number | string;
+      username?: string;
+      first_name?: string;
+      type?: string;
+    };
+  };
+  callback_query?: {
+    message?: {
+      chat?: {
+        id?: number | string;
+        username?: string;
+        first_name?: string;
+        type?: string;
+      };
+    };
+  };
+}
 
 export async function POST(request: NextRequest) {
   let body: Record<string, unknown> = {};
@@ -23,40 +53,34 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const response = await fetch(
-      `https://api.telegram.org/bot${token}/getUpdates?limit=100&timeout=0`,
-      { cache: "no-store" }
-    );
-    const data = (await response.json()) as {
-      ok?: boolean;
-      description?: string;
-      result?: Array<Record<string, unknown>>;
-    };
+    const data = await telegramApiRequest<TelegramUpdate[]>(token, "getUpdates", {
+      limit: 100,
+      timeout: 0,
+      allowed_updates: ["message", "edited_message", "callback_query"],
+    });
 
-    if (!response.ok || !data.ok) {
+    if (!data.ok) {
       return NextResponse.json(
-        { error: data.description || `Telegram HTTP ${response.status}` },
+        { error: data.description || "Telegram не вернул обновления" },
         { status: 400 }
       );
     }
 
     const updates = Array.isArray(data.result) ? data.result : [];
     for (let i = updates.length - 1; i >= 0; i -= 1) {
-      const update = updates[i] as Record<string, unknown>;
-      const message = (update.message || update.edited_message || update.callback_query) as
-        | Record<string, unknown>
-        | undefined;
-      const actualMessage = message?.message && typeof message.message === "object"
-        ? (message.message as Record<string, unknown>)
-        : message;
-      const chat = actualMessage?.chat as Record<string, unknown> | undefined;
+      const update = updates[i];
+      const chat =
+        update.message?.chat ||
+        update.edited_message?.chat ||
+        update.callback_query?.message?.chat;
+
       if (chat?.id !== undefined && chat?.id !== null) {
         return NextResponse.json({
           success: true,
           chatId: String(chat.id),
-          username: typeof chat.username === "string" ? chat.username : null,
-          firstName: typeof chat.first_name === "string" ? chat.first_name : null,
-          type: typeof chat.type === "string" ? chat.type : null,
+          username: chat.username || null,
+          firstName: chat.first_name || null,
+          type: chat.type || null,
         });
       }
     }
