@@ -1,0 +1,37 @@
+name: Test CRM email feature
+
+on:
+  push:
+    branches: ['feature/email-inbox-telegram-fix']
+    paths:
+      - 'crm-v2/**'
+      - '.github/workflows/test-crm-email-feature.yml'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Fetch pinned Auto-CRM
+        run: |
+          git clone --filter=blob:none https://github.com/Hainrixz/auto-crm.git /tmp/satori-auto-crm
+          cd /tmp/satori-auto-crm
+          git checkout --detach 0aef51a9aef0487c59b964b4eea9d964a2321f0c
+      - name: Apply Satori overrides
+        run: |
+          python3 crm-v2/russianize.py
+          cp -a crm-v2/overrides/src/. /tmp/satori-auto-crm/src/
+          test -f /tmp/satori-auto-crm/src/app/inbox/page.tsx
+          test -f /tmp/satori-auto-crm/src/instrumentation.ts
+          test -f /tmp/satori-auto-crm/src/node_modules/imapflow/index.js
+      - name: Install and build
+        working-directory: /tmp/satori-auto-crm
+        env:
+          NEXT_TELEMETRY_DISABLED: '1'
+        run: |
+          npm ci
+          npm run build
