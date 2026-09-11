@@ -13,62 +13,123 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  UPSTREAM_REPO: https://github.com/alive-home/crm.git
-  UPSTREAM_SHA: b2642a2f20705eb5511ccbd3c1553b98cc7de018
+  UPSTREAM_REPO: https://github.com/Hainrixz/auto-crm.git
+  UPSTREAM_SHA: 0aef51a9aef0487c59b964b4eea9d964a2321f0c
 
 jobs:
   build-and-stage:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
 
-      - uses: oven-sh/setup-bun@v2
+      - uses: actions/setup-node@v4
         with:
-          bun-version: latest
+          node-version: '22'
 
-      - name: Fetch pinned MIT CRM
+      - name: Fetch pinned MIT Auto-CRM
         run: |
-          git clone --filter=blob:none "$UPSTREAM_REPO" /tmp/satori-crm-v2
-          cd /tmp/satori-crm-v2
+          git clone --filter=blob:none "$UPSTREAM_REPO" /tmp/satori-auto-crm
+          cd /tmp/satori-auto-crm
           git checkout --detach "$UPSTREAM_SHA"
           test -f LICENSE
           grep -q 'MIT License' LICENSE
 
-      - name: Patch local SQLite support
+      - name: Apply Satori deployment and Russian base patch
         run: |
           python3 - <<'PY'
           from pathlib import Path
-          p = Path('/tmp/satori-crm-v2/server/turso.ts')
+
+          root = Path('/tmp/satori-auto-crm')
+
+          # Build a self-contained Next.js runtime for the small VPS.
+          p = root / 'next.config.ts'
           s = p.read_text()
-          replacements = [
-              (
-                  '  const missing = [!url && URL_VAR, !authToken && TOKEN_VAR].filter(name => name !== false)',
-                  '  const localFile = Boolean(url?.startsWith("file:"))\n  const missing = [!url && URL_VAR, !localFile && !authToken && TOKEN_VAR].filter(name => name !== false)',
-              ),
-              ('  if (!url || !authToken) {', '  if (!url || (!localFile && !authToken)) {'),
-              (
-                  '      `${missing.join(" and ")} ${missing.length > 1 ? "are" : "is"} not set. The CRM lives in Turso and ` +\n        "there is no local fallback and no default URL: incomplete config must fail loudly rather than " +\n        "serve, or write to, the wrong database.",',
-                  '      `${missing.join(" and ")} ${missing.length > 1 ? "are" : "is"} not set. ` +\n        "Set a database URL; remote libSQL/Turso URLs also require an auth token.",',
-              ),
-              (
-                  '  client = createClient({ url, authToken })',
-                  '  // Satori internal deployment: @libsql/client supports a persistent local file URL.\n  client = createClient(authToken ? { url, authToken } : { url })',
-              ),
-          ]
-          for old, new in replacements:
-              count = s.count(old)
-              if count != 1:
-                  raise SystemExit(f'Expected exactly one patch target, found {count}: {old[:80]}')
+          needle = 'const nextConfig: NextConfig = {\n  serverExternalPackages: ["better-sqlite3"],\n};'
+          replacement = 'const nextConfig: NextConfig = {\n  output: "standalone",\n  serverExternalPackages: ["better-sqlite3"],\n};'
+          if needle not in s:
+              raise SystemExit('next.config.ts patch target not found')
+          p.write_text(s.replace(needle, replacement))
+
+          # Keep SQLite outside the deploy directory so code deploys cannot delete data.
+          p = root / 'src/db/index.ts'
+          s = p.read_text()
+          needle = 'const DB_PATH = path.join(process.cwd(), "data", "crm.db");'
+          replacement = 'const DB_PATH = process.env.CRM_DB_PATH || path.join(process.cwd(), "data", "crm.db");'
+          if needle not in s:
+              raise SystemExit('DB path patch target not found')
+          p.write_text(s.replace(needle, replacement))
+
+          # Russian locale/currency and Satori branding.
+          p = root / 'src/app/layout.tsx'
+          s = p.read_text().replace('<html lang="es"', '<html lang="ru"')
+          p.write_text(s)
+
+          for rel in ['src/components/layout/Sidebar.tsx', 'src/components/layout/MobileNav.tsx']:
+              p = root / rel
+              s = p.read_text()
+              mapping = {
+                  'label: "Dashboard"': 'label: "Главная"',
+                  'label: "Pipeline"': 'label: "Воронка"',
+                  'label: "Contactos"': 'label: "Клиенты"',
+                  'label: "Deals"': 'label: "Сделки"',
+                  'label: "Actividades"': 'label: "Активность"',
+                  'label: "Configuracion"': 'label: "Настройки"',
+                  '>Auto-CRM<': '>SATORI CRM<',
+                  'Auto-CRM v1.0': 'SATORI / CRM',
+                  'Powered by Claude': 'Satori Studio',
+              }
+              for old, new in mapping.items():
+                  s = s.replace(old, new)
+              p.write_text(s)
+
+          p = root / 'src/lib/constants.ts'
+          s = p.read_text()
+          mapping = {
+              'label: "Frio"': 'label: "Холодный"',
+              'label: "Tibio"': 'label: "Тёплый"',
+              'label: "Caliente"': 'label: "Горячий"',
+              '"Sitio web"': '"Сайт"',
+              '"Referido"': '"Рекомендация"',
+              '"Redes sociales"': '"Соцсети"',
+              '"Llamada fria"': '"Холодный звонок"',
+              '"Formulario"': '"Форма"',
+              '"Evento"': '"Мероприятие"',
+              '"Importado"': '"Импорт"',
+              '"Otro"': '"Другое"',
+              'label: "Llamada"': 'label: "Звонок"',
+              'label: "Reunion"': 'label: "Встреча"',
+              'label: "Nota"': 'label: "Заметка"',
+              'label: "Seguimiento"': 'label: "Follow-up"',
+              'new Intl.NumberFormat("es-MX"': 'new Intl.NumberFormat("ru-RU"',
+              'currency: "MXN"': 'currency: "RUB"',
+              'new Intl.DateTimeFormat("es-MX"': 'new Intl.DateTimeFormat("ru-RU"',
+              'return "Hoy"': 'return "Сегодня"',
+              'return "Ayer"': 'return "Вчера"',
+          }
+          for old, new in mapping.items():
               s = s.replace(old, new)
           p.write_text(s)
           PY
 
-      - name: Build upstream CRM
-        working-directory: /tmp/satori-crm-v2
+      - name: Install and build Auto-CRM
+        working-directory: /tmp/satori-auto-crm
+        env:
+          NEXT_TELEMETRY_DISABLED: '1'
         run: |
-          bun install --frozen-lockfile
-          bun run build
+          npm ci
+          npm run build
+          test -f .next/standalone/server.js
+
+      - name: Assemble standalone artifact
+        run: |
+          rm -rf /tmp/satori-auto-crm-runtime
+          mkdir -p /tmp/satori-auto-crm-runtime/.next
+          cp -a /tmp/satori-auto-crm/.next/standalone/. /tmp/satori-auto-crm-runtime/
+          cp -a /tmp/satori-auto-crm/.next/static /tmp/satori-auto-crm-runtime/.next/static
+          if [ -d /tmp/satori-auto-crm/public ]; then cp -a /tmp/satori-auto-crm/public /tmp/satori-auto-crm-runtime/public; fi
+          cp /tmp/satori-auto-crm/LICENSE /tmp/satori-auto-crm-runtime/LICENSE
+          printf '%s\n' "$UPSTREAM_SHA" > /tmp/satori-auto-crm-runtime/UPSTREAM_COMMIT
 
       - uses: webfactory/ssh-agent@v0.9.0
         with:
@@ -77,67 +138,38 @@ jobs:
       - name: Trust production server
         run: ssh-keyscan -H 194.226.97.103 >> ~/.ssh/known_hosts
 
-      - name: Install Bun runtime on server
+      - name: Install isolated Node 22 runtime
         run: |
           ssh root@194.226.97.103 'bash -se' <<'REMOTE'
           set -eu
-          if ! command -v bun >/dev/null 2>&1; then
-            curl -fsSL https://bun.sh/install | bash >/dev/null
-            install -m 0755 /root/.bun/bin/bun /usr/local/bin/bun
-          elif [ ! -x /usr/local/bin/bun ]; then
-            install -m 0755 "$(command -v bun)" /usr/local/bin/bun
+          if [ ! -x /opt/node22/bin/node ]; then
+            tmp=$(mktemp -d)
+            cd "$tmp"
+            archive=$(curl -fsSL https://nodejs.org/dist/latest-v22.x/SHASUMS256.txt | awk '/linux-x64.tar.xz$/ {print $2; exit}')
+            test -n "$archive"
+            curl -fsSLO "https://nodejs.org/dist/latest-v22.x/$archive"
+            mkdir -p /opt/node22
+            tar -xJf "$archive" -C /opt/node22 --strip-components=1
+            rm -rf "$tmp"
           fi
-          /usr/local/bin/bun --version
-          mkdir -p /var/www/satori/crm-v2 /var/lib/satori-crm-v2
-          chown -R www-data:www-data /var/lib/satori-crm-v2
+          /opt/node22/bin/node --version
+          mkdir -p /var/www/satori/crm-v2 /var/lib/satori-auto-crm
+          chown -R www-data:www-data /var/lib/satori-auto-crm
           REMOTE
 
-      - name: Upload CRM v2 source and build
+      - name: Replace temporary v2 staging app
         run: |
-          rsync -az --delete \
-            --exclude '.git/' \
-            --exclude 'node_modules/' \
-            /tmp/satori-crm-v2/ root@194.226.97.103:/var/www/satori/crm-v2/
+          ssh root@194.226.97.103 'systemctl stop satori-crm-v2 2>/dev/null || true'
+          rsync -az --delete /tmp/satori-auto-crm-runtime/ root@194.226.97.103:/var/www/satori/crm-v2/
+          ssh root@194.226.97.103 'chown -R www-data:www-data /var/www/satori/crm-v2'
 
-      - name: Install runtime dependencies, migrate and start stage
+      - name: Start Auto-CRM stage on 3020
         run: |
           ssh root@194.226.97.103 'bash -se' <<'REMOTE'
           set -eu
-          cd /var/www/satori/crm-v2
-          /usr/local/bin/bun install --production --frozen-lockfile
-
-          # The database lives outside the deploy directory so --delete deploys
-          # can never remove client data.
-          TURSO_DATABASE_URL_CRM='file:/var/lib/satori-crm-v2/crm.db' \
-            /usr/local/bin/bun scripts/migrate.ts
-          chown -R www-data:www-data /var/lib/satori-crm-v2
-
-          cat >/usr/local/bin/satori-crm-v2-start <<'START'
-          #!/usr/bin/env bash
-          set -eu
-          if [ -f /var/www/satori/.env ]; then
-            set -a
-            . /var/www/satori/.env
-            set +a
-          elif [ -f /var/www/satori/backend/.env ]; then
-            set -a
-            . /var/www/satori/backend/.env
-            set +a
-          fi
-          : "${ADMIN_PASSWORD:?ADMIN_PASSWORD is required for CRM v2}"
-          export CRM_PASSWORD="$ADMIN_PASSWORD"
-          export TURSO_DATABASE_URL_CRM='file:/var/lib/satori-crm-v2/crm.db'
-          unset TURSO_API_KEY_CRM || true
-          export NODE_ENV=production
-          export PORT=3020
-          cd /var/www/satori/crm-v2
-          exec /usr/local/bin/bun run server.ts
-          START
-          chmod 0755 /usr/local/bin/satori-crm-v2-start
-
           cat >/etc/systemd/system/satori-crm-v2.service <<'UNIT'
           [Unit]
-          Description=Satori CRM v2 (MIT upstream)
+          Description=Satori Auto-CRM v2 (MIT)
           After=network.target
 
           [Service]
@@ -145,9 +177,14 @@ jobs:
           User=www-data
           Group=www-data
           WorkingDirectory=/var/www/satori/crm-v2
-          ExecStart=/usr/local/bin/satori-crm-v2-start
+          ExecStart=/opt/node22/bin/node /var/www/satori/crm-v2/server.js
           Restart=always
           RestartSec=3
+          Environment=NODE_ENV=production
+          Environment=PORT=3020
+          Environment=HOSTNAME=127.0.0.1
+          Environment=CRM_DB_PATH=/var/lib/satori-auto-crm/crm.db
+          Environment=NEXT_TELEMETRY_DISABLED=1
           NoNewPrivileges=true
           PrivateTmp=true
 
@@ -155,27 +192,54 @@ jobs:
           WantedBy=multi-user.target
           UNIT
 
-          # www-data needs to read the existing env only through the startup
-          # wrapper. The source itself stays read-only to the service account.
-          if [ -f /var/www/satori/.env ]; then chmod 0640 /var/www/satori/.env; chgrp www-data /var/www/satori/.env; fi
-          if [ -f /var/www/satori/backend/.env ]; then chmod 0640 /var/www/satori/backend/.env; chgrp www-data /var/www/satori/backend/.env; fi
-
           systemctl daemon-reload
           systemctl enable satori-crm-v2 >/dev/null 2>&1 || true
           systemctl restart satori-crm-v2
           systemctl is-active --quiet satori-crm-v2
-          curl --fail --silent --show-error --retry 12 --retry-connrefused --retry-delay 2 \
-            http://127.0.0.1:3020/health
+
+          curl --fail --silent --show-error --retry 15 --retry-connrefused --retry-delay 2 \
+            http://127.0.0.1:3020/api/pipeline >/tmp/satori-auto-pipeline.json
+          node_count=$(python3 - <<'PY'
+          import json
+          print(len(json.load(open('/tmp/satori-auto-pipeline.json'))))
+          PY
+          )
+          test "$node_count" -ge 1
           REMOTE
 
-      - name: Verify login gate and old CRM rollback service
+      - name: Set Satori pipeline for empty v2 database
         run: |
           ssh root@194.226.97.103 'bash -se' <<'REMOTE'
           set -eu
-          # v2 must be healthy but protected before any domain cutover.
-          test "$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:3020/)" = "302"
-          curl --fail --silent http://127.0.0.1:3020/login | grep -qi 'password'
-          # Keep old CRM alive on 3010 until migration and cutover are complete.
+          contacts=$(curl -fsS http://127.0.0.1:3020/api/contacts)
+          deals=$(curl -fsS http://127.0.0.1:3020/api/deals)
+          python3 - "$contacts" "$deals" <<'PY'
+          import json, sys
+          if len(json.loads(sys.argv[1])) or len(json.loads(sys.argv[2])):
+              raise SystemExit('CRM v2 already has data; refusing to replace pipeline stages')
+          PY
+          curl --fail --silent --show-error -X PUT http://127.0.0.1:3020/api/pipeline \
+            -H 'Content-Type: application/json' \
+            --data '{"stages":[{"name":"Новый запрос","order":1,"color":"#64748b"},{"name":"Расчёт","order":2,"color":"#2563eb"},{"name":"Согласовано","order":3,"color":"#8b5cf6"},{"name":"В производстве","order":4,"color":"#ea580c"},{"name":"Готово","order":5,"color":"#0f766e"},{"name":"Доставка","order":6,"color":"#0891b2"},{"name":"Завершено","order":7,"color":"#16a34a","isWon":true},{"name":"Отказ","order":8,"color":"#dc2626","isLost":true}]}' \
+            >/tmp/satori-auto-stages.json
+          python3 - <<'PY'
+          import json
+          data=json.load(open('/tmp/satori-auto-stages.json'))
+          assert len(data) == 8, data
+          print('Satori pipeline ready:', ', '.join(x['name'] for x in data))
+          PY
+          REMOTE
+
+      - name: Verify v2 and preserve legacy rollback
+        run: |
+          ssh root@194.226.97.103 'bash -se' <<'REMOTE'
+          set -eu
+          curl --fail --silent http://127.0.0.1:3020/ >/dev/null
+          curl --fail --silent http://127.0.0.1:3020/api/contacts >/dev/null
+          curl --fail --silent http://127.0.0.1:3020/api/deals >/dev/null
+          curl --fail --silent http://127.0.0.1:3020/api/pipeline | grep -q 'Новый запрос'
           systemctl is-active --quiet satori-crm
           curl --fail --silent http://127.0.0.1:3010/health >/dev/null
+          # The prior temporary alive-home v2 database contained no Satori data.
+          rm -rf /var/lib/satori-crm-v2
           REMOTE
