@@ -1,0 +1,42 @@
+name: Diagnose Telegram network
+
+on:
+  push:
+    branches: ['diag/telegram-network']
+    paths: ['.github/workflows/diag-telegram-network.yml']
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.DEPLOY_SSH_KEY }}
+      - name: Trust production server
+        run: ssh-keyscan -H 194.226.97.103 >> ~/.ssh/known_hosts
+      - name: Check Telegram connectivity from production VPS
+        run: |
+          ssh root@194.226.97.103 'bash -se' <<'REMOTE'
+          set +e
+          echo '=== host/date ==='
+          hostname
+          date -Is
+          echo '=== DNS ==='
+          getent ahostsv4 api.telegram.org || true
+          getent ahostsv6 api.telegram.org || true
+          echo '=== route ==='
+          ip route get 149.154.167.220 || true
+          echo '=== firewall ==='
+          nft list ruleset 2>/dev/null | sed -n '1,220p' || iptables -S 2>/dev/null || true
+          echo '=== curl IPv4 api.telegram.org ==='
+          curl -4 -svI --connect-timeout 8 --max-time 12 https://api.telegram.org/ 2>&1 | tail -80
+          echo '=== curl IPv6 api.telegram.org ==='
+          curl -6 -svI --connect-timeout 8 --max-time 12 https://api.telegram.org/ 2>&1 | tail -80
+          echo '=== openssl IPv4 ==='
+          timeout 12 openssl s_client -connect api.telegram.org:443 -servername api.telegram.org -4 </dev/null 2>&1 | tail -60
+          echo '=== curl Google control ==='
+          curl -4 -sSvo /dev/null --connect-timeout 8 --max-time 12 https://www.google.com 2>&1 | tail -40
+          echo '=== curl Telegram known IP with SNI ==='
+          curl -4 -svI --resolve api.telegram.org:443:149.154.167.220 --connect-timeout 8 --max-time 12 https://api.telegram.org/ 2>&1 | tail -80
+          REMOTE
