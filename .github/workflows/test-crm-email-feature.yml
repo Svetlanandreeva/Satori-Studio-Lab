@@ -1,0 +1,61 @@
+name: Test CRM email feature
+
+on:
+  push:
+    branches: ['feature/email-inbox-telegram-fix']
+    paths:
+      - 'crm-v2/**'
+      - '.github/workflows/test-crm-email-feature.yml'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Fetch pinned Auto-CRM
+        run: |
+          git clone --filter=blob:none https://github.com/Hainrixz/auto-crm.git /tmp/satori-auto-crm
+          cd /tmp/satori-auto-crm
+          git checkout --detach 0aef51a9aef0487c59b964b4eea9d964a2321f0c
+      - name: Apply standalone config and Satori overrides
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('/tmp/satori-auto-crm/next.config.ts')
+          s=p.read_text()
+          s=s.replace('const nextConfig: NextConfig = {\n  serverExternalPackages: ["better-sqlite3"],\n};','const nextConfig: NextConfig = {\n  output: "standalone",\n  serverExternalPackages: ["better-sqlite3"],\n};')
+          p.write_text(s)
+          PY
+          python3 crm-v2/russianize.py
+          cp -a crm-v2/overrides/src/. /tmp/satori-auto-crm/src/
+      - name: Build standalone
+        working-directory: /tmp/satori-auto-crm
+        env:
+          NEXT_TELEMETRY_DISABLED: '1'
+        run: |
+          npm ci
+          npm run build
+          test -f .next/standalone/server.js
+      - name: Boot standalone and smoke-test inbox
+        working-directory: /tmp/satori-auto-crm
+        run: |
+          cp -a .next/static .next/standalone/.next/static
+          cp -a public .next/standalone/public
+          cd .next/standalone
+          PORT=3020 HOSTNAME=127.0.0.1 CRM_DB_PATH=/tmp/satori-mail-test.db node server.js >/tmp/satori-test.log 2>&1 &
+          pid=$!
+          trap 'kill $pid 2>/dev/null || true; cat /tmp/satori-test.log' EXIT
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:3020/api/inbox?filter=client >/tmp/inbox.json; then break; fi
+            sleep 2
+          done
+          python3 - <<'PY'
+          import json
+          data=json.load(open('/tmp/inbox.json'))
+          assert data == {'threads': []}, data
+          PY
+          curl -fsS http://127.0.0.1:3020/settings | grep -q 'Почта'
