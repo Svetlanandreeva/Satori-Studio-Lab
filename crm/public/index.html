@@ -9,6 +9,7 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="Satori CRM" />
     <title>SATORI — CRM</title>
+    <script>try{if(!localStorage.getItem('satori_crm_token'))document.documentElement.classList.add('crm-login-visible')}catch{}</script>
     <link rel="manifest" href="/manifest.webmanifest" />
     <link rel="icon" href="/brand/favicon.svg" type="image/svg+xml" />
     <link rel="apple-touch-icon" href="/brand/apple-touch-icon.png" />
@@ -31,7 +32,7 @@
       .crm-login-visible .parser-fab { display:none !important; }
     </style>
   </head>
-  <body class="crm-login-visible">
+  <body>
     <div id="app"></div>
     <script src="/boot-guard.js"></script>
     <script type="module" src="/app.js"></script>
