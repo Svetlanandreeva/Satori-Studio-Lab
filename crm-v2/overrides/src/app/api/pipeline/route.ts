@@ -4,7 +4,36 @@ import { pipelineStages, deals, contacts } from "@/db/schema";
 import { eq, asc } from "drizzle-orm";
 import { SPAM_STAGE_NAME } from "@/lib/lead-qualification";
 
+function migrateExistingSpam() {
+  const stages = db.select().from(pipelineStages).all();
+  const sandbox = stages.find((stage) => stage.name === SPAM_STAGE_NAME);
+  if (!sandbox) return;
+
+  const spamContactIds = new Set(
+    db
+      .select()
+      .from(contacts)
+      .all()
+      .filter((contact) => contact.qualification === "spam")
+      .map((contact) => contact.id)
+  );
+  if (spamContactIds.size === 0) return;
+
+  const currentDeals = db.select().from(deals).all();
+  for (const deal of currentDeals) {
+    if (!spamContactIds.has(deal.contactId)) continue;
+    const currentStage = stages.find((stage) => stage.id === deal.stageId);
+    if (currentStage?.isWon || deal.stageId === sandbox.id) continue;
+    db.update(deals)
+      .set({ stageId: sandbox.id, probability: 0, updatedAt: new Date() })
+      .where(eq(deals.id, deal.id))
+      .run();
+  }
+}
+
 export async function GET() {
+  migrateExistingSpam();
+
   const stages = db
     .select()
     .from(pipelineStages)
