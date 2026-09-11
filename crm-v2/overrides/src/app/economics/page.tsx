@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Calculator, Edit3, Loader2, Search, TrendingDown, TrendingUp, WalletCards } from "lucide-react";
+import { Building2, Calculator, Edit3, Loader2, Plus, Search, Trash2, WalletCards } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -52,6 +52,15 @@ interface ClientEconomics {
   margin: number;
 }
 
+interface FixedExpense {
+  id: string;
+  month: string;
+  name: string;
+  category: string;
+  amount: number;
+  notes: string | null;
+}
+
 interface EconomicsPayload {
   deals: EconomicsDeal[];
   clients: ClientEconomics[];
@@ -61,6 +70,11 @@ interface EconomicsPayload {
     totalCost: number;
     profit: number;
     margin: number;
+  };
+  fixedExpenses: {
+    month: string;
+    items: FixedExpense[];
+    total: number;
   };
 }
 
@@ -87,6 +101,22 @@ const emptyForm: FormState = {
   otherCost: "",
   notes: "",
 };
+
+const expenseCategories: Record<string, string> = {
+  server: "Сервер / IT",
+  ads: "Реклама",
+  subscriptions: "Подписки / сервисы",
+  rent: "Аренда",
+  utilities: "Электричество / коммунальные",
+  salary: "Команда / зарплаты",
+  accounting: "Бухгалтерия",
+  other: "Прочее",
+};
+
+function browserMonth(): string {
+  const date = new Date();
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+}
 
 function rubles(cents: number): string {
   return new Intl.NumberFormat("ru-RU", {
@@ -124,11 +154,18 @@ export default function EconomicsPage() {
   const [search, setSearch] = useState("");
   const [editing, setEditing] = useState<EconomicsDeal | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm);
+  const [month, setMonth] = useState(browserMonth);
+  const [expenseOpen, setExpenseOpen] = useState(false);
+  const [expenseSaving, setExpenseSaving] = useState(false);
+  const [expenseName, setExpenseName] = useState("");
+  const [expenseAmount, setExpenseAmount] = useState("");
+  const [expenseCategory, setExpenseCategory] = useState("other");
+  const [expenseNotes, setExpenseNotes] = useState("");
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      const response = await fetch("/api/economics", { cache: "no-store" });
+      const response = await fetch(`/api/economics?month=${encodeURIComponent(month)}`, { cache: "no-store" });
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || "Не удалось загрузить экономику");
       setData(payload as EconomicsPayload);
@@ -137,7 +174,7 @@ export default function EconomicsPage() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [month]);
 
   useEffect(() => {
     load();
@@ -209,6 +246,51 @@ export default function EconomicsPage() {
     }
   };
 
+  const addFixedExpense = async () => {
+    if (!expenseName.trim()) {
+      toast.error("Укажи название расхода");
+      return;
+    }
+    setExpenseSaving(true);
+    try {
+      const response = await fetch("/api/economics", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          month,
+          name: expenseName,
+          category: expenseCategory,
+          amount: toCents(expenseAmount),
+          notes: expenseNotes,
+        }),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "Не удалось добавить расход");
+      toast.success("Постоянный расход добавлен");
+      setExpenseOpen(false);
+      setExpenseName("");
+      setExpenseAmount("");
+      setExpenseCategory("other");
+      setExpenseNotes("");
+      await load();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Ошибка сохранения расхода");
+    } finally {
+      setExpenseSaving(false);
+    }
+  };
+
+  const removeFixedExpense = async (id: string) => {
+    try {
+      const response = await fetch(`/api/economics?expenseId=${encodeURIComponent(id)}`, { method: "DELETE" });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "Не удалось удалить расход");
+      await load();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Ошибка удаления расхода");
+    }
+  };
+
   const visibleDeals = useMemo(() => {
     const query = search.trim().toLowerCase();
     if (!data) return [];
@@ -229,6 +311,7 @@ export default function EconomicsPage() {
   }
 
   const totals = data?.totals || { dealValue: 0, receivedAmount: 0, totalCost: 0, profit: 0, margin: 0 };
+  const fixed = data?.fixedExpenses || { month, items: [], total: 0 };
 
   return (
     <div className="space-y-6">
@@ -264,13 +347,56 @@ export default function EconomicsPage() {
         </Card>
         <Card>
           <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Чистая прибыль</CardTitle></CardHeader>
-          <CardContent><div className={`text-2xl font-bold ${profitClass(totals.profit)}`}>{rubles(totals.profit)}</div><p className="mt-1 text-xs text-muted-foreground">Получено минус все расходы</p></CardContent>
+          <CardContent><div className={`text-2xl font-bold ${profitClass(totals.profit)}`}>{rubles(totals.profit)}</div><p className="mt-1 text-xs text-muted-foreground">Получено минус расходы конкретных сделок</p></CardContent>
         </Card>
         <Card>
           <CardHeader className="pb-2"><CardTitle className="text-sm text-muted-foreground">Маржа</CardTitle></CardHeader>
           <CardContent><div className={`text-2xl font-bold ${profitClass(totals.profit)}`}>{percent(totals.margin)}</div><p className="mt-1 text-xs text-muted-foreground">От фактически полученной выручки</p></CardContent>
         </Card>
       </div>
+
+      <Card>
+        <CardHeader className="gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <CardTitle className="flex items-center gap-2"><Building2 className="h-5 w-5" /> Постоянные расходы бизнеса</CardTitle>
+            <p className="mt-1 text-xs text-muted-foreground">Сервер, реклама, сервисы, аренда и другие расходы, которые нельзя честно повесить на одного клиента.</p>
+          </div>
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <Input type="month" value={month} onChange={(event) => setMonth(event.target.value)} className="w-full sm:w-44" />
+            <Button onClick={() => setExpenseOpen(true)}><Plus className="mr-2 h-4 w-4" /> Добавить расход</Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="mb-4 rounded-xl border bg-muted/20 p-4">
+            <div className="text-xs text-muted-foreground">Постоянные расходы за выбранный месяц</div>
+            <div className="mt-1 text-2xl font-bold">{rubles(fixed.total)}</div>
+            <div className="mt-1 text-xs text-muted-foreground">Они учитываются отдельно и не искажают прибыль конкретного клиента или заказа.</div>
+          </div>
+          <div className="space-y-2">
+            {fixed.items.map((expense) => (
+              <div key={expense.id} className="flex flex-col gap-3 rounded-lg border p-3 sm:flex-row sm:items-center sm:justify-between">
+                <div className="min-w-0">
+                  <div className="font-medium">{expense.name}</div>
+                  <div className="text-xs text-muted-foreground">
+                    {expenseCategories[expense.category] || expense.category}{expense.notes ? ` · ${expense.notes}` : ""}
+                  </div>
+                </div>
+                <div className="flex items-center justify-between gap-3 sm:justify-end">
+                  <div className="font-semibold">{rubles(expense.amount)}</div>
+                  <Button variant="ghost" size="icon-sm" onClick={() => removeFixedExpense(expense.id)} aria-label="Удалить расход">
+                    <Trash2 className="h-4 w-4 text-red-600" />
+                  </Button>
+                </div>
+              </div>
+            ))}
+            {fixed.items.length === 0 && (
+              <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
+                За этот месяц постоянные расходы ещё не внесены.
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
 
       <Card>
         <CardHeader>
@@ -382,6 +508,41 @@ export default function EconomicsPage() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditing(null)} disabled={saving}>Отмена</Button>
             <Button onClick={save} disabled={saving}>{saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Сохранить расчёт</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={expenseOpen} onOpenChange={setExpenseOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Постоянный расход</DialogTitle>
+            <DialogDescription>Расход бизнеса за {month}, который не относится к одной конкретной сделке.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="expense-name">Название</Label>
+              <Input id="expense-name" value={expenseName} onChange={(event) => setExpenseName(event.target.value)} placeholder="Например: сервер CRM" />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="expense-category">Категория</Label>
+              <select
+                id="expense-category"
+                value={expenseCategory}
+                onChange={(event) => setExpenseCategory(event.target.value)}
+                className="h-9 w-full rounded-md border bg-background px-3 text-sm outline-none focus:ring-2 focus:ring-ring"
+              >
+                {Object.entries(expenseCategories).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
+              </select>
+            </div>
+            <MoneyField label="Сумма" value={expenseAmount} onChange={setExpenseAmount} emphasis />
+            <div className="space-y-2">
+              <Label htmlFor="expense-notes">Комментарий</Label>
+              <Input id="expense-notes" value={expenseNotes} onChange={(event) => setExpenseNotes(event.target.value)} placeholder="Необязательно" />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setExpenseOpen(false)} disabled={expenseSaving}>Отмена</Button>
+            <Button onClick={addFixedExpense} disabled={expenseSaving}>{expenseSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Добавить</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
