@@ -40,6 +40,33 @@ export interface EconomicsInput {
   notes?: string | null;
 }
 
+interface EconomicsRow {
+  dealId: string;
+  dealTitle: string;
+  dealValue: number;
+  contactId: string;
+  contactName: string;
+  company: string | null;
+  stageName: string;
+  receivedAmount: number;
+  productionCost: number;
+  paymentCommission: number;
+  deliveryCost: number;
+  packagingCost: number;
+  contractorCost: number;
+  taxCost: number;
+  otherCost: number;
+  economicsNotes: string | null;
+  economicsUpdatedAt: number | null;
+}
+
+interface CalculatedEconomicsRow extends EconomicsRow {
+  totalCost: number;
+  profit: number;
+  margin: number;
+  unpaid: number;
+}
+
 function money(value: unknown): number {
   const number = Number(value);
   if (!Number.isFinite(number)) return 0;
@@ -136,9 +163,9 @@ export function listEconomics() {
     WHERE COALESCE(c.qualification, 'new') <> 'spam'
       AND ps.name <> 'Песочница / Спам'
     ORDER BY d.created_at DESC
-  `).all() as Array<Record<string, unknown>>;
+  `).all() as EconomicsRow[];
 
-  const normalized = rows.map((row) => {
+  const normalized: CalculatedEconomicsRow[] = rows.map((row) => {
     const costs =
       Number(row.productionCost || 0) +
       Number(row.paymentCommission || 0) +
@@ -165,20 +192,20 @@ export function listEconomics() {
   }>();
 
   for (const row of normalized) {
-    const contactId = String(row.contactId);
+    const contactId = row.contactId;
     const current = clients.get(contactId) || {
       contactId,
-      contactName: String(row.contactName || "Без имени"),
-      company: row.company ? String(row.company) : null,
+      contactName: row.contactName || "Без имени",
+      company: row.company,
       deals: 0,
       receivedAmount: 0,
       totalCost: 0,
       profit: 0,
     };
     current.deals += 1;
-    current.receivedAmount += Number(row.receivedAmount || 0);
-    current.totalCost += Number(row.totalCost || 0);
-    current.profit += Number(row.profit || 0);
+    current.receivedAmount += row.receivedAmount;
+    current.totalCost += row.totalCost;
+    current.profit += row.profit;
     clients.set(contactId, current);
   }
 
@@ -191,10 +218,10 @@ export function listEconomics() {
 
   const totals = normalized.reduce(
     (acc, row) => {
-      acc.dealValue += Number(row.dealValue || 0);
-      acc.receivedAmount += Number(row.receivedAmount || 0);
-      acc.totalCost += Number(row.totalCost || 0);
-      acc.profit += Number(row.profit || 0);
+      acc.dealValue += row.dealValue;
+      acc.receivedAmount += row.receivedAmount;
+      acc.totalCost += row.totalCost;
+      acc.profit += row.profit;
       return acc;
     },
     { dealValue: 0, receivedAmount: 0, totalCost: 0, profit: 0 }
