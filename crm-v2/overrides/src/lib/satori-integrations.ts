@@ -10,6 +10,21 @@ export const INTEGRATION_KEYS = {
   needNumberSecret: "satori_need_number_secret",
   needNumberProjectId: "satori_need_number_project_id",
   needNumberCreateDeal: "satori_need_number_create_deal",
+  emailAddress: "satori_email_address",
+  emailUsername: "satori_email_username",
+  emailPassword: "satori_email_password",
+  emailImapHost: "satori_email_imap_host",
+  emailImapPort: "satori_email_imap_port",
+  emailImapSecure: "satori_email_imap_secure",
+  emailSmtpHost: "satori_email_smtp_host",
+  emailSmtpPort: "satori_email_smtp_port",
+  emailSmtpSecure: "satori_email_smtp_secure",
+  emailFromName: "satori_email_from_name",
+  emailIgnoreSenders: "satori_email_ignore_senders",
+  emailIgnoreSubjects: "satori_email_ignore_subjects",
+  emailSyncDays: "satori_email_sync_days",
+  emailLastSyncAt: "satori_email_last_sync_at",
+  emailLastSyncError: "satori_email_last_sync_error",
 } as const;
 
 export function getSetting(key: string): string | null {
@@ -81,35 +96,37 @@ export interface TelegramApiResponse<T = unknown> {
   error_code?: number;
 }
 
-/**
- * Telegram API transport for the CRM VPS.
- *
- * Node's built-in fetch/undici can choose an unreachable IPv6 address on
- * IPv4-only VPS networks and surface only the opaque `fetch failed` error.
- * Use the native HTTPS client with `family: 4` so Telegram works reliably on
- * the current server while keeping the bot token server-side.
- */
-export function telegramApiRequest<T = unknown>(
+const TELEGRAM_API_HOST = "api.telegram.org";
+// The VPS resolver currently returns 149.154.166.110, which is unreachable from
+// the hosting network, while Telegram's 149.154.167.220 endpoint is reachable.
+// Keep SNI/Host as api.telegram.org so TLS remains fully verified. The env var
+// allows the address to be replaced without a code release if Telegram rotates it.
+const TELEGRAM_API_FALLBACK_IP = process.env.TELEGRAM_API_IP || "149.154.167.220";
+
+function telegramApiRequestOnce<T>(
   token: string,
   method: string,
-  payload: Record<string, unknown> = {}
+  payload: Record<string, unknown>,
+  forcedIp?: string
 ): Promise<TelegramApiResponse<T>> {
   return new Promise((resolve, reject) => {
     const body = JSON.stringify(payload);
     const request = https.request(
       {
         protocol: "https:",
-        hostname: "api.telegram.org",
+        hostname: forcedIp || TELEGRAM_API_HOST,
+        servername: TELEGRAM_API_HOST,
         port: 443,
         path: `/bot${token}/${method}`,
         method: "POST",
         family: 4,
         headers: {
+          host: TELEGRAM_API_HOST,
           "content-type": "application/json",
           "content-length": Buffer.byteLength(body),
           "user-agent": "SATORI-CRM/1.0",
         },
-        timeout: 12000,
+        timeout: forcedIp ? 9000 : 4500,
       },
       (response) => {
         let raw = "";
@@ -135,15 +152,50 @@ export function telegramApiRequest<T = unknown>(
     );
 
     request.on("timeout", () => {
-      request.destroy(new Error("Telegram API не ответил за 12 секунд"));
+      request.destroy(new Error(`Telegram API timeout${forcedIp ? " (fallback)" : ""}`));
     });
-    request.on("error", (error) => {
-      const code = (error as NodeJS.ErrnoException).code;
-      const suffix = code ? ` (${code})` : "";
-      reject(new Error(`Не удалось соединиться с Telegram API${suffix}: ${error.message}`));
-    });
+    request.on("error", (error) => reject(error));
     request.end(body);
   });
+}
+
+/**
+ * Telegram API transport for the CRM VPS.
+ *
+ * First try the resolver normally. If that route times out or is blocked by the
+ * hosting network, retry the same HTTPS request against a known reachable
+ * Telegram API address while preserving api.telegram.org as SNI and Host.
+ */
+export async function telegramApiRequest<T = unknown>(
+  token: string,
+  method: string,
+  payload: Record<string, unknown> = {}
+): Promise<TelegramApiResponse<T>> {
+  let firstError: unknown = null;
+  try {
+    const result = await telegramApiRequestOnce<T>(token, method, payload);
+    if (result.ok || result.error_code) return result;
+    // A valid Telegram HTTP response means networking worked; do not mask a
+    // bot/token/chat error by trying another IP.
+    if (result.description) return result;
+  } catch (error) {
+    firstError = error;
+  }
+
+  try {
+    return await telegramApiRequestOnce<T>(
+      token,
+      method,
+      payload,
+      TELEGRAM_API_FALLBACK_IP
+    );
+  } catch (error) {
+    const source = error instanceof Error ? error : firstError;
+    const code = (source as NodeJS.ErrnoException | null)?.code;
+    const suffix = code ? ` (${code})` : "";
+    const message = source instanceof Error ? source.message : "network error";
+    throw new Error(`Не удалось соединиться с Telegram API${suffix}: ${message}`);
+  }
 }
 
 export async function sendTelegramMessage(input: {
