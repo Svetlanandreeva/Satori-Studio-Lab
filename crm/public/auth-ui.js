@@ -60,7 +60,7 @@ async function directLogin(form) {
 
     localStorage.setItem(AUTH_TOKEN_KEY, loginPayload.token);
     document.documentElement.classList.remove("crm-login-visible");
-    location.reload();
+    location.replace(location.pathname + location.search);
   } catch (error) {
     const message = error?.name === "AbortError" ? "Сервер долго не отвечает. Попробуйте ещё раз." : (error?.message || "Не удалось войти");
     showLoginMessage(message);
@@ -96,8 +96,6 @@ function syncAuthUi() {
   document.documentElement.classList.toggle("crm-login-visible", loginVisible() || !localStorage.getItem(AUTH_TOKEN_KEY));
 }
 
-// Observe only the app root. Never remove controls from the DOM here: doing so
-// can fight with feature modules that own those controls and freeze the page.
 const appRoot = document.querySelector("#app");
 if (appRoot) {
   const authObserver = new MutationObserver(() => queueMicrotask(syncAuthUi));
