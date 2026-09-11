@@ -3,6 +3,7 @@ import { drizzle } from "drizzle-orm/better-sqlite3";
 import * as schema from "./schema";
 import path from "path";
 import fs from "fs";
+import { SPAM_STAGE_NAME } from "@/lib/lead-qualification";
 
 const DB_PATH = process.env.CRM_DB_PATH || path.join(process.cwd(), "data", "crm.db");
 
@@ -120,6 +121,21 @@ function seedDefaultStages(db: Database.Database): void {
     });
     seedAll();
   } catch {}
+}
+
+function ensureSpamStage(db: Database.Database): void {
+  try {
+    const existing = db
+      .prepare("SELECT id FROM pipeline_stages WHERE name = ? LIMIT 1")
+      .get(SPAM_STAGE_NAME) as { id: string } | undefined;
+    if (existing) return;
+    db.prepare(
+      `INSERT INTO pipeline_stages (id, name, "order", color, is_won, is_lost)
+       VALUES (?, ?, ?, ?, 0, 0)`
+    ).run(crypto.randomUUID(), SPAM_STAGE_NAME, 999, "#7f1d1d");
+  } catch (error) {
+    console.error("CRM spam sandbox stage migration failed", error);
+  }
 }
 
 function phoneIdentity(value: string | null): string | null {
@@ -285,6 +301,7 @@ function removeExactDuplicateDeals(db: Database.Database): number {
 const sqlite = createDatabase();
 initTables(sqlite);
 seedDefaultStages(sqlite);
+ensureSpamStage(sqlite);
 
 const mergedContacts = mergeDuplicateContacts(sqlite);
 const removedDeals = removeExactDuplicateDeals(sqlite);
