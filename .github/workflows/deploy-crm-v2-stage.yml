@@ -35,7 +35,7 @@ jobs:
           test -f LICENSE
           grep -q 'MIT License' LICENSE
 
-      - name: Apply Satori deployment and Russian base patch
+      - name: Apply Satori deployment base patch
         run: |
           python3 - <<'PY'
           from pathlib import Path
@@ -60,7 +60,7 @@ jobs:
               raise SystemExit('DB path patch target not found')
           p.write_text(s.replace(needle, replacement))
 
-          # Russian locale/currency and Satori branding.
+          # Satori branding.
           p = root / 'src/app/layout.tsx'
           s = p.read_text().replace('<html lang="es"', '<html lang="ru"')
           s = s.replace('title: "Auto-CRM - Tu CRM con Inteligencia Artificial"', 'title: "SATORI — CRM"')
@@ -85,34 +85,6 @@ jobs:
                   s = s.replace(old, new)
               p.write_text(s)
 
-          p = root / 'src/lib/constants.ts'
-          s = p.read_text()
-          mapping = {
-              'label: "Frio"': 'label: "Холодный"',
-              'label: "Tibio"': 'label: "Тёплый"',
-              'label: "Caliente"': 'label: "Горячий"',
-              '"Sitio web"': '"Сайт"',
-              '"Referido"': '"Рекомендация"',
-              '"Redes sociales"': '"Соцсети"',
-              '"Llamada fria"': '"Холодный звонок"',
-              '"Formulario"': '"Форма"',
-              '"Evento"': '"Мероприятие"',
-              '"Importado"': '"Импорт"',
-              '"Otro"': '"Другое"',
-              'label: "Llamada"': 'label: "Звонок"',
-              'label: "Reunion"': 'label: "Встреча"',
-              'label: "Nota"': 'label: "Заметка"',
-              'label: "Seguimiento"': 'label: "Follow-up"',
-              'new Intl.NumberFormat("es-MX"': 'new Intl.NumberFormat("ru-RU"',
-              'currency: "MXN"': 'currency: "RUB"',
-              'new Intl.DateTimeFormat("es-MX"': 'new Intl.DateTimeFormat("ru-RU"',
-              'return "Hoy"': 'return "Сегодня"',
-              'return "Ayer"': 'return "Вчера"',
-          }
-          for old, new in mapping.items():
-              s = s.replace(old, new)
-          p.write_text(s)
-
           # This domain previously hosted our PWA CRM. Browsers can still have
           # that old root-scoped service worker and Cache Storage registered.
           # Keep a self-removing worker at the same URL so those old clients
@@ -121,6 +93,14 @@ jobs:
           p.parent.mkdir(parents=True, exist_ok=True)
           p.write_text("""// Legacy Satori CRM PWA cleanup worker.\nself.addEventListener('install', () => self.skipWaiting());\nself.addEventListener('activate', (event) => {\n  event.waitUntil((async () => {\n    try {\n      const keys = await caches.keys();\n      await Promise.all(keys.map((key) => caches.delete(key)));\n    } catch (_) {}\n    try { await self.clients.claim(); } catch (_) {}\n    try { await self.registration.unregister(); } catch (_) {}\n    try {\n      const windows = await self.clients.matchAll({ type: 'window', includeUncontrolled: true });\n      for (const client of windows) {\n        try { await client.navigate(client.url); } catch (_) {}\n      }\n    } catch (_) {}\n  })());\n});\nself.addEventListener('fetch', (event) => event.respondWith(fetch(event.request)));\n""")
           PY
+
+      - name: Apply full Russian localization and Satori integration overrides
+        run: |
+          python3 crm-v2/russianize.py
+          cp -a crm-v2/overrides/src/. /tmp/satori-auto-crm/src/
+          grep -q 'Need Number' /tmp/satori-auto-crm/src/app/settings/page.tsx
+          grep -q 'sendTelegramMessage' /tmp/satori-auto-crm/src/app/api/integrations/need-number/route.ts
+          grep -q 'Поиск клиентов и сделок' /tmp/satori-auto-crm/src/components/layout/Header.tsx
 
       - name: Install and build Auto-CRM
         working-directory: /tmp/satori-auto-crm
@@ -218,6 +198,38 @@ jobs:
           test "$node_count" -ge 1
           REMOTE
 
+      - name: Expose only the signed Need Number webhook through CRM Basic Auth
+        run: |
+          ssh root@194.226.97.103 'bash -se' <<'REMOTE'
+          set -eu
+          cfg=/etc/nginx/conf.d/satori-crm.conf
+          test -f "$cfg"
+          if ! grep -q 'SATORI NEED NUMBER WEBHOOK' "$cfg"; then
+            CFG="$cfg" python3 - <<'PY'
+          import os, re
+          from pathlib import Path
+
+          p = Path(os.environ['CFG'])
+          s = p.read_text()
+          marker = '# SATORI NEED NUMBER WEBHOOK'
+          proxy = re.search(r'(?m)^\s*proxy_pass\s+http://127\.0\.0\.1:3020\s*;', s)
+          if not proxy:
+              raise SystemExit('Auto-CRM proxy_pass 3020 not found')
+          before = s[:proxy.start()]
+          locations = list(re.finditer(r'(?m)^(?P<i>\s*)location\s+[^\n{]+\{', before))
+          if not locations:
+              raise SystemExit('CRM location block not found')
+          loc = locations[-1]
+          indent = loc.group('i')
+          block = f'''{indent}{marker}\n{indent}location = /api/integrations/need-number {{\n{indent}  auth_basic off;\n{indent}  proxy_pass http://127.0.0.1:3020;\n{indent}  proxy_http_version 1.1;\n{indent}  proxy_set_header Host $host;\n{indent}  proxy_set_header X-Forwarded-Host $host;\n{indent}  proxy_set_header X-Forwarded-Proto $scheme;\n{indent}  proxy_set_header X-Real-IP $remote_addr;\n{indent}  proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n{indent}}}\n\n'''
+          s = s[:loc.start()] + block + s[loc.start():]
+          p.write_text(s)
+          PY
+          fi
+          nginx -t
+          systemctl reload nginx
+          REMOTE
+
       - name: Initialize Satori pipeline only for an empty database
         run: |
           ssh root@194.226.97.103 'bash -se' <<'REMOTE'
@@ -246,17 +258,25 @@ jobs:
           fi
           REMOTE
 
-      - name: Verify v2, cleanup worker and legacy rollback
+      - name: Verify Russian UI, integrations, cleanup worker and rollback
         run: |
           ssh root@194.226.97.103 'bash -se' <<'REMOTE'
           set -eu
-          curl --fail --silent http://127.0.0.1:3020/ | grep -q 'Dashboard'
+          curl --fail --silent http://127.0.0.1:3020/ | grep -q 'Главная'
+          curl --fail --silent http://127.0.0.1:3020/settings | grep -q 'Need Number'
+          curl --fail --silent http://127.0.0.1:3020/api/integrations/settings >/tmp/satori-integrations.json
+          python3 - <<'PY'
+          import json
+          data=json.load(open('/tmp/satori-integrations.json'))
+          assert data.get('needNumberWebhookPath','').startswith('/api/integrations/need-number?key=')
+          print('Integration settings ready; Telegram configured:', bool(data.get('telegramConfigured')))
+          PY
           curl --fail --silent http://127.0.0.1:3020/api/contacts >/dev/null
           curl --fail --silent http://127.0.0.1:3020/api/deals >/dev/null
           curl --fail --silent http://127.0.0.1:3020/api/pipeline | grep -q 'Новый запрос'
           curl --fail --silent http://127.0.0.1:3020/sw.js | grep -q 'cleanup worker'
+          curl --fail --silent https://crm.satorilabural.online/api/integrations/need-number | grep -q 'Need Number'
           systemctl is-active --quiet satori-crm
           curl --fail --silent http://127.0.0.1:3010/health >/dev/null
-          # The prior temporary alive-home v2 database contained no Satori data.
           rm -rf /var/lib/satori-crm-v2
           REMOTE
