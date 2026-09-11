@@ -1,0 +1,357 @@
+name: Cut over Satori CRM v2
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/cutover-crm-v2.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: crm-v2-cutover
+  cancel-in-progress: false
+
+jobs:
+  migrate-and-cutover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.DEPLOY_SSH_KEY }}
+
+      - name: Trust production server
+        run: ssh-keyscan -H 194.226.97.103 >> ~/.ssh/known_hosts
+
+      - name: Back up current CRM and website data
+        run: |
+          ssh root@194.226.97.103 'bash -se' <<'REMOTE'
+          set -eu
+          stamp=$(date +%Y%m%d-%H%M%S)
+          backup="/var/backups/satori-crm-cutover-$stamp"
+          mkdir -p "$backup"
+          [ -f /var/www/satori/crm/data/crm.json ] && cp -a /var/www/satori/crm/data/crm.json "$backup/legacy-crm.json"
+          [ -f /var/www/satori/backend/data/orders.json ] && cp -a /var/www/satori/backend/data/orders.json "$backup/orders.json"
+          [ -f /var/www/satori/backend/data/leads.json ] && cp -a /var/www/satori/backend/data/leads.json "$backup/leads.json"
+          [ -f /var/lib/satori-auto-crm/crm.db ] && cp -a /var/lib/satori-auto-crm/crm.db "$backup/auto-crm-before-migration.db"
+          chmod -R go-rwx "$backup"
+          printf '%s\n' "$backup" >/var/lib/satori-auto-crm/last-cutover-backup
+          echo "Backup created"
+          REMOTE
+
+      - name: Migrate legacy contacts, deals and tasks into Auto-CRM
+        run: |
+          ssh root@194.226.97.103 'python3 -' <<'PY'
+          import json, os, re, sys, urllib.request, urllib.error
+          from pathlib import Path
+
+          OLD = 'http://127.0.0.1:3010'
+          NEW = 'http://127.0.0.1:3020'
+
+          def read_env_password():
+              for path in ['/var/www/satori/.env', '/var/www/satori/backend/.env']:
+                  p = Path(path)
+                  if not p.exists():
+                      continue
+                  for line in p.read_text(errors='ignore').splitlines():
+                      line = line.strip()
+                      if not line or line.startswith('#') or '=' not in line:
+                          continue
+                      key, value = line.split('=', 1)
+                      if key.strip() == 'ADMIN_PASSWORD':
+                          value = value.strip()
+                          if len(value) >= 2 and value[0] == value[-1] and value[0] in "'\"":
+                              value = value[1:-1]
+                          return value
+              raise RuntimeError('ADMIN_PASSWORD not found')
+
+          def request(url, method='GET', data=None, headers=None):
+              body = None if data is None else json.dumps(data, ensure_ascii=False).encode('utf-8')
+              hdrs = {'Accept': 'application/json', **(headers or {})}
+              if body is not None:
+                  hdrs['Content-Type'] = 'application/json'
+              req = urllib.request.Request(url, data=body, headers=hdrs, method=method)
+              try:
+                  with urllib.request.urlopen(req, timeout=20) as resp:
+                      raw = resp.read().decode('utf-8')
+                      return json.loads(raw) if raw else None
+              except urllib.error.HTTPError as exc:
+                  detail = exc.read().decode('utf-8', errors='replace')[:300]
+                  raise RuntimeError(f'{method} {url} failed: HTTP {exc.code}: {detail}')
+
+          password = read_env_password()
+          login = request(OLD + '/api/login', 'POST', {'password': password})
+          token = login.get('token') if isinstance(login, dict) else None
+          if not token:
+              raise RuntimeError('Legacy CRM login failed')
+          legacy = request(OLD + '/api/bootstrap', headers={'Authorization': f'Bearer {token}'})
+
+          contacts = legacy.get('contacts') or []
+          deals = legacy.get('deals') or []
+          tasks = legacy.get('tasks') or []
+          stages = request(NEW + '/api/pipeline') or []
+          new_contacts = request(NEW + '/api/contacts') or []
+          new_deals = request(NEW + '/api/deals') or []
+
+          def norm_phone(v):
+              digits = re.sub(r'\D', '', str(v or ''))
+              if len(digits) == 11 and digits.startswith('8'):
+                  digits = '7' + digits[1:]
+              return digits
+
+          def norm(v):
+              return str(v or '').strip().lower()
+
+          def marker(text, key):
+              m = re.search(rf'(?m)^\[{re.escape(key)}:([^\]]+)\]$', str(text or ''))
+              return m.group(1) if m else None
+
+          existing_contact_legacy = {}
+          contact_by_phone = {}
+          contact_by_email = {}
+          contact_by_name = {}
+          for c in new_contacts:
+              legacy_id = marker(c.get('notes'), 'legacy-contact')
+              if legacy_id:
+                  existing_contact_legacy[legacy_id] = c
+              if norm_phone(c.get('phone')):
+                  contact_by_phone[norm_phone(c.get('phone'))] = c
+              if norm(c.get('email')):
+                  contact_by_email[norm(c.get('email'))] = c
+              if norm(c.get('name')):
+                  contact_by_name[norm(c.get('name'))] = c
+
+          legacy_to_new_contact = {}
+          created_contacts = 0
+
+          source_map = {
+              'order': 'website',
+              'lead': 'formulario',
+              'manual': 'otro',
+              'ai-parser': 'otro',
+          }
+
+          for c in contacts:
+              old_id = str(c.get('id') or '')
+              candidate = existing_contact_legacy.get(old_id)
+              if not candidate and norm_phone(c.get('phone')):
+                  candidate = contact_by_phone.get(norm_phone(c.get('phone')))
+              if not candidate and norm(c.get('email')):
+                  candidate = contact_by_email.get(norm(c.get('email')))
+              if not candidate and norm(c.get('name')):
+                  candidate = contact_by_name.get(norm(c.get('name')))
+              if candidate:
+                  legacy_to_new_contact[old_id] = candidate['id']
+                  continue
+
+              notes = [f"[legacy-contact:{old_id}]", f"Источник legacy: {c.get('source') or 'unknown'}"]
+              if c.get('contact'):
+                  notes.append(f"Контакт: {c.get('contact')}")
+              payload = {
+                  'name': c.get('name') or c.get('company') or 'Клиент',
+                  'email': c.get('email') or None,
+                  'phone': c.get('phone') or None,
+                  'company': c.get('company') or None,
+                  'source': source_map.get(c.get('source'), 'otro'),
+                  'temperature': 'cold',
+                  'score': 0,
+                  'notes': '\n'.join(notes),
+              }
+              created = request(NEW + '/api/contacts', 'POST', payload)
+              legacy_to_new_contact[old_id] = created['id']
+              created_contacts += 1
+              if norm_phone(created.get('phone')):
+                  contact_by_phone[norm_phone(created.get('phone'))] = created
+              if norm(created.get('email')):
+                  contact_by_email[norm(created.get('email'))] = created
+              if norm(created.get('name')):
+                  contact_by_name[norm(created.get('name'))] = created
+
+          stage_by_name = {s.get('name'): s for s in stages}
+          stage_probability = {
+              'Новый запрос': 10,
+              'Расчёт': 30,
+              'Согласовано': 55,
+              'В производстве': 70,
+              'Готово': 90,
+              'Доставка': 95,
+              'Завершено': 100,
+              'Отказ': 0,
+          }
+
+          existing_deal_legacy = {}
+          for d in new_deals:
+              legacy_id = marker(d.get('notes'), 'legacy-deal')
+              if legacy_id:
+                  existing_deal_legacy[legacy_id] = d
+
+          legacy_to_new_deal = {}
+          deal_to_contact = {}
+          created_deals = 0
+
+          def find_contact_for_deal(d):
+              old_client_id = str(d.get('clientId') or '')
+              if old_client_id and old_client_id in legacy_to_new_contact:
+                  return legacy_to_new_contact[old_client_id]
+              phone = norm_phone(d.get('phone'))
+              if phone and phone in contact_by_phone:
+                  return contact_by_phone[phone]['id']
+              name = norm(d.get('clientName'))
+              if name and name in contact_by_name:
+                  return contact_by_name[name]['id']
+              # system deal ids frequently map to order:/lead: contact ids
+              old_deal_id = str(d.get('id') or '')
+              if old_deal_id in legacy_to_new_contact:
+                  return legacy_to_new_contact[old_deal_id]
+              # Last resort: create a lightweight contact so no deal is lost.
+              fallback = request(NEW + '/api/contacts', 'POST', {
+                  'name': d.get('clientName') or 'Клиент',
+                  'phone': d.get('phone') or None,
+                  'source': 'otro',
+                  'notes': f"[legacy-contact:deal-fallback:{old_deal_id}]",
+              })
+              contact_by_name[norm(fallback.get('name'))] = fallback
+              if norm_phone(fallback.get('phone')):
+                  contact_by_phone[norm_phone(fallback.get('phone'))] = fallback
+              return fallback['id']
+
+          for d in deals:
+              old_id = str(d.get('id') or '')
+              if old_id in existing_deal_legacy:
+                  existing = existing_deal_legacy[old_id]
+                  legacy_to_new_deal[old_id] = existing['id']
+                  deal_to_contact[old_id] = existing.get('contactId')
+                  continue
+
+              contact_id = find_contact_for_deal(d)
+              stage_name = d.get('stage') if d.get('stage') in stage_by_name else 'Новый запрос'
+              stage = stage_by_name.get(stage_name) or stages[0]
+              notes = [f"[legacy-deal:{old_id}]", f"Источник: {d.get('source') or 'legacy'}"]
+              if d.get('sourceId'):
+                  notes.append(f"Source ID: {d.get('sourceId')}")
+              if d.get('paid'):
+                  notes.append(f"Оплачено: {d.get('paid')} ₽")
+              if d.get('paymentStatus'):
+                  notes.append(f"Статус оплаты: {d.get('paymentStatus')}")
+              if d.get('trackingCode'):
+                  notes.append(f"Трек-номер: {d.get('trackingCode')}")
+              if d.get('notes'):
+                  notes.append(str(d.get('notes')))
+              if d.get('brief'):
+                  notes.append('ТЗ (перенесено из legacy):\n' + json.dumps(d.get('brief'), ensure_ascii=False, indent=2))
+
+              payload = {
+                  'title': d.get('title') or 'Проект',
+                  'value': int(round(float(d.get('amount') or 0) * 100)),
+                  'stageId': stage['id'],
+                  'contactId': contact_id,
+                  'expectedClose': d.get('deadline') or None,
+                  'probability': stage_probability.get(stage_name, 10),
+                  'notes': '\n'.join(notes),
+              }
+              created = request(NEW + '/api/deals', 'POST', payload)
+              legacy_to_new_deal[old_id] = created['id']
+              deal_to_contact[old_id] = contact_id
+              created_deals += 1
+
+          created_tasks = 0
+          for t in tasks:
+              old_deal_id = str(t.get('dealId') or '')
+              new_deal_id = legacy_to_new_deal.get(old_deal_id)
+              contact_id = deal_to_contact.get(old_deal_id)
+              if not contact_id:
+                  continue
+              description = str(t.get('title') or 'Задача')
+              if t.get('done'):
+                  description = '[Завершено] ' + description
+              payload = {
+                  'type': 'follow_up' if not t.get('done') else 'note',
+                  'description': description,
+                  'contactId': contact_id,
+                  'dealId': new_deal_id,
+                  'scheduledAt': t.get('due') or None,
+              }
+              request(NEW + '/api/activities', 'POST', payload)
+              created_tasks += 1
+
+          after_contacts = request(NEW + '/api/contacts') or []
+          after_deals = request(NEW + '/api/deals') or []
+          if len(after_contacts) < len(contacts):
+              raise RuntimeError(f'Contact migration count too low: new={len(after_contacts)} legacy={len(contacts)}')
+          if len(after_deals) < len(deals):
+              raise RuntimeError(f'Deal migration count too low: new={len(after_deals)} legacy={len(deals)}')
+
+          print(f'Migration OK: legacy contacts={len(contacts)}, deals={len(deals)}, tasks={len(tasks)}; created contacts={created_contacts}, deals={created_deals}, activities={created_tasks}')
+          PY
+
+      - name: Protect CRM v2 and switch Nginx upstream
+        run: |
+          ssh root@194.226.97.103 'bash -se' <<'REMOTE'
+          set -eu
+
+          ADMIN_PASSWORD=$(python3 - <<'PY'
+          from pathlib import Path
+          for path in ['/var/www/satori/.env', '/var/www/satori/backend/.env']:
+              p=Path(path)
+              if not p.exists(): continue
+              for line in p.read_text(errors='ignore').splitlines():
+                  line=line.strip()
+                  if not line or line.startswith('#') or '=' not in line: continue
+                  k,v=line.split('=',1)
+                  if k.strip()=='ADMIN_PASSWORD':
+                      v=v.strip()
+                      if len(v)>=2 and v[0]==v[-1] and v[0] in "'\"": v=v[1:-1]
+                      print(v, end='')
+                      raise SystemExit
+          raise SystemExit(1)
+          PY
+          )
+          test -n "$ADMIN_PASSWORD"
+
+          hash=$(openssl passwd -apr1 "$ADMIN_PASSWORD")
+          umask 027
+          printf 'satori:%s\n' "$hash" >/etc/nginx/.htpasswd-satori-crm
+          chown root:www-data /etc/nginx/.htpasswd-satori-crm
+          chmod 0640 /etc/nginx/.htpasswd-satori-crm
+
+          cfg_link=$(grep -RIl 'crm\.satorilabural\.online' /etc/nginx/sites-enabled 2>/dev/null | head -1 || true)
+          if [ -z "$cfg_link" ]; then
+            echo 'Could not find enabled Nginx config for CRM domain' >&2
+            exit 1
+          fi
+          cfg=$(readlink -f "$cfg_link")
+          backup=$(cat /var/lib/satori-auto-crm/last-cutover-backup)
+          cp -a "$cfg" "$backup/nginx-crm.conf"
+
+          CFG="$cfg" python3 - <<'PY'
+          import os,re
+          from pathlib import Path
+          p=Path(os.environ['CFG'])
+          s=p.read_text()
+          s,n=re.subn(r'proxy_pass\s+http://(?:127\.0\.0\.1|localhost):3010\s*;', 'proxy_pass http://127.0.0.1:3020;', s)
+          if n == 0 and '127.0.0.1:3020' not in s:
+              raise SystemExit('Legacy CRM proxy_pass was not found')
+          if 'auth_basic_user_file /etc/nginx/.htpasswd-satori-crm;' not in s:
+              pattern=r'(server_name\s+[^;]*crm\.satorilabural\.online[^;]*;)'
+              replacement=r'\1\n    auth_basic "Satori CRM";\n    auth_basic_user_file /etc/nginx/.htpasswd-satori-crm;'
+              s,n2=re.subn(pattern,replacement,s,count=1)
+              if n2 != 1:
+                  raise SystemExit('CRM server_name block was not found')
+          p.write_text(s)
+          PY
+
+          nginx -t
+          systemctl reload nginx
+
+          # Public domain is now protected and points to the new application.
+          code=$(curl -sS -o /dev/null -w '%{http_code}' https://crm.satorilabural.online/)
+          test "$code" = '401'
+          curl --fail --silent --show-error -u "satori:$ADMIN_PASSWORD" https://crm.satorilabural.online/ >/dev/null
+          curl --fail --silent --show-error -u "satori:$ADMIN_PASSWORD" https://crm.satorilabural.online/api/pipeline | grep -q 'Новый запрос'
+
+          # Keep legacy service alive for rollback; only Nginx was switched.
+          systemctl is-active --quiet satori-crm
+          curl --fail --silent http://127.0.0.1:3010/health >/dev/null
+          systemctl is-active --quiet satori-crm-v2
+          echo 'CRM v2 public cutover OK; legacy 3010 retained for rollback'
+          REMOTE
