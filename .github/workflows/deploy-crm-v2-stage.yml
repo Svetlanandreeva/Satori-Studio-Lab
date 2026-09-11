@@ -41,32 +41,27 @@ jobs:
           from pathlib import Path
           p = Path('/tmp/satori-crm-v2/server/turso.ts')
           s = p.read_text()
-          old = '''  const missing = [!url && URL_VAR, !authToken && TOKEN_VAR].filter(name => name !== false)
-          if (!url || !authToken) {
-            throw new Error(
-              `${missing.join(" and ")} ${missing.length > 1 ? "are" : "is"} not set. The CRM lives in Turso and ` +
-                "there is no local fallback and no default URL: incomplete config must fail loudly rather than " +
-                "serve, or write to, the wrong database.",
-            )
-          }
-
-          client = createClient({ url, authToken })'''
-          new = '''  const localFile = Boolean(url?.startsWith("file:"))
-          const missing = [!url && URL_VAR, !localFile && !authToken && TOKEN_VAR].filter(name => name !== false)
-          if (!url || (!localFile && !authToken)) {
-            throw new Error(
-              `${missing.join(" and ")} ${missing.length > 1 ? "are" : "is"} not set. ` +
-                "Set a database URL; remote libSQL/Turso URLs also require an auth token.",
-            )
-          }
-
-          // Satori runs this MIT-licensed CRM as a single-tenant internal service.
-          // @libsql/client supports file: URLs, so the small VPS can use a local
-          // persistent SQLite file without a separate database service.
-          client = createClient(authToken ? { url, authToken } : { url })'''
-          if old not in s:
-              raise SystemExit('Expected upstream turso.ts block not found; pinned source changed')
-          p.write_text(s.replace(old, new))
+          replacements = [
+              (
+                  '  const missing = [!url && URL_VAR, !authToken && TOKEN_VAR].filter(name => name !== false)',
+                  '  const localFile = Boolean(url?.startsWith("file:"))\n  const missing = [!url && URL_VAR, !localFile && !authToken && TOKEN_VAR].filter(name => name !== false)',
+              ),
+              ('  if (!url || !authToken) {', '  if (!url || (!localFile && !authToken)) {'),
+              (
+                  '      `${missing.join(" and ")} ${missing.length > 1 ? "are" : "is"} not set. The CRM lives in Turso and ` +\n        "there is no local fallback and no default URL: incomplete config must fail loudly rather than " +\n        "serve, or write to, the wrong database.",',
+                  '      `${missing.join(" and ")} ${missing.length > 1 ? "are" : "is"} not set. ` +\n        "Set a database URL; remote libSQL/Turso URLs also require an auth token.",',
+              ),
+              (
+                  '  client = createClient({ url, authToken })',
+                  '  // Satori internal deployment: @libsql/client supports a persistent local file URL.\n  client = createClient(authToken ? { url, authToken } : { url })',
+              ),
+          ]
+          for old, new in replacements:
+              count = s.count(old)
+              if count != 1:
+                  raise SystemExit(f'Expected exactly one patch target, found {count}: {old[:80]}')
+              s = s.replace(old, new)
+          p.write_text(s)
           PY
 
       - name: Build upstream CRM
