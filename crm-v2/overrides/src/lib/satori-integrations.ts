@@ -1,4 +1,5 @@
 import { randomBytes, timingSafeEqual } from "node:crypto";
+import https from "node:https";
 import { db } from "@/db";
 import { crmSettings } from "@/db/schema";
 import { eq } from "drizzle-orm";
@@ -73,6 +74,78 @@ export function escapeTelegramHtml(value: unknown): string {
     .replace(/>/g, "&gt;");
 }
 
+export interface TelegramApiResponse<T = unknown> {
+  ok?: boolean;
+  result?: T;
+  description?: string;
+  error_code?: number;
+}
+
+/**
+ * Telegram API transport for the CRM VPS.
+ *
+ * Node's built-in fetch/undici can choose an unreachable IPv6 address on
+ * IPv4-only VPS networks and surface only the opaque `fetch failed` error.
+ * Use the native HTTPS client with `family: 4` so Telegram works reliably on
+ * the current server while keeping the bot token server-side.
+ */
+export function telegramApiRequest<T = unknown>(
+  token: string,
+  method: string,
+  payload: Record<string, unknown> = {}
+): Promise<TelegramApiResponse<T>> {
+  return new Promise((resolve, reject) => {
+    const body = JSON.stringify(payload);
+    const request = https.request(
+      {
+        protocol: "https:",
+        hostname: "api.telegram.org",
+        port: 443,
+        path: `/bot${token}/${method}`,
+        method: "POST",
+        family: 4,
+        headers: {
+          "content-type": "application/json",
+          "content-length": Buffer.byteLength(body),
+          "user-agent": "SATORI-CRM/1.0",
+        },
+        timeout: 12000,
+      },
+      (response) => {
+        let raw = "";
+        response.setEncoding("utf8");
+        response.on("data", (chunk) => {
+          raw += chunk;
+        });
+        response.on("end", () => {
+          try {
+            const parsed = JSON.parse(raw || "{}") as TelegramApiResponse<T>;
+            if ((response.statusCode || 500) >= 400 && !parsed.description) {
+              parsed.description = `Telegram HTTP ${response.statusCode}`;
+            }
+            resolve(parsed);
+          } catch {
+            resolve({
+              ok: false,
+              description: `Telegram вернул некорректный ответ (HTTP ${response.statusCode || 0})`,
+            });
+          }
+        });
+      }
+    );
+
+    request.on("timeout", () => {
+      request.destroy(new Error("Telegram API не ответил за 12 секунд"));
+    });
+    request.on("error", (error) => {
+      const code = (error as NodeJS.ErrnoException).code;
+      const suffix = code ? ` (${code})` : "";
+      reject(new Error(`Не удалось соединиться с Telegram API${suffix}: ${error.message}`));
+    });
+    request.end(body);
+  });
+}
+
 export async function sendTelegramMessage(input: {
   text: string;
   url?: string | null;
@@ -102,20 +175,11 @@ export async function sendTelegramMessage(input: {
       };
     }
 
-    const response = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
-      method: "POST",
-      headers: { "content-type": "application/json" },
-      body: JSON.stringify(payload),
-      cache: "no-store",
-    });
-
-    const data = (await response.json().catch(() => null)) as
-      | { ok?: boolean; description?: string }
-      | null;
-    if (!response.ok || !data?.ok) {
+    const data = await telegramApiRequest(token, "sendMessage", payload);
+    if (!data.ok) {
       return {
         sent: false,
-        error: data?.description || `Telegram HTTP ${response.status}`,
+        error: data.description || "Telegram отклонил сообщение",
       };
     }
     return { sent: true };
