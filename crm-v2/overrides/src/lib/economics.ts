@@ -24,7 +24,21 @@ sqlite.exec(`
     other_cost INTEGER NOT NULL DEFAULT 0,
     notes TEXT,
     updated_at INTEGER NOT NULL
-  )
+  );
+
+  CREATE TABLE IF NOT EXISTS business_expenses (
+    id TEXT PRIMARY KEY,
+    month TEXT NOT NULL,
+    name TEXT NOT NULL,
+    category TEXT NOT NULL DEFAULT 'other',
+    amount INTEGER NOT NULL DEFAULT 0,
+    notes TEXT,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_business_expenses_month
+    ON business_expenses(month);
 `);
 
 export interface EconomicsInput {
@@ -37,6 +51,14 @@ export interface EconomicsInput {
   contractorCost: number;
   taxCost: number;
   otherCost: number;
+  notes?: string | null;
+}
+
+export interface BusinessExpenseInput {
+  month: string;
+  name: string;
+  category?: string;
+  amount: number;
   notes?: string | null;
 }
 
@@ -71,6 +93,14 @@ function money(value: unknown): number {
   const number = Number(value);
   if (!Number.isFinite(number)) return 0;
   return Math.max(0, Math.round(number));
+}
+
+function validMonth(value: unknown): string {
+  const month = String(value || "").trim();
+  if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) {
+    throw new Error("Месяц должен быть в формате YYYY-MM");
+  }
+  return month;
 }
 
 export function saveDealEconomics(input: EconomicsInput) {
@@ -134,6 +164,62 @@ export function getDealEconomics(dealId: string) {
     FROM deal_economics
     WHERE deal_id = ?
   `).get(dealId) || null;
+}
+
+export function listBusinessExpenses(month: string) {
+  const normalizedMonth = validMonth(month);
+  const rows = sqlite.prepare(`
+    SELECT
+      id,
+      month,
+      name,
+      category,
+      amount,
+      notes,
+      created_at AS createdAt,
+      updated_at AS updatedAt
+    FROM business_expenses
+    WHERE month = ?
+    ORDER BY amount DESC, created_at DESC
+  `).all(normalizedMonth) as Array<{
+    id: string;
+    month: string;
+    name: string;
+    category: string;
+    amount: number;
+    notes: string | null;
+    createdAt: number;
+    updatedAt: number;
+  }>;
+  const total = rows.reduce((sum, row) => sum + Number(row.amount || 0), 0);
+  return { month: normalizedMonth, items: rows, total };
+}
+
+export function createBusinessExpense(input: BusinessExpenseInput) {
+  const month = validMonth(input.month);
+  const name = String(input.name || "").trim();
+  if (!name) throw new Error("Укажите название расхода");
+  const now = Date.now();
+  const row = {
+    id: crypto.randomUUID(),
+    month,
+    name,
+    category: String(input.category || "other").trim() || "other",
+    amount: money(input.amount),
+    notes: input.notes ? String(input.notes).trim() : null,
+    createdAt: now,
+    updatedAt: now,
+  };
+  sqlite.prepare(`
+    INSERT INTO business_expenses (id, month, name, category, amount, notes, created_at, updated_at)
+    VALUES (@id, @month, @name, @category, @amount, @notes, @createdAt, @updatedAt)
+  `).run(row);
+  return row;
+}
+
+export function deleteBusinessExpense(id: string) {
+  const result = sqlite.prepare("DELETE FROM business_expenses WHERE id = ?").run(id);
+  return result.changes > 0;
 }
 
 export function listEconomics() {
