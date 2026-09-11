@@ -1,0 +1,189 @@
+name: Finalize Satori CRM v2 cutover
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/finalize-crm-v2-cutover.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: crm-v2-final-cutover
+  cancel-in-progress: false
+
+jobs:
+  verify-and-cutover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.DEPLOY_SSH_KEY }}
+
+      - name: Trust production server
+        run: ssh-keyscan -H 194.226.97.103 >> ~/.ssh/known_hosts
+
+      - name: Verify every legacy record is represented in Auto-CRM
+        run: |
+          ssh root@194.226.97.103 'python3 -' <<'PY'
+          import json, re, urllib.request, urllib.error
+          from pathlib import Path
+
+          OLD='http://127.0.0.1:3010'
+          NEW='http://127.0.0.1:3020'
+
+          def password():
+              for fn in ['/var/www/satori/.env','/var/www/satori/backend/.env']:
+                  p=Path(fn)
+                  if not p.exists(): continue
+                  for line in p.read_text(errors='ignore').splitlines():
+                      line=line.strip()
+                      if not line or line.startswith('#') or '=' not in line: continue
+                      k,v=line.split('=',1)
+                      if k.strip()=='ADMIN_PASSWORD':
+                          v=v.strip()
+                          if len(v)>=2 and v[0]==v[-1] and v[0] in "'\"": v=v[1:-1]
+                          return v
+              raise RuntimeError('ADMIN_PASSWORD missing')
+
+          def req(url, method='GET', data=None, headers=None):
+              body=None if data is None else json.dumps(data,ensure_ascii=False).encode()
+              h={'Accept':'application/json',**(headers or {})}
+              if body is not None: h['Content-Type']='application/json'
+              r=urllib.request.Request(url,data=body,headers=h,method=method)
+              with urllib.request.urlopen(r,timeout=20) as resp:
+                  raw=resp.read().decode()
+                  return json.loads(raw) if raw else None
+
+          login=req(OLD+'/api/login','POST',{'password':password()})
+          legacy=req(OLD+'/api/bootstrap',headers={'Authorization':'Bearer '+login['token']})
+          nc=req(NEW+'/api/contacts') or []
+          nd=req(NEW+'/api/deals') or []
+
+          def norm(v): return str(v or '').strip().lower()
+          def phone(v):
+              d=re.sub(r'\D','',str(v or ''))
+              return ('7'+d[1:]) if len(d)==11 and d.startswith('8') else d
+          def mark(text,key):
+              m=re.search(rf'(?m)^\[{re.escape(key)}:([^\]]+)\]$',str(text or ''))
+              return m.group(1) if m else None
+
+          by_marker={mark(c.get('notes'),'legacy-contact'):c for c in nc if mark(c.get('notes'),'legacy-contact')}
+          by_phone={phone(c.get('phone')):c for c in nc if phone(c.get('phone'))}
+          by_email={norm(c.get('email')):c for c in nc if norm(c.get('email'))}
+          by_name={norm(c.get('name')):c for c in nc if norm(c.get('name'))}
+
+          missing_contacts=[]
+          for c in legacy.get('contacts') or []:
+              cid=str(c.get('id') or '')
+              found=(by_marker.get(cid)
+                     or (by_phone.get(phone(c.get('phone'))) if phone(c.get('phone')) else None)
+                     or (by_email.get(norm(c.get('email'))) if norm(c.get('email')) else None)
+                     or (by_name.get(norm(c.get('name'))) if norm(c.get('name')) else None))
+              if not found: missing_contacts.append(cid)
+
+          deal_ids={mark(d.get('notes'),'legacy-deal') for d in nd if mark(d.get('notes'),'legacy-deal')}
+          missing_deals=[str(d.get('id') or '') for d in legacy.get('deals') or [] if str(d.get('id') or '') not in deal_ids]
+
+          if missing_contacts:
+              raise RuntimeError(f'{len(missing_contacts)} legacy contacts have no mapping')
+          if missing_deals:
+              raise RuntimeError(f'{len(missing_deals)} legacy deals are missing')
+
+          print(f"Verified migration: {len(legacy.get('contacts') or [])} legacy contact records -> {len(nc)} deduplicated clients; {len(legacy.get('deals') or [])} deals -> {len(nd)} deals")
+          PY
+
+      - name: Back up Nginx configuration and enable stable login
+        run: |
+          ssh root@194.226.97.103 'bash -se' <<'REMOTE'
+          set -eu
+          stamp=$(date +%Y%m%d-%H%M%S)
+          backup="/var/backups/satori-crm-final-$stamp"
+          mkdir -p "$backup"
+          chmod 0700 "$backup"
+
+          ADMIN_PASSWORD=$(python3 - <<'PY'
+          from pathlib import Path
+          for fn in ['/var/www/satori/.env','/var/www/satori/backend/.env']:
+              p=Path(fn)
+              if not p.exists(): continue
+              for line in p.read_text(errors='ignore').splitlines():
+                  line=line.strip()
+                  if not line or line.startswith('#') or '=' not in line: continue
+                  k,v=line.split('=',1)
+                  if k.strip()=='ADMIN_PASSWORD':
+                      v=v.strip()
+                      if len(v)>=2 and v[0]==v[-1] and v[0] in "'\"": v=v[1:-1]
+                      print(v,end='')
+                      raise SystemExit
+          raise SystemExit(1)
+          PY
+          )
+          test -n "$ADMIN_PASSWORD"
+
+          cfg_link=$(grep -RIl 'crm\.satorilabural\.online' /etc/nginx/sites-enabled 2>/dev/null | head -1 || true)
+          test -n "$cfg_link"
+          cfg=$(readlink -f "$cfg_link")
+          cp -a "$cfg" "$backup/nginx-before.conf"
+          [ -f /var/lib/satori-auto-crm/crm.db ] && cp -a /var/lib/satori-auto-crm/crm.db "$backup/crm-v2.db"
+
+          hash=$(openssl passwd -apr1 "$ADMIN_PASSWORD")
+          umask 027
+          printf 'satori:%s\n' "$hash" >/etc/nginx/.htpasswd-satori-crm
+          chown root:www-data /etc/nginx/.htpasswd-satori-crm
+          chmod 0640 /etc/nginx/.htpasswd-satori-crm
+
+          CFG="$cfg" python3 - <<'PY'
+          import os,re
+          from pathlib import Path
+          p=Path(os.environ['CFG'])
+          s=p.read_text()
+          # Protect exactly the CRM reverse-proxy location and point it to v2.
+          pattern=r'(?m)^(?P<i>\s*)proxy_pass\s+http://(?:127\.0\.0\.1|localhost):(?:3010|3020)\s*;'
+          matches=list(re.finditer(pattern,s))
+          if not matches:
+              raise SystemExit('CRM proxy_pass not found')
+          def repl(m):
+              i=m.group('i')
+              auth='auth_basic_user_file /etc/nginx/.htpasswd-satori-crm;'
+              prefix='' if auth in s else f'{i}auth_basic "Satori CRM";\n{i}{auth}\n'
+              return prefix+f'{i}proxy_pass http://127.0.0.1:3020;'
+          s=re.sub(pattern,repl,s,count=1)
+          p.write_text(s)
+          PY
+
+          nginx -t
+          systemctl reload nginx
+          printf '%s\n' "$backup" >/var/lib/satori-auto-crm/last-production-backup
+          REMOTE
+
+      - name: Verify public CRM and rollback path
+        run: |
+          ssh root@194.226.97.103 'bash -se' <<'REMOTE'
+          set -eu
+          ADMIN_PASSWORD=$(python3 - <<'PY'
+          from pathlib import Path
+          for fn in ['/var/www/satori/.env','/var/www/satori/backend/.env']:
+              p=Path(fn)
+              if not p.exists(): continue
+              for line in p.read_text(errors='ignore').splitlines():
+                  line=line.strip()
+                  if not line or line.startswith('#') or '=' not in line: continue
+                  k,v=line.split('=',1)
+                  if k.strip()=='ADMIN_PASSWORD':
+                      v=v.strip()
+                      if len(v)>=2 and v[0]==v[-1] and v[0] in "'\"": v=v[1:-1]
+                      print(v,end='')
+                      raise SystemExit
+          raise SystemExit(1)
+          PY
+          )
+          test "$(curl -sS -o /dev/null -w '%{http_code}' https://crm.satorilabural.online/)" = '401'
+          curl --fail --silent --show-error -u "satori:$ADMIN_PASSWORD" https://crm.satorilabural.online/ >/dev/null
+          curl --fail --silent --show-error -u "satori:$ADMIN_PASSWORD" https://crm.satorilabural.online/api/pipeline | grep -q 'Новый запрос'
+          systemctl is-active --quiet satori-crm-v2
+          # Legacy remains private and healthy for rollback.
+          systemctl is-active --quiet satori-crm
+          curl --fail --silent http://127.0.0.1:3010/health >/dev/null
+          echo 'Auto-CRM is live on crm.satorilabural.online; legacy rollback remains healthy'
+          REMOTE
