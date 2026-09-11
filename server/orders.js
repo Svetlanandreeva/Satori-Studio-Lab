@@ -8,6 +8,7 @@ import { getPayment } from "./yookassa.js";
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ORDERS_FILE = path.join(__dirname, "data", "orders.json");
 const CRM_FILE = path.join(__dirname, "..", "crm", "data", "crm.json");
+const CRM_V2_INTERNAL_URL = process.env.CRM_V2_INTERNAL_URL || "http://127.0.0.1:3020";
 
 let writeQueue = Promise.resolve();
 
@@ -57,6 +58,23 @@ async function enrichOrders(orders) {
     crmStatus: stages[order.id] || order.crmStatus || fallbackCrmStatus(order),
     crmId: `web:${order.id}`,
   }));
+}
+
+async function syncOrderToCrmV2(order) {
+  try {
+    const response = await fetch(`${CRM_V2_INTERNAL_URL}/api/integrations/store-orders`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(order),
+    });
+    if (!response.ok) {
+      const detail = await response.text().catch(() => "");
+      console.error("CRM v2 order sync failed:", response.status, detail.slice(0, 200));
+    }
+  } catch (error) {
+    // Checkout/payment must never fail just because CRM is restarting.
+    console.error("CRM v2 order sync unavailable:", error?.message || error);
+  }
 }
 
 function withWriteLock(fn) {
@@ -210,6 +228,13 @@ export async function updateOrder(id, patch) {
       crmNumber: orders[idx].crmNumber || crmNumber(id),
     };
     await writeFile(ORDERS_FILE, JSON.stringify(orders, null, 2), "utf-8");
+
+    const shouldSync =
+      orders[idx].status === "paid" ||
+      orders[idx].status === "canceled" ||
+      normalizedPatch.fulfillmentStatus !== undefined;
+    if (shouldSync) void syncOrderToCrmV2(orders[idx]);
+
     return orders[idx];
   });
 }
