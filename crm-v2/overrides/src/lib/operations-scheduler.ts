@@ -2,11 +2,14 @@ import { sqlite } from "@/db";
 import { createBackup } from "@/lib/backups";
 import { getSetting, setSetting, sendTelegramMessage, INTEGRATION_KEYS } from "@/lib/satori-integrations";
 import { listProjects } from "@/lib/projects";
+import { runAssistantSafely } from "@/lib/assistant-runtime";
+import { enrichContactsFromDialogs } from "@/lib/contact-intelligence";
 
 const STATE_KEY = "__satoriOperationsScheduler";
 const HEARTBEAT_KEY = "satori_ops_heartbeat";
 const LAST_BACKUP_DAY = "satori_ops_last_backup_day";
 const LAST_PROJECT_ALERT_DAY = "satori_ops_last_project_alert_day";
+const LAST_ASSISTANT_RUN = "satori_ops_last_assistant_run";
 
 function moscowDay(date = new Date()) {
   return new Intl.DateTimeFormat("en-CA", { timeZone: "Europe/Moscow", year: "numeric", month: "2-digit", day: "2-digit" }).format(date);
@@ -25,6 +28,17 @@ async function ensureDailyBackup() {
   if (getSetting(LAST_BACKUP_DAY) === today) return;
   await createBackup("daily");
   setSetting(LAST_BACKUP_DAY, today);
+}
+
+async function runHourlyCrmAudit() {
+  const previous = Date.parse(String(getSetting(LAST_ASSISTANT_RUN) || ""));
+  if (Number.isFinite(previous) && Date.now() - previous < 55 * 60 * 1000) return;
+
+  // Перед управленческим аудитом заново читаем связанные email/Telegram-диалоги
+  // и дополняем карточки только явно найденными данными.
+  try { enrichContactsFromDialogs(); } catch (error) { console.error("CRM dialog enrichment failed", error); }
+  await runAssistantSafely({ notify: true });
+  setSetting(LAST_ASSISTANT_RUN, new Date().toISOString());
 }
 
 async function alertDueTasks() {
@@ -89,6 +103,7 @@ async function alertProjectDeadlines() {
 async function tick() {
   setSetting(HEARTBEAT_KEY, new Date().toISOString());
   try { await ensureDailyBackup(); } catch (error) { console.error("CRM daily backup failed", error); }
+  try { await runHourlyCrmAudit(); } catch (error) { console.error("CRM hourly assistant audit failed", error); }
   try { await alertDueTasks(); } catch (error) { console.error("CRM task alert failed", error); }
   try { await alertProjectDeadlines(); } catch (error) { console.error("CRM project alert failed", error); }
 }
@@ -103,4 +118,8 @@ export function startOperationsScheduler() {
 
 export function operationsHeartbeat() {
   return getSetting(HEARTBEAT_KEY);
+}
+
+export function lastAssistantAuditAt() {
+  return getSetting(LAST_ASSISTANT_RUN);
 }
