@@ -3,6 +3,7 @@ import { pipelineStages, deals, contacts } from "@/db/schema";
 import { eq, asc } from "drizzle-orm";
 import { KanbanBoard } from "@/components/pipeline/KanbanBoard";
 import { SPAM_STAGE_NAME } from "@/lib/lead-qualification";
+import { runCrmConsistencyRepair } from "@/lib/crm-consistency";
 import type { PipelineColumn } from "@/types";
 
 export const dynamic = "force-dynamic";
@@ -33,6 +34,10 @@ function cleanupUntouchedSyntheticDeals() {
 }
 
 export default function PipelinePage() {
+  // Воронка должна содержать одну каноническую последовательность этапов.
+  // Старый «Отправлен клиенту» автоматически объединяется с «Доставка».
+  runCrmConsistencyRepair();
+
   // Воронка должна содержать реальные заявки/сделки, а не техническую карточку
   // для каждого контакта. Удаляем только старые нетронутые автокарточки;
   // сделки, которые уже двигали или редактировали вручную, сохраняем.
@@ -85,7 +90,7 @@ export default function PipelinePage() {
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Воронка</h1>
         <p className="text-muted-foreground">
-          Только реальные заявки и сделки. Перетаскивайте их между этапами; спам хранится отдельно в «Песочнице».
+          Заявка → расчёт → согласование → производство → готово → доставка → завершено. При переходе в доставку CRM попросит трек-номер и отправит его клиенту.
         </p>
       </div>
       <KanbanBoard initialColumns={columns} />
