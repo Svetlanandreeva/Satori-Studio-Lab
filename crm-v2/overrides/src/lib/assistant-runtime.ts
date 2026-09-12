@@ -4,6 +4,7 @@ import path from "path";
 import { createHash } from "node:crypto";
 import { getAssistantState, runAssistantAudit } from "@/lib/assistant";
 import { sendTelegramMessage } from "@/lib/satori-integrations";
+import { runCrmConsistencyRepair } from "@/lib/crm-consistency";
 
 const DB_PATH = process.env.CRM_DB_PATH || path.join(process.cwd(), "data", "crm.db");
 const dataDir = path.dirname(DB_PATH);
@@ -144,13 +145,18 @@ async function notifySanitizedState() {
 }
 
 export async function runAssistantSafely(options: { notify?: boolean } = {}) {
+  // Сначала выравниваем структуру CRM, затем строим управленческие сигналы.
+  // Это не даёт старым интеграциям снова разнести «Доставка» и «Отправлен клиенту».
+  runCrmConsistencyRepair();
   await runAssistantAudit({ notify: false });
+  runCrmConsistencyRepair();
   sanitizeAssistantInsights();
   if (options.notify) await notifySanitizedState();
   return getAssistantState();
 }
 
 export function getSanitizedAssistantState() {
+  runCrmConsistencyRepair();
   sanitizeAssistantInsights();
   return getAssistantState();
 }
