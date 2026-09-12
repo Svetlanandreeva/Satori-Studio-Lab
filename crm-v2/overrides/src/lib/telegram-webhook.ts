@@ -25,7 +25,10 @@ export function ensureTelegramWebhookSecret(): string {
 
 export function telegramWebhookUrl(): string {
   const origin = (process.env.CRM_PUBLIC_URL || "https://crm.satorilabural.online").replace(/\/$/, "");
-  return `${origin}/api/integrations/telegram/webhook`;
+  // Keep Telegram on the public integration entrypoint. It proxies internally to
+  // the protected CRM webhook and also imports Telegram attachments. The query
+  // string does not change nginx's exact URI match for /api/integrations/need-number.
+  return `${origin}/api/integrations/need-number?telegram=1`;
 }
 
 export async function readTelegramWebhookInfo() {
