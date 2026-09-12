@@ -11,6 +11,7 @@ import {
   type DragStartEvent,
   type DragEndEvent,
   type DragOverEvent,
+  type DragCancelEvent,
 } from "@dnd-kit/core";
 import { KanbanColumn } from "./KanbanColumn";
 import { DealCard } from "./DealCard";
@@ -48,21 +49,36 @@ export function KanbanBoard({ initialColumns }: KanbanBoardProps) {
       if (!over) return;
       const activeId = active.id as string;
       const overId = over.id as string;
-      const activeColumn = columns.find((col) => col.deals.some((deal) => deal.id === activeId));
+      const activeColumn = columns.find((col) =>
+        col.deals.some((deal) => deal.id === activeId)
+      );
       const overColumn =
         columns.find((col) => col.id === overId) ||
         columns.find((col) => col.deals.some((deal) => deal.id === overId));
       if (!activeColumn || !overColumn || activeColumn.id === overColumn.id) return;
 
       setColumns((previous) => {
-        const activeDeal = activeColumn.deals.find((deal) => deal.id === activeId);
-        if (!activeDeal) return previous;
+        const sourceColumn = previous.find((col) =>
+          col.deals.some((deal) => deal.id === activeId)
+        );
+        const targetColumn =
+          previous.find((col) => col.id === overColumn.id) || overColumn;
+        const activeDeal = sourceColumn?.deals.find((deal) => deal.id === activeId);
+        if (!sourceColumn || !targetColumn || !activeDeal) return previous;
+        if (sourceColumn.id === targetColumn.id) return previous;
+
         return previous.map((column) => {
-          if (column.id === activeColumn.id) {
-            return { ...column, deals: column.deals.filter((deal) => deal.id !== activeId) };
+          if (column.id === sourceColumn.id) {
+            return {
+              ...column,
+              deals: column.deals.filter((deal) => deal.id !== activeId),
+            };
           }
-          if (column.id === overColumn.id) {
-            return { ...column, deals: [...column.deals, { ...activeDeal, stageId: column.id }] };
+          if (column.id === targetColumn.id) {
+            return {
+              ...column,
+              deals: [...column.deals, { ...activeDeal, stageId: column.id }],
+            };
           }
           return column;
         });
@@ -75,27 +91,52 @@ export function KanbanBoard({ initialColumns }: KanbanBoardProps) {
     async (event: DragEndEvent) => {
       const { active, over } = event;
       setActiveId(null);
-      if (!over) return;
-      const activeId = active.id as string;
-      const overColumn =
+      if (!over) {
+        setColumns(columnsSnapshot.current);
+        return;
+      }
+
+      const dealId = active.id as string;
+      const targetColumn =
         columns.find((column) => column.id === over.id) ||
         columns.find((column) => column.deals.some((deal) => deal.id === over.id));
-      if (!overColumn) return;
+
+      if (!targetColumn) {
+        setColumns(columnsSnapshot.current);
+        return;
+      }
+
+      const originalColumn = columnsSnapshot.current.find((column) =>
+        column.deals.some((deal) => deal.id === dealId)
+      );
+      if (originalColumn?.id === targetColumn.id) return;
 
       try {
         const response = await fetch("/api/pipeline", {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ dealId: activeId, stageId: overColumn.id }),
+          body: JSON.stringify({ dealId, stageId: targetColumn.id }),
         });
-        if (!response.ok) throw new Error("API error");
-      } catch {
+        const data = await response.json().catch(() => null);
+        if (!response.ok) {
+          throw new Error(data?.error || `Ошибка ${response.status}`);
+        }
+      } catch (error) {
         setColumns(columnsSnapshot.current);
-        toast.error("Не удалось переместить сделку. Изменение отменено.");
+        toast.error(
+          error instanceof Error
+            ? `Не удалось переместить сделку: ${error.message}`
+            : "Не удалось переместить сделку. Изменение отменено."
+        );
       }
     },
     [columns]
   );
+
+  const handleDragCancel = useCallback((_event: DragCancelEvent) => {
+    setActiveId(null);
+    setColumns(columnsSnapshot.current);
+  }, []);
 
   return (
     <DndContext
@@ -104,6 +145,7 @@ export function KanbanBoard({ initialColumns }: KanbanBoardProps) {
       onDragStart={handleDragStart}
       onDragOver={handleDragOver}
       onDragEnd={handleDragEnd}
+      onDragCancel={handleDragCancel}
     >
       <div className="flex gap-4 overflow-x-auto pb-4">
         {columns.map((column) => (
