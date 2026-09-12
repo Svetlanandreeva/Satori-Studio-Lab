@@ -1,0 +1,99 @@
+name: Telegram live diagnostics
+
+on:
+  push:
+    branches:
+      - debug/telegram-live-diagnostics
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Start SSH agent
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+
+      - name: Trust production server
+        run: ssh-keyscan -H 194.226.97.103 >> ~/.ssh/known_hosts
+
+      - name: Run safe Telegram diagnostics on production
+        run: |
+          ssh root@194.226.97.103 'bash -se' <<'REMOTE'
+          set -eu
+          DB=/var/lib/satori-auto-crm/crm.db
+          BASE=http://127.0.0.1:3020
+          PUBLIC=https://crm.satorilabural.online
+
+          echo '=== CRM service ==='
+          systemctl is-active satori-crm-v2 || true
+
+          echo '=== Telegram status (sanitized) ==='
+          curl -fsS "$BASE/api/integrations/telegram/status" >/tmp/tg-status.json || true
+          python3 - <<'PY'
+          import json
+          from pathlib import Path
+          p=Path('/tmp/tg-status.json')
+          if not p.exists() or not p.read_text().strip():
+              print('status_endpoint=empty')
+          else:
+              try:
+                  d=json.loads(p.read_text())
+              except Exception as e:
+                  print('status_endpoint=invalid_json', type(e).__name__)
+              else:
+                  keys=[
+                      'tokenConfigured','webhookConfigured','webhookHealthy','pendingUpdates',
+                      'webhookLastError','webhookLastErrorAt','allowedUpdates',
+                      'businessUpdatesSubscribed','businessConfigured','businessEnabled',
+                      'businessCanReply','businessCanReadMessages','businessError',
+                      'lastWebhookUpdateAt','lastWebhookUpdateType','lastBusinessMessageAt'
+                  ]
+                  for k in keys:
+                      print(f'{k}={d.get(k)!r}')
+          PY
+
+          echo '=== Stored Telegram state ==='
+          if command -v sqlite3 >/dev/null 2>&1; then
+            sqlite3 "$DB" "select key || '=' || case when key in ('satori_telegram_bot_token','satori_telegram_webhook_secret') then '[set]' else value end from crm_settings where key in ('satori_telegram_bot_token','satori_telegram_webhook_secret','satori_telegram_business_connection_id','satori_telegram_business_enabled','satori_telegram_business_can_reply','satori_telegram_business_can_read_messages','satori_telegram_last_update_at','satori_telegram_last_update_type') order by key;" || true
+          else
+            echo 'sqlite3_cli=missing'
+          fi
+
+          echo '=== Signed webhook self-test ==='
+          if command -v sqlite3 >/dev/null 2>&1; then
+            secret=$(sqlite3 "$DB" "select value from crm_settings where key='satori_telegram_webhook_secret' limit 1;")
+            if [ -n "$secret" ]; then
+              code=$(curl -sS -o /tmp/tg-selftest-response.json -w '%{http_code}' \
+                -X POST "$PUBLIC/api/integrations/need-number?telegram=1" \
+                -H 'Content-Type: application/json' \
+                -H "X-Telegram-Bot-Api-Secret-Token: $secret" \
+                --data '{"update_id":987654321}' || true)
+              echo "public_signed_post_http=$code"
+              python3 - <<'PY'
+              from pathlib import Path
+              p=Path('/tmp/tg-selftest-response.json')
+              text=p.read_text(errors='replace')[:500] if p.exists() else ''
+              print('public_signed_post_body=' + text)
+              PY
+              sleep 1
+              sqlite3 "$DB" "select 'last_update_at=' || coalesce(value,'') from crm_settings where key='satori_telegram_last_update_at';" || true
+              sqlite3 "$DB" "select 'last_update_type=' || coalesce(value,'') from crm_settings where key='satori_telegram_last_update_type';" || true
+            else
+              echo 'webhook_secret=missing'
+            fi
+          fi
+
+          echo '=== Recent nginx webhook requests ==='
+          for log in /var/log/nginx/access.log /var/log/nginx/satori-crm.access.log; do
+            if [ -f "$log" ]; then
+              echo "log=$log"
+              tail -n 500 "$log" | grep -E '/api/integrations/(need-number|telegram/webhook)' | tail -n 30 | \
+                sed -E 's/(X-Telegram-Bot-Api-Secret-Token: )[A-Za-z0-9_-]+/\1[redacted]/g' || true
+            fi
+          done
+
+          echo '=== Recent CRM Telegram errors ==='
+          journalctl -u satori-crm-v2 --since '60 minutes ago' --no-pager 2>/dev/null | \
+            grep -Ei 'telegram|webhook|error|exception' | tail -n 80 || true
+          REMOTE
