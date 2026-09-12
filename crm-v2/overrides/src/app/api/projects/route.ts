@@ -29,6 +29,7 @@ export async function PUT(request: NextRequest) {
           : Number(body.productionTermDays),
       contractDeadline: body.contractDeadline ? String(body.contractDeadline) : null,
       shippedAt: body.shippedAt ? String(body.shippedAt) : null,
+      paymentTerms: body.paymentTerms ? String(body.paymentTerms) : null,
       notes: body.notes ? String(body.notes) : null,
     });
     return NextResponse.json(result);
