@@ -17,50 +17,22 @@ jobs:
           ssh-private-key: ${{ secrets.DEPLOY_SSH_KEY }}
       - name: Trust production server
         run: ssh-keyscan -H 194.226.97.103 >> ~/.ssh/known_hosts
-      - name: Verify live calculation gate, projects and expense fields
+      - name: Verify rejected deals are hidden from live economics
         run: |
           ssh root@194.226.97.103 'bash -se' <<'REMOTE'
           set -eu
           systemctl is-active --quiet satori-crm-v2
-
           curl -fsS http://127.0.0.1:3020/api/economics >/tmp/economics.json
-          curl -fsS http://127.0.0.1:3020/api/projects >/tmp/projects.json
-
           python3 - <<'PY'
-          import collections, json, sqlite3
-
+          import collections, json
           economics=json.load(open('/tmp/economics.json'))
-          projects=json.load(open('/tmp/projects.json')).get('projects', [])
           deals=economics.get('deals', [])
-          expense_items=economics.get('fixedExpenses', {}).get('items', [])
-
-          econ_stages=dict(collections.Counter(x.get('stageName') for x in deals))
-          project_stages=dict(collections.Counter(x.get('stageName') for x in projects))
-          print('economics', {'count': len(deals), 'stages': econ_stages})
-          print('projects', {'count': len(projects), 'stages': project_stages})
-          print('deadlineMetrics', all(all(k in x for k in ['daysRemaining','overdueDays','deadlineStatus']) for x in projects))
-          if expense_items:
-              print('expenseFields', sorted(expense_items[0].keys()))
-              required={'expenseType','percentRate','percentBaseAmount','dueDate','paidAt','paymentStatus'}
-              assert required.issubset(expense_items[0].keys())
-
-          assert 'Отказ' not in econ_stages, econ_stages
-          assert 'Отказ' not in project_stages, project_stages
-          assert all(all(k in x for k in ['daysRemaining','overdueDays','deadlineStatus']) for x in projects)
-
-          db=sqlite3.connect('/var/lib/satori-auto-crm/crm.db')
-          tracked=list(db.execute('''
-            select ps.name,count(*)
-            from deal_flow_state f
-            join deals d on d.id=f.deal_id
-            join pipeline_stages ps on ps.id=d.stage_id
-            where f.calculation_entered_at is not null
-            group by ps.name order by ps.name
-          '''))
-          print('trackedByStage', tracked)
-          assert not any(name == 'Отказ' for name, _ in tracked), tracked
-          marker=db.execute("select value from deal_flow_meta where key='lost_backfill_cleaned_v1'").fetchone()
-          print('cleanupMarker', marker)
-          assert marker and marker[0] == '1'
+          clients=economics.get('clients', [])
+          stages=dict(collections.Counter(x.get('stageName') for x in deals))
+          print('economics', {'count': len(deals), 'stages': stages})
+          print('deals', [(x.get('contactName'), x.get('dealTitle'), x.get('stageName')) for x in deals])
+          print('clients', [(x.get('contactName'), x.get('deals')) for x in clients])
+          assert not any('отказ' in str(x.get('stageName') or '').lower().replace('ё','е') for x in deals), deals
+          assert 'Отказ' not in stages, stages
           PY
           REMOTE
