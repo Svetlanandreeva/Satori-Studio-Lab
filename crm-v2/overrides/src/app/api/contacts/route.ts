@@ -16,6 +16,13 @@ function emailIdentity(value: unknown): string | null {
   return email || null;
 }
 
+type ContactDealState = {
+  hasAny: boolean;
+  hasActive: boolean;
+  hasWon: boolean;
+  hasLost: boolean;
+};
+
 export async function GET(request: NextRequest) {
   const { searchParams } = new URL(request.url);
   const search = (searchParams.get("search") || "").trim().toLowerCase();
@@ -23,25 +30,61 @@ export async function GET(request: NextRequest) {
   const source = searchParams.get("source");
   const qualification = searchParams.get("qualification");
   const includeSpam = searchParams.get("includeSpam") === "1";
+  // По умолчанию раздел «Клиенты» — рабочая база. Контакты, у которых
+  // все сделки закончились отказом, остаются в истории/аналитике, но здесь
+  // не показываются. Административные экраны могут явно запросить их обратно.
+  const includeRejected = searchParams.get("includeRejected") === "1";
 
   const contactRows = db.select().from(contacts).orderBy(desc(contacts.createdAt)).all();
   const stageMap = new Map(db.select().from(pipelineStages).all().map((stage) => [stage.id, stage]));
   const ownerMap = new Map(db.select().from(teamMembers).all().map((member) => [member.id, member]));
   const dealRows = db.select().from(deals).all().sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
+
   const dealByContact = new Map<string, (typeof dealRows)[number]>();
+  const dealStateByContact = new Map<string, ContactDealState>();
+
   for (const deal of dealRows) {
-    const current = dealByContact.get(deal.contactId);
     const stage = stageMap.get(deal.stageId);
-    if (!current) { dealByContact.set(deal.contactId, deal); continue; }
+    const isWon = Boolean(stage?.isWon);
+    const isLost = Boolean(stage?.isLost);
+    const isActive = !isWon && !isLost;
+    const state = dealStateByContact.get(deal.contactId) || {
+      hasAny: false,
+      hasActive: false,
+      hasWon: false,
+      hasLost: false,
+    };
+    state.hasAny = true;
+    state.hasActive ||= isActive;
+    state.hasWon ||= isWon;
+    state.hasLost ||= isLost;
+    dealStateByContact.set(deal.contactId, state);
+
+    // Для карточки в списке показываем активную сделку в приоритете.
+    // Если активных нет — последнюю закрытую (победа или отказ).
+    const current = dealByContact.get(deal.contactId);
+    if (!current) {
+      dealByContact.set(deal.contactId, deal);
+      continue;
+    }
     const currentStage = stageMap.get(current.stageId);
     const currentClosed = Boolean(currentStage?.isWon || currentStage?.isLost);
-    const nextClosed = Boolean(stage?.isWon || stage?.isLost);
-    if (currentClosed && !nextClosed) dealByContact.set(deal.contactId, deal);
+    if (currentClosed && isActive) dealByContact.set(deal.contactId, deal);
   }
 
   const results = contactRows
     .filter((contact) => {
       if (!includeSpam && (contact.qualification === "spam" || contact.qualification === "ignore")) return false;
+
+      const dealState = dealStateByContact.get(contact.id);
+      const rejectedOnly = Boolean(
+        dealState?.hasAny &&
+        dealState.hasLost &&
+        !dealState.hasActive &&
+        !dealState.hasWon
+      );
+      if (!includeRejected && rejectedOnly) return false;
+
       const matchesSearch = !search || contact.name.toLowerCase().includes(search) || contact.email?.toLowerCase().includes(search) || contact.company?.toLowerCase().includes(search) || contact.phone?.toLowerCase().includes(search);
       const matchesTemperature = !temperature || contact.temperature === temperature;
       const matchesSource = !source || contact.source === source;
