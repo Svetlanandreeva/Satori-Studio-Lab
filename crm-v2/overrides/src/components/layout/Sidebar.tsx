@@ -10,6 +10,7 @@ import {
   Inbox,
   Kanban,
   LayoutDashboard,
+  MessageCircle,
   Settings,
   Users,
 } from "lucide-react";
@@ -24,6 +25,7 @@ const navItems = [
   { href: "/economics", label: "Экономика", icon: Calculator },
   { href: "/activities", label: "Активность", icon: Activity },
   { href: "/sandbox", label: "Песочница", icon: ArchiveX },
+  { href: "/settings/telegram-business", label: "Telegram", icon: MessageCircle },
   { href: "/settings", label: "Настройки", icon: Settings },
 ];
 
