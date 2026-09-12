@@ -9,7 +9,7 @@ import { Input } from "@/components/ui/input";
 import { ArchiveX, ExternalLink, Loader2, RotateCcw, Search, Trash2 } from "lucide-react";
 import { toast } from "sonner";
 
-interface SpamContact {
+interface SandboxContact {
   id: string;
   name: string;
   email: string | null;
@@ -21,7 +21,7 @@ interface SpamContact {
   createdAt: string | number | Date;
 }
 
-interface SpamDeal {
+interface SandboxDeal {
   id: string;
   title: string;
   value: number;
@@ -30,8 +30,8 @@ interface SpamDeal {
 }
 
 export default function SandboxPage() {
-  const [contacts, setContacts] = useState<SpamContact[]>([]);
-  const [deals, setDeals] = useState<SpamDeal[]>([]);
+  const [contacts, setContacts] = useState<SandboxContact[]>([]);
+  const [deals, setDeals] = useState<SandboxDeal[]>([]);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState<string | null>(null);
   const [search, setSearch] = useState("");
@@ -40,15 +40,15 @@ export default function SandboxPage() {
     setLoading(true);
     try {
       const [contactsResponse, dealsResponse] = await Promise.all([
-        fetch("/api/contacts?includeSpam=1&qualification=spam", { cache: "no-store" }),
+        fetch("/api/contacts?includeSpam=1", { cache: "no-store" }),
         fetch("/api/deals?includeSandbox=1", { cache: "no-store" }),
       ]);
       if (!contactsResponse.ok || !dealsResponse.ok) {
         throw new Error("Не удалось загрузить Песочницу");
       }
-      const contactData = (await contactsResponse.json()) as SpamContact[];
-      const dealData = (await dealsResponse.json()) as SpamDeal[];
-      setContacts(contactData.filter((contact) => contact.qualification === "spam"));
+      const contactData = (await contactsResponse.json()) as SandboxContact[];
+      const dealData = (await dealsResponse.json()) as SandboxDeal[];
+      setContacts(contactData.filter((contact) => contact.qualification === "spam" || contact.qualification === "ignore"));
       setDeals(dealData.filter((deal) => deal.stageName === "Песочница / Спам"));
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Ошибка загрузки Песочницы");
@@ -71,7 +71,7 @@ export default function SandboxPage() {
     );
   }, [contacts, search]);
 
-  const restore = async (contact: SpamContact) => {
+  const restore = async (contact: SandboxContact) => {
     setBusy(contact.id);
     try {
       const response = await fetch(`/api/contacts/${contact.id}`, {
@@ -90,7 +90,7 @@ export default function SandboxPage() {
     }
   };
 
-  const remove = async (contact: SpamContact) => {
+  const remove = async (contact: SandboxContact) => {
     if (!window.confirm(`Удалить «${contact.name}» навсегда вместе со сделками и историей?`)) return;
     setBusy(contact.id);
     try {
@@ -116,7 +116,7 @@ export default function SandboxPage() {
             <Badge variant="outline">{contacts.length}</Badge>
           </div>
           <p className="mt-1 text-sm text-muted-foreground">
-            Спам и мусорные лиды изолированы от клиентов, сделок и основной воронки.
+            Игнор и спам убраны из основной воронки, экономики и активных проектов, но историю можно вернуть в работу.
           </p>
         </div>
         <div className="relative w-full lg:w-80">
@@ -137,21 +137,22 @@ export default function SandboxPage() {
       ) : visible.length === 0 ? (
         <Card>
           <CardContent className="py-14 text-center text-muted-foreground">
-            Песочница пуста. Спам сюда попадёт автоматически после квалификации «Спам».
+            Песочница пуста. Клиент попадёт сюда после статуса «Игнор» или «Спам».
           </CardContent>
         </Card>
       ) : (
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
           {visible.map((contact) => {
             const contactDeals = deals.filter((deal) => deal.contactId === contact.id);
+            const ignored = contact.qualification === "ignore";
             return (
-              <Card key={contact.id} className="border-red-100">
+              <Card key={contact.id} className={ignored ? "border-zinc-200" : "border-red-100"}>
                 <CardHeader className="pb-3">
                   <div className="flex items-start justify-between gap-3">
                     <div className="min-w-0">
                       <CardTitle className="truncate text-base">{contact.name}</CardTitle>
                       <div className="mt-1 flex flex-wrap gap-2">
-                        <Badge variant="destructive">Спам</Badge>
+                        <Badge variant={ignored ? "outline" : "destructive"}>{ignored ? "Игнор" : "Спам"}</Badge>
                         {contact.source && <Badge variant="outline">{contact.source}</Badge>}
                       </div>
                     </div>

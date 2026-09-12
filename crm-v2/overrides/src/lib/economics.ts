@@ -1,6 +1,7 @@
 import Database from "better-sqlite3";
 import path from "path";
 import fs from "fs";
+import { syncCalculationMilestones } from "@/lib/deal-flow";
 
 const DB_PATH = process.env.CRM_DB_PATH || path.join(process.cwd(), "data", "crm.db");
 const dataDir = path.dirname(DB_PATH);
@@ -32,6 +33,11 @@ sqlite.exec(`
     name TEXT NOT NULL,
     category TEXT NOT NULL DEFAULT 'other',
     amount INTEGER NOT NULL DEFAULT 0,
+    expense_type TEXT NOT NULL DEFAULT 'fixed',
+    percent_rate REAL NOT NULL DEFAULT 0,
+    percent_base_amount INTEGER NOT NULL DEFAULT 0,
+    due_date TEXT,
+    paid_at TEXT,
     notes TEXT,
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL
@@ -40,6 +46,27 @@ sqlite.exec(`
   CREATE INDEX IF NOT EXISTS idx_business_expenses_month
     ON business_expenses(month);
 `);
+
+function tableColumns(table: string): Set<string> {
+  const rows = sqlite.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>;
+  return new Set(rows.map((row) => row.name));
+}
+
+function ensureBusinessExpenseColumns() {
+  const columns = tableColumns("business_expenses");
+  const migrations: Array<[string, string]> = [
+    ["expense_type", "TEXT NOT NULL DEFAULT 'fixed'"],
+    ["percent_rate", "REAL NOT NULL DEFAULT 0"],
+    ["percent_base_amount", "INTEGER NOT NULL DEFAULT 0"],
+    ["due_date", "TEXT"],
+    ["paid_at", "TEXT"],
+  ];
+  for (const [name, definition] of migrations) {
+    if (!columns.has(name)) sqlite.exec(`ALTER TABLE business_expenses ADD COLUMN ${name} ${definition}`);
+  }
+}
+
+ensureBusinessExpenseColumns();
 
 export interface EconomicsInput {
   dealId: string;
@@ -59,6 +86,11 @@ export interface BusinessExpenseInput {
   name: string;
   category?: string;
   amount: number;
+  expenseType?: "fixed" | "percent";
+  percentRate?: number;
+  percentBaseAmount?: number;
+  dueDate?: string | null;
+  paidAt?: string | null;
   notes?: string | null;
 }
 
@@ -80,6 +112,7 @@ interface EconomicsRow {
   otherCost: number;
   economicsNotes: string | null;
   economicsUpdatedAt: number | null;
+  calculationEnteredAt: number;
 }
 
 interface CalculatedEconomicsRow extends EconomicsRow {
@@ -95,12 +128,56 @@ function money(value: unknown): number {
   return Math.max(0, Math.round(number));
 }
 
+function rate(value: unknown): number {
+  const number = Number(value);
+  if (!Number.isFinite(number)) return 0;
+  return Math.max(0, Math.min(100, Math.round(number * 1000) / 1000));
+}
+
 function validMonth(value: unknown): string {
   const month = String(value || "").trim();
   if (!/^\d{4}-(0[1-9]|1[0-2])$/.test(month)) {
     throw new Error("Месяц должен быть в формате YYYY-MM");
   }
   return month;
+}
+
+function optionalDate(value: unknown): string | null {
+  const result = String(value || "").trim();
+  if (!result) return null;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(result)) throw new Error("Дата должна быть в формате YYYY-MM-DD");
+  const parsed = new Date(`${result}T12:00:00Z`);
+  if (Number.isNaN(parsed.getTime())) throw new Error("Некорректная дата");
+  return result;
+}
+
+function moscowDate(): string {
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/Moscow",
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date());
+  const year = parts.find((part) => part.type === "year")?.value || "1970";
+  const month = parts.find((part) => part.type === "month")?.value || "01";
+  const day = parts.find((part) => part.type === "day")?.value || "01";
+  return `${year}-${month}-${day}`;
+}
+
+function daysBetween(from: string, to: string): number {
+  const start = Date.parse(`${from}T00:00:00Z`);
+  const end = Date.parse(`${to}T00:00:00Z`);
+  return Math.round((end - start) / 86_400_000);
+}
+
+function paymentState(dueDate: string | null, paidAt: string | null) {
+  if (paidAt) return { paymentStatus: "paid", daysToPayment: 0 };
+  if (!dueDate) return { paymentStatus: "no_date", daysToPayment: null };
+  const days = daysBetween(moscowDate(), dueDate);
+  if (days < 0) return { paymentStatus: "overdue", daysToPayment: days };
+  if (days === 0) return { paymentStatus: "due_today", daysToPayment: 0 };
+  if (days <= 3) return { paymentStatus: "due_soon", daysToPayment: days };
+  return { paymentStatus: "upcoming", daysToPayment: days };
 }
 
 export function saveDealEconomics(input: EconomicsInput) {
@@ -175,46 +252,95 @@ export function listBusinessExpenses(month: string) {
       name,
       category,
       amount,
+      expense_type AS expenseType,
+      percent_rate AS percentRate,
+      percent_base_amount AS percentBaseAmount,
+      due_date AS dueDate,
+      paid_at AS paidAt,
       notes,
       created_at AS createdAt,
       updated_at AS updatedAt
     FROM business_expenses
     WHERE month = ?
-    ORDER BY amount DESC, created_at DESC
+    ORDER BY COALESCE(due_date, '9999-12-31') ASC, amount DESC, created_at DESC
   `).all(normalizedMonth) as Array<{
     id: string;
     month: string;
     name: string;
     category: string;
     amount: number;
+    expenseType: string;
+    percentRate: number;
+    percentBaseAmount: number;
+    dueDate: string | null;
+    paidAt: string | null;
     notes: string | null;
     createdAt: number;
     updatedAt: number;
   }>;
-  const total = rows.reduce((sum, row) => sum + Number(row.amount || 0), 0);
-  return { month: normalizedMonth, items: rows, total };
+
+  const items = rows.map((row) => ({ ...row, ...paymentState(row.dueDate, row.paidAt) }));
+  const total = items.reduce((sum, row) => sum + Number(row.amount || 0), 0);
+  const paidTotal = items.filter((row) => row.paidAt).reduce((sum, row) => sum + Number(row.amount || 0), 0);
+  const unpaidTotal = Math.max(0, total - paidTotal);
+  return { month: normalizedMonth, items, total, paidTotal, unpaidTotal };
 }
 
 export function createBusinessExpense(input: BusinessExpenseInput) {
   const month = validMonth(input.month);
   const name = String(input.name || "").trim();
   if (!name) throw new Error("Укажите название расхода");
+
+  const expenseType = input.expenseType === "percent" ? "percent" : "fixed";
+  const percentRate = expenseType === "percent" ? rate(input.percentRate) : 0;
+  const percentBaseAmount = expenseType === "percent" ? money(input.percentBaseAmount) : 0;
+  if (expenseType === "percent" && percentRate <= 0) throw new Error("Укажите налоговую ставку в процентах");
+  if (expenseType === "percent" && percentBaseAmount <= 0) throw new Error("Укажите базу для расчёта процента");
+
+  const amount = expenseType === "percent"
+    ? Math.round((percentBaseAmount * percentRate) / 100)
+    : money(input.amount);
   const now = Date.now();
   const row = {
     id: crypto.randomUUID(),
     month,
     name,
     category: String(input.category || "other").trim() || "other",
-    amount: money(input.amount),
+    amount,
+    expenseType,
+    percentRate,
+    percentBaseAmount,
+    dueDate: optionalDate(input.dueDate),
+    paidAt: optionalDate(input.paidAt),
     notes: input.notes ? String(input.notes).trim() : null,
     createdAt: now,
     updatedAt: now,
   };
   sqlite.prepare(`
-    INSERT INTO business_expenses (id, month, name, category, amount, notes, created_at, updated_at)
-    VALUES (@id, @month, @name, @category, @amount, @notes, @createdAt, @updatedAt)
+    INSERT INTO business_expenses (
+      id, month, name, category, amount, expense_type, percent_rate,
+      percent_base_amount, due_date, paid_at, notes, created_at, updated_at
+    ) VALUES (
+      @id, @month, @name, @category, @amount, @expenseType, @percentRate,
+      @percentBaseAmount, @dueDate, @paidAt, @notes, @createdAt, @updatedAt
+    )
   `).run(row);
-  return row;
+  return { ...row, ...paymentState(row.dueDate, row.paidAt) };
+}
+
+export function setBusinessExpensePaidAt(id: string, paidAt: string | null) {
+  const date = optionalDate(paidAt);
+  const result = sqlite
+    .prepare("UPDATE business_expenses SET paid_at = ?, updated_at = ? WHERE id = ?")
+    .run(date, Date.now(), id);
+  if (result.changes === 0) throw new Error("Расход не найден");
+  return sqlite.prepare(`
+    SELECT id, month, name, category, amount, expense_type AS expenseType,
+      percent_rate AS percentRate, percent_base_amount AS percentBaseAmount,
+      due_date AS dueDate, paid_at AS paidAt, notes,
+      created_at AS createdAt, updated_at AS updatedAt
+    FROM business_expenses WHERE id = ?
+  `).get(id);
 }
 
 export function deleteBusinessExpense(id: string) {
@@ -223,6 +349,8 @@ export function deleteBusinessExpense(id: string) {
 }
 
 export function listEconomics() {
+  syncCalculationMilestones();
+
   const rows = sqlite.prepare(`
     SELECT
       d.id AS dealId,
@@ -241,14 +369,16 @@ export function listEconomics() {
       COALESCE(e.tax_cost, 0) AS taxCost,
       COALESCE(e.other_cost, 0) AS otherCost,
       e.notes AS economicsNotes,
-      e.updated_at AS economicsUpdatedAt
+      e.updated_at AS economicsUpdatedAt,
+      flow.calculation_entered_at AS calculationEnteredAt
     FROM deals d
     JOIN contacts c ON c.id = d.contact_id
     JOIN pipeline_stages ps ON ps.id = d.stage_id
+    JOIN deal_flow_state flow ON flow.deal_id = d.id AND flow.calculation_entered_at IS NOT NULL
     LEFT JOIN deal_economics e ON e.deal_id = d.id
-    WHERE COALESCE(c.qualification, 'new') <> 'spam'
+    WHERE COALESCE(c.qualification, 'new') NOT IN ('spam', 'ignore')
       AND ps.name <> 'Песочница / Спам'
-    ORDER BY d.created_at DESC
+    ORDER BY flow.calculation_entered_at DESC, d.created_at DESC
   `).all() as EconomicsRow[];
 
   const normalized: CalculatedEconomicsRow[] = rows.map((row) => {

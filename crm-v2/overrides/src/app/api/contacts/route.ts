@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
     .orderBy(desc(contacts.createdAt))
     .all()
     .filter((contact) => {
-      if (!includeSpam && contact.qualification === "spam") return false;
+      if (!includeSpam && (contact.qualification === "spam" || contact.qualification === "ignore")) return false;
       const matchesSearch =
         !search ||
         contact.name.toLowerCase().includes(search) ||

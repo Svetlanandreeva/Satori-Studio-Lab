@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm";
 import {
   CLOSED_QUALIFICATIONS,
   LEAD_QUALIFICATION_LABELS,
+  SANDBOX_QUALIFICATIONS,
   SPAM_STAGE_NAME,
   isLeadQualification,
   type LeadQualification,
@@ -92,8 +93,11 @@ export async function PUT(
     const stages = db.select().from(pipelineStages).all();
     const sandboxStage = stages.find((stage) => stage.name === SPAM_STAGE_NAME);
     const currentDeals = db.select().from(deals).where(eq(deals.contactId, id)).all();
+    const wasSandboxQualification = SANDBOX_QUALIFICATIONS.has(
+      (existing.qualification || "new") as LeadQualification
+    );
 
-    if (qualification === "spam" && sandboxStage) {
+    if (SANDBOX_QUALIFICATIONS.has(qualification) && sandboxStage) {
       for (const deal of currentDeals) {
         const stage = stages.find((item) => item.id === deal.stageId);
         if (stage?.isWon) continue;
@@ -105,13 +109,16 @@ export async function PUT(
       db.insert(activities)
         .values({
           type: "note",
-          description: "Лид перемещён в Песочницу как спам",
+          description:
+            qualification === "ignore"
+              ? "Клиент ушёл в игнор — сделки перемещены в Песочницу"
+              : "Лид перемещён в Песочницу как спам",
           contactId: id,
           createdAt: new Date(),
         })
         .run();
     } else {
-      if (existing.qualification === "spam" && sandboxStage) {
+      if (wasSandboxQualification && sandboxStage) {
         const firstActiveStage = stages
           .filter(
             (stage) =>

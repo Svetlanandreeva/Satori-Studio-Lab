@@ -7,6 +7,7 @@ import {
   ArchiveX,
   Briefcase,
   Calculator,
+  FolderKanban,
   Inbox,
   Kanban,
   LayoutDashboard,
@@ -19,6 +20,7 @@ import { cn } from "@/lib/utils";
 const navItems = [
   { href: "/", label: "Главная", icon: LayoutDashboard },
   { href: "/pipeline", label: "Воронка", icon: Kanban },
+  { href: "/projects", label: "Проекты", icon: FolderKanban },
   { href: "/contacts", label: "Клиенты", icon: Users },
   { href: "/deals", label: "Сделки", icon: Briefcase },
   { href: "/inbox", label: "Почта", icon: Inbox },

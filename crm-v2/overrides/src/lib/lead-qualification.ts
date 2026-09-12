@@ -4,6 +4,7 @@ export type LeadQualification =
   | "qualified"
   | "unqualified"
   | "not_target"
+  | "ignore"
   | "spam"
   | "duplicate";
 
@@ -19,6 +20,7 @@ export const LEAD_QUALIFICATION_OPTIONS: Array<{
   { value: "qualified", label: "Квалифицирован", description: "Есть подходящий запрос и потенциал сделки" },
   { value: "unqualified", label: "Не квалифицирован", description: "Не проходит квалификацию" },
   { value: "not_target", label: "Не целевой", description: "Не относится к целевой аудитории Satori" },
+  { value: "ignore", label: "Игнор", description: "Клиент перестал отвечать — убрать из активной работы в Песочницу" },
   { value: "spam", label: "Спам", description: "Мусорный или нежелательный лид — уходит в Песочницу" },
   { value: "duplicate", label: "Дубль", description: "Повтор существующего клиента или лида" },
 ];
@@ -28,9 +30,12 @@ export const LEAD_QUALIFICATION_LABELS: Record<LeadQualification, string> =
     LEAD_QUALIFICATION_OPTIONS.map((option) => [option.value, option.label])
   ) as Record<LeadQualification, string>;
 
+export const SANDBOX_QUALIFICATIONS = new Set<LeadQualification>(["ignore", "spam"]);
+
 export const CLOSED_QUALIFICATIONS = new Set<LeadQualification>([
   "unqualified",
   "not_target",
+  "ignore",
   "spam",
   "duplicate",
 ]);
