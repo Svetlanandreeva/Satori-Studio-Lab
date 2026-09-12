@@ -6,6 +6,10 @@ const PUBLIC_PATHS = [
   "/api/auth/login",
   "/api/auth/logout",
   "/api/integrations/need-number",
+  // Telegram validates this endpoint with its own secret token. Keep the direct
+  // path public as a compatibility fallback while the active webhook uses the
+  // public Need Number proxy entrypoint.
+  "/api/integrations/telegram/webhook",
   "/sw.js",
   "/favicon.ico",
 ];
