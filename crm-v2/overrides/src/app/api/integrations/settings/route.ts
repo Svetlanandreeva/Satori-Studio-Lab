@@ -7,10 +7,15 @@ import {
   setSetting,
 } from "@/lib/satori-integrations";
 
+const TELEGRAM_WEBHOOK_ENABLED_KEY = "satori_telegram_webhook_enabled";
+const TELEGRAM_WEBHOOK_URL_KEY = "satori_telegram_webhook_url";
+
 function snapshot() {
   const secret = ensureNeedNumberSecret();
   const telegramToken = getSetting(INTEGRATION_KEYS.telegramBotToken);
   const telegramChatId = getSetting(INTEGRATION_KEYS.telegramChatId) || "";
+  const telegramInboundConfigured = getBooleanSetting(TELEGRAM_WEBHOOK_ENABLED_KEY, false);
+  const telegramWebhookUrl = getSetting(TELEGRAM_WEBHOOK_URL_KEY) || "";
   const projectId = getSetting(INTEGRATION_KEYS.needNumberProjectId) || "1474";
   const createDeal = getBooleanSetting(INTEGRATION_KEYS.needNumberCreateDeal, true);
 
@@ -34,6 +39,8 @@ function snapshot() {
     telegramConfigured: Boolean(telegramToken && telegramChatId),
     telegramTokenConfigured: Boolean(telegramToken),
     telegramChatId,
+    telegramInboundConfigured,
+    telegramWebhookUrl,
     needNumberProjectId: projectId,
     needNumberCreateDeal: createDeal,
     needNumberWebhookPath: `/api/integrations/need-number?key=${encodeURIComponent(secret)}`,
@@ -89,6 +96,8 @@ export async function POST(request: NextRequest) {
     if (body.clearTelegram === true) {
       setSetting(INTEGRATION_KEYS.telegramBotToken, "");
       setSetting(INTEGRATION_KEYS.telegramChatId, "");
+      setSetting(TELEGRAM_WEBHOOK_ENABLED_KEY, "0");
+      setSetting(TELEGRAM_WEBHOOK_URL_KEY, "");
     } else {
       if (typeof body.telegramBotToken === "string" && body.telegramBotToken.trim()) {
         const token = body.telegramBotToken.trim();
