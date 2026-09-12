@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { sendTelegramMessage } from "@/lib/satori-integrations";
+import {
+  INTEGRATION_KEYS,
+  getSetting,
+  sendTelegramMessage,
+  telegramApiRequest,
+} from "@/lib/satori-integrations";
 import { configureTelegramWebhook } from "@/lib/telegram-webhook";
 
 function externalOrigin(request: NextRequest): string {
@@ -29,8 +34,12 @@ export async function POST(request: NextRequest) {
     );
   }
 
+  const token = getSetting(INTEGRATION_KEYS.telegramBotToken) || "";
+  const chatId = getSetting(INTEGRATION_KEYS.telegramChatId) || "";
+
   const result = await sendTelegramMessage({
-    text: "✅ <b>SATORI CRM</b>\nTelegram подключён. Входящие сообщения боту теперь тоже будут попадать в CRM.",
+    text:
+      "✅ <b>SATORI CRM</b>\nТестовое уведомление доставлено. CRM готова принимать Telegram-события.",
     url: `${externalOrigin(request)}/settings`,
   });
 
@@ -40,5 +49,47 @@ export async function POST(request: NextRequest) {
       { status: 400 }
     );
   }
-  return NextResponse.json({ success: true, inbound: true });
+
+  let bot: { username?: string; first_name?: string } | null = null;
+  let recipient: {
+    id?: number;
+    type?: string;
+    username?: string;
+    first_name?: string;
+    last_name?: string;
+    title?: string;
+  } | null = null;
+
+  if (token) {
+    try {
+      const me = await telegramApiRequest<typeof bot>(token, "getMe", {});
+      if (me.ok && me.result) bot = me.result;
+    } catch {}
+    if (chatId) {
+      try {
+        const chat = await telegramApiRequest<typeof recipient>(token, "getChat", {
+          chat_id: chatId,
+        });
+        if (chat.ok && chat.result) recipient = chat.result;
+      } catch {}
+    }
+  }
+
+  return NextResponse.json({
+    success: true,
+    inbound: true,
+    bot: bot
+      ? { username: bot.username || "", name: bot.first_name || "" }
+      : null,
+    recipient: recipient
+      ? {
+          type: recipient.type || "",
+          username: recipient.username || "",
+          name:
+            [recipient.first_name, recipient.last_name].filter(Boolean).join(" ") ||
+            recipient.title ||
+            "",
+        }
+      : null,
+  });
 }
