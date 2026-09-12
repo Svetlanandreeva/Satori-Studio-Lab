@@ -8,10 +8,9 @@ import {
   setBusinessExpensePaidAt,
   taxBaseForPaymentMonth,
 } from "@/lib/economics";
+import { calculateFinancialsFromDirectCost, MANAGER_COMMISSION_RATE } from "@/lib/deal-financials";
 
 export const dynamic = "force-dynamic";
-
-const MANAGER_COMMISSION_RATE = 50;
 
 function currentMonth(): string {
   const parts = new Intl.DateTimeFormat("en-US", { timeZone: "Europe/Moscow", year: "numeric", month: "2-digit" }).formatToParts(new Date());
@@ -29,23 +28,11 @@ function withManagerCommission<T extends {
   totalCost: number;
   profit: number;
   margin: number;
+  dealValue?: number;
 }>(row: T) {
-  const received = Math.max(0, Number(row.receivedAmount || 0));
-  const directCost = Math.max(0, Number(row.totalCost || 0));
-  const profitBeforeManager = received - directCost;
-  const managerCommission = Math.max(0, Math.round(profitBeforeManager * MANAGER_COMMISSION_RATE / 100));
-  const totalCost = directCost + managerCommission;
-  const profit = received - totalCost;
-  const margin = received > 0 ? (profit / received) * 100 : 0;
   return {
     ...row,
-    directCost,
-    profitBeforeManager,
-    managerCommission,
-    managerCommissionRate: MANAGER_COMMISSION_RATE,
-    totalCost,
-    profit,
-    margin,
+    ...calculateFinancialsFromDirectCost(row.receivedAmount, row.totalCost, row.dealValue || 0),
   };
 }
 

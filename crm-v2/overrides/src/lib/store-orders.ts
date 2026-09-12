@@ -1,7 +1,6 @@
 import { db } from "@/db";
 import { activities, contacts, deals, pipelineStages } from "@/db/schema";
 import { eq } from "drizzle-orm";
-import { SPAM_STAGE_NAME } from "@/lib/lead-qualification";
 import { markDealReachedCalculation } from "@/lib/deal-flow";
 import {
   markStoreOrderDelivered,
@@ -9,6 +8,7 @@ import {
   seedStoreOrderPaymentDate,
 } from "@/lib/projects";
 import { getDealEconomics, saveDealEconomics } from "@/lib/economics";
+import { DELIVERY_STAGE_NAME, runCrmConsistencyRepair } from "@/lib/crm-consistency";
 
 export interface StoreOrder {
   id: string;
@@ -27,7 +27,9 @@ export interface StoreOrder {
   deliveredAt?: string;
 }
 
-const STORE_STAGE_NAME = "Отправлен клиенту";
+// Сайт может называть отправку «Отправлен клиенту», но внутри CRM это всегда
+// одна каноническая стадия «Доставка». Отдельный CRM-этап больше не создаём.
+const STORE_STAGE_NAME = DELIVERY_STAGE_NAME;
 
 function phoneIdentity(value: unknown): string | null {
   if (!value) return null;
@@ -59,17 +61,7 @@ export function storeOrderIdFromDealNotes(notes: unknown): string | null {
 }
 
 export function ensureStorePipelineStage(): void {
-  const existing = db.select().from(pipelineStages).all().find((stage) => stage.name === STORE_STAGE_NAME);
-  if (existing) return;
-  const stages = db.select().from(pipelineStages).all();
-  for (const stage of stages) {
-    if (stage.name !== SPAM_STAGE_NAME && stage.order >= 7) {
-      db.update(pipelineStages).set({ order: stage.order + 1 }).where(eq(pipelineStages.id, stage.id)).run();
-    }
-  }
-  db.insert(pipelineStages).values({
-    id: crypto.randomUUID(), name: STORE_STAGE_NAME, order: 7, color: "#0284c7", isWon: false, isLost: false,
-  }).run();
+  runCrmConsistencyRepair();
 }
 
 function stageForOrder(order: StoreOrder): string | null {
@@ -79,7 +71,7 @@ function stageForOrder(order: StoreOrder): string | null {
   if (fulfillment === "Отменён") return "Отказ";
   if (payment !== "paid") return null;
   if (fulfillment === "Выполнен") return "Завершено";
-  if (fulfillment === "Отправлен" || fulfillment === "Отправлен клиенту") return STORE_STAGE_NAME;
+  if (fulfillment === "Отправлен" || fulfillment === "Отправлен клиенту" || fulfillment === "Доставка") return STORE_STAGE_NAME;
   if (fulfillment === "Собран") return "Готово";
   if (fulfillment === "В работе") return "В производстве";
   return "Согласовано";
@@ -88,7 +80,7 @@ function stageForOrder(order: StoreOrder): string | null {
 function probabilityForStage(name: string): number {
   const values: Record<string, number> = {
     "Новый запрос": 10, "Расчёт": 30, "Согласовано": 60, "В производстве": 75,
-    "Готово": 90, "Доставка": 94, [STORE_STAGE_NAME]: 97, "Завершено": 100, "Отказ": 0,
+    "Готово": 90, [STORE_STAGE_NAME]: 94, "Завершено": 100, "Отказ": 0,
   };
   return values[name] ?? 10;
 }
@@ -130,7 +122,7 @@ function notesForOrder(existing: string | null | undefined, order: StoreOrder): 
 
 function syncStoreTimeline(dealId: string, order: StoreOrder) {
   const fulfillment = String(order.fulfillmentStatus || "");
-  const shipped = fulfillment === "Отправлен" || fulfillment === STORE_STAGE_NAME || fulfillment === "Выполнен";
+  const shipped = fulfillment === "Отправлен" || fulfillment === "Отправлен клиенту" || fulfillment === STORE_STAGE_NAME || fulfillment === "Выполнен";
   if (order.shippedAt) {
     markStoreOrderShipped(dealId, order.shippedAt);
   } else if (shipped) {

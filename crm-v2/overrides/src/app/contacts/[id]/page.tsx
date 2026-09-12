@@ -6,6 +6,7 @@ import { ContactDetailClient } from "@/components/contacts/ContactDetail";
 import { ContactIntelligencePanel } from "@/components/contacts/ContactIntelligencePanel";
 import { listClientDocuments } from "@/lib/client-documents";
 import { getDealEconomics } from "@/lib/economics";
+import { calculateDealFinancials } from "@/lib/deal-financials";
 import { listProjects } from "@/lib/projects";
 import { getAssistantState } from "@/lib/assistant";
 import { enrichContactFromDialogs } from "@/lib/contact-intelligence";
@@ -49,12 +50,27 @@ export default async function ContactDetailPage({ params }: { params: Promise<{ 
   const projectMap = new Map(projectRows.map((x) => [String(x.dealId || ""), x]));
 
   const enrichedDeals = contactDeals.map((deal) => {
+    const project = projectMap.get(deal.id) || null;
     const economics = (getDealEconomics(deal.id) || {}) as Record<string, unknown>;
-    const received = Number(economics.receivedAmount || 0);
-    const costs = ["productionCost", "paymentCommission", "deliveryCost", "packagingCost", "contractorCost", "taxCost", "otherCost"]
-      .reduce((sum, key) => sum + Number(economics[key] || 0), 0);
-    const profit = received - costs;
-    return { ...deal, receivedAmount: received, totalCost: costs, profit, margin: received > 0 ? (profit / received) * 100 : 0, project: projectMap.get(deal.id) || null };
+    const calculated = calculateDealFinancials({ ...economics, dealValue: deal.value });
+
+    // Проект уже возвращает канонические производные показатели. Карточка клиента
+    // должна показывать ровно те же цифры, а не пересчитывать прибыль по своей формуле.
+    const finance = project
+      ? {
+          receivedAmount: Number(project.receivedAmount ?? calculated.receivedAmount),
+          directCost: Number(project.directCost ?? calculated.directCost),
+          profitBeforeManager: Number(project.profitBeforeManager ?? calculated.profitBeforeManager),
+          managerCommission: Number(project.managerCommission ?? calculated.managerCommission),
+          managerCommissionRate: Number(project.managerCommissionRate ?? calculated.managerCommissionRate),
+          totalCost: Number(project.totalCost ?? calculated.totalCost),
+          profit: Number(project.profit ?? calculated.profit),
+          margin: Number(project.margin ?? calculated.margin),
+          unpaid: Number(project.unpaid ?? calculated.unpaid),
+        }
+      : calculated;
+
+    return { ...deal, ...finance, project };
   });
 
   let assistantInsights: Array<Record<string, unknown>> = [];
