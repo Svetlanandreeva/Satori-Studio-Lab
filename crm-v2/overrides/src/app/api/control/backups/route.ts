@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
   try {
     const actor = assertOwner(request);
     const backup = await createBackup("manual");
-    writeAuditLog(actor, "create_backup", "system", backup.name, { size: backup.size });
+    writeAuditLog(actor, "create_backup", "system", backup.name, { size: backup.size, documentsCount: backup.documentsCount });
     return NextResponse.json({ backup }, { status: 201 });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Не удалось создать резервную копию" }, { status: 400 });
@@ -47,10 +47,14 @@ export async function PUT(request: NextRequest) {
     const body = await request.json() as { name?: string };
     const name = String(body.name || "").trim();
     if (!name) return NextResponse.json({ error: "Не выбрана резервная копия" }, { status: 400 });
+
+    // Перед любым откатом создаём аварийную копию текущего состояния,
+    // включая документы клиентов. Это позволяет отменить ошибочный restore.
+    const safetyBackup = await createBackup("pre-restore");
     const result = requestRestore(name);
-    writeAuditLog(actor, "restore_backup", "system", name);
+    writeAuditLog(actor, "restore_backup", "system", name, { safetyBackup: safetyBackup.name, includesDocuments: result.includesDocuments });
     setTimeout(() => process.exit(0), 450);
-    return NextResponse.json({ ...result, restarting: true });
+    return NextResponse.json({ ...result, safetyBackup: safetyBackup.name, restarting: true });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Не удалось запустить восстановление" }, { status: 400 });
   }
