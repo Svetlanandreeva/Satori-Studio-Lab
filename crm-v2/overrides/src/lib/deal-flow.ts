@@ -11,6 +11,50 @@ try { sqlite.pragma("journal_mode = WAL"); } catch {}
 try { sqlite.pragma("busy_timeout = 15000"); } catch {}
 try { sqlite.pragma("foreign_keys = ON"); } catch {}
 
+function tableExists(table: string): boolean {
+  return Boolean(sqlite.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?").get(table));
+}
+
+function ensureEconomicsMigrationPrerequisites() {
+  try {
+    if (tableExists("deal_economics")) {
+      const columns = sqlite.prepare("PRAGMA table_info(deal_economics)").all() as Array<{ name: string }>;
+      if (!columns.some((column) => column.name === "payment_commission_rate")) {
+        sqlite.exec("ALTER TABLE deal_economics ADD COLUMN payment_commission_rate REAL NOT NULL DEFAULT 0");
+      }
+    }
+
+    if (tableExists("business_expenses")) {
+      const columns = sqlite.prepare("PRAGMA table_info(business_expenses)").all() as Array<{ name: string }>;
+      const migrations: Array<[string, string]> = [
+        ["expense_type", "TEXT NOT NULL DEFAULT 'fixed'"],
+        ["percent_rate", "REAL NOT NULL DEFAULT 0"],
+        ["percent_base_amount", "INTEGER NOT NULL DEFAULT 0"],
+        ["due_date", "TEXT"],
+        ["paid_at", "TEXT"],
+        ["recurring_monthly", "INTEGER NOT NULL DEFAULT 1"],
+        ["recurring_series_id", "TEXT"],
+        ["base_month", "TEXT"],
+      ];
+      for (const [name, definition] of migrations) {
+        if (!columns.some((column) => column.name === name)) {
+          sqlite.exec(`ALTER TABLE business_expenses ADD COLUMN ${name} ${definition}`);
+        }
+      }
+      sqlite.prepare("UPDATE business_expenses SET recurring_series_id = id WHERE recurring_series_id IS NULL OR TRIM(recurring_series_id) = ''").run();
+      sqlite.exec("CREATE INDEX IF NOT EXISTS idx_business_expenses_month ON business_expenses(month)");
+      sqlite.exec("CREATE INDEX IF NOT EXISTS idx_business_expenses_series ON business_expenses(recurring_series_id, month)");
+    }
+  } catch (error) {
+    console.error("CRM economics compatibility migration failed", error);
+  }
+}
+
+// economics.ts imports this module before creating its indexes. Existing CRM databases
+// therefore need the new columns added here first, otherwise SQLite rejects the index
+// on recurring_series_id and every economics-dependent endpoint returns HTTP 500.
+ensureEconomicsMigrationPrerequisites();
+
 sqlite.exec(`
   CREATE TABLE IF NOT EXISTS deal_flow_state (
     deal_id TEXT PRIMARY KEY REFERENCES deals(id) ON DELETE CASCADE,
