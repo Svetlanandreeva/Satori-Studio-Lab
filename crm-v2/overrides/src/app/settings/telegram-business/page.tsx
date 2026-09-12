@@ -9,6 +9,11 @@ import { toast } from "sonner";
 
 interface TelegramStatus {
   tokenConfigured: boolean;
+  transport?: "polling" | "webhook";
+  pollingEnabled?: boolean;
+  pollingHealthy?: boolean;
+  pollingHeartbeatAt?: string | null;
+  pollingLastError?: string;
   webhookConfigured: boolean;
   webhookHealthy: boolean;
   expectedWebhookUrl?: string;
@@ -83,9 +88,10 @@ export default function TelegramBusinessSettingsPage() {
     load();
   }, []);
 
+  const pollingMode = state?.transport !== "webhook";
+  const transportOk = pollingMode ? Boolean(state?.pollingHealthy) : Boolean(state?.webhookConfigured && state?.webhookHealthy);
   const inboundOk = Boolean(
-    state?.webhookConfigured &&
-      state?.webhookHealthy &&
+    transportOk &&
       state?.businessUpdatesSubscribed &&
       state?.businessConfigured &&
       state?.businessEnabled
@@ -123,8 +129,8 @@ export default function TelegramBusinessSettingsPage() {
             <StatusBox
               label="Входящие"
               ok={inboundOk}
-              good="Доходят в CRM"
-              bad={state?.webhookConfigured ? "Нужна переподписка" : "Webhook не подключён"}
+              good={pollingMode ? "Long polling работает" : "Webhook работает"}
+              bad={pollingMode ? "Сервис приёма не отвечает" : "Webhook не подключён"}
             />
             <StatusBox
               label="Личный аккаунт"
@@ -151,17 +157,19 @@ export default function TelegramBusinessSettingsPage() {
               <div className="mt-1 font-medium">{dateTime(state?.lastBusinessMessageAt)}</div>
             </div>
             <div className="rounded-lg border p-3 text-sm">
-              <div className="text-xs text-muted-foreground">Очередь Telegram</div>
-              <div className="mt-1 font-medium">{state?.pendingUpdates || 0} событий</div>
+              <div className="text-xs text-muted-foreground">Канал получения</div>
+              <div className="mt-1 font-medium">{pollingMode ? "Long polling" : "Webhook"}</div>
+              {pollingMode && <div className="mt-1 text-xs text-muted-foreground">Пульс: {dateTime(state?.pollingHeartbeatAt)}</div>}
             </div>
           </div>
 
-          {(state?.webhookLastError || state?.businessError) && (
+          {(state?.pollingLastError || state?.webhookLastError || state?.businessError) && (
             <div className="rounded-lg border border-red-200 bg-red-50/60 p-4 text-sm text-red-800">
               <div className="flex items-center gap-2 font-medium">
                 <AlertTriangle className="h-4 w-4" /> Telegram сообщает ошибку
               </div>
-              {state.webhookLastError && (
+              {state.pollingLastError && <p className="mt-2">Приём сообщений: {state.pollingLastError}</p>}
+              {!pollingMode && state.webhookLastError && (
                 <p className="mt-2">
                   Webhook: {state.webhookLastError}
                   {state.webhookLastErrorAt ? ` · ${dateTime(state.webhookLastErrorAt)}` : ""}
@@ -177,16 +185,16 @@ export default function TelegramBusinessSettingsPage() {
                 <CheckCircle2 className="h-4 w-4" /> Канал личного Telegram подключён
               </div>
               <p className="mt-2 text-muted-foreground">
-                Новые входящие сообщения и сообщения, которые вы отправляете из самого Telegram, зеркалируются в CRM. Ответ из CRM уходит в тот же диалог от имени подключённого Business-аккаунта.
+                CRM сама забирает новые события из Telegram, поэтому входящие больше не зависят от доставки webhook на сервер. Сообщения из личного Telegram зеркалируются в CRM, а ответ из CRM уходит в тот же диалог от имени Business-аккаунта.
               </p>
             </div>
           ) : (
             <div className="rounded-lg bg-muted/50 p-4 text-sm space-y-2">
               <p className="font-medium">Чего сейчас не хватает</p>
               {!state?.businessConfigured && <p>Telegram ещё не передал CRM активный Business Connection.</p>}
-              {state?.businessConfigured && !state?.webhookHealthy && <p>Business Connection есть, но доставка webhook сейчас нездорова.</p>}
-              {!state?.businessUpdatesSubscribed && <p>Webhook не подписан на все Business-события.</p>}
-              <p className="text-muted-foreground">Нажмите «Проверить и восстановить» — сервер перепроверит Telegram и сам переподпишет webhook при необходимости.</p>
+              {state?.businessConfigured && !transportOk && <p>Business Connection есть, но сервис получения новых сообщений сейчас не отвечает.</p>}
+              {!state?.businessUpdatesSubscribed && <p>Канал не подписан на все Business-события.</p>}
+              <p className="text-muted-foreground">Нажмите «Проверить» — экран перечитает живое состояние сервиса.</p>
             </div>
           )}
 
@@ -214,7 +222,7 @@ export default function TelegramBusinessSettingsPage() {
           <div className="flex flex-wrap gap-2">
             <Button onClick={load} disabled={busy}>
               {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
-              Проверить и восстановить
+              Проверить
             </Button>
             <Button variant="outline" onClick={testNotifications} disabled={busy || !state?.tokenConfigured}>
               <Send className="mr-2 h-4 w-4" />
@@ -236,7 +244,8 @@ export default function TelegramBusinessSettingsPage() {
           <CardTitle className="text-base">Как теперь работает</CardTitle>
         </CardHeader>
         <CardContent className="text-sm text-muted-foreground space-y-2">
-          <p>Клиент пишет обычному Telegram-аккаунту Satori → Telegram Business отправляет событие в CRM.</p>
+          <p>CRM сама держит исходящее соединение с Telegram и забирает новые Business-события каждые несколько секунд — публичный webhook больше не нужен.</p>
+          <p>Клиент пишет обычному Telegram-аккаунту Satori → сообщение появляется в «Сообщениях» CRM.</p>
           <p>Если вы сами начали диалог в приложении Telegram, он тоже появляется в CRM и создаёт карточку контакта без лишней сделки.</p>
           <p>Ответ из «Сообщений» CRM отправляется обратно в тот же личный диалог от имени подключённого аккаунта.</p>
         </CardContent>
