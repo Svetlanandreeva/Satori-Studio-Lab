@@ -34,8 +34,6 @@ function crmNumber(id) {
 }
 
 function normalizeFulfillmentStatus(value) {
-  // Preserve compatibility with orders created before the explicit customer
-  // handoff status was introduced.
   return value === "Отправлен" ? "Отправлен клиенту" : (value || "Новый");
 }
 
@@ -72,7 +70,6 @@ async function syncOrderToCrmV2(order) {
       console.error("CRM v2 order sync failed:", response.status, detail.slice(0, 200));
     }
   } catch (error) {
-    // Checkout/payment must never fail just because CRM is restarting.
     console.error("CRM v2 order sync unavailable:", error?.message || error);
   }
 }
@@ -84,12 +81,8 @@ function withWriteLock(fn) {
 
 function hasCompleteDeliveryAddress(customer) {
   if (!customer?.delivery || String(customer.delivery).startsWith("Самовывоз")) return true;
-
   const address = String(customer.address || "").trim();
   const parts = address.split(/[\s,]+/).filter(Boolean);
-
-  // A city alone is not enough for courier/post delivery: require a meaningful
-  // street fragment plus a house number.
   return address.length >= 8 && parts.length >= 2 && /\d/.test(address);
 }
 
@@ -104,12 +97,8 @@ function hasValidEmail(customer) {
 }
 
 async function canonicalizeItems(items) {
-  if (!Array.isArray(items) || items.length === 0) {
-    throw new Error("Корзина пуста");
-  }
-  if (items.length > 30) {
-    throw new Error("Слишком много позиций в одном заказе");
-  }
+  if (!Array.isArray(items) || items.length === 0) throw new Error("Корзина пуста");
+  if (items.length > 30) throw new Error("Слишком много позиций в одном заказе");
 
   const canonical = [];
   for (const item of items) {
@@ -118,25 +107,20 @@ async function canonicalizeItems(items) {
     if (!Number.isInteger(id) || id <= 0 || !Number.isInteger(qty) || qty < 1 || qty > 99) {
       throw new Error("Проверьте количество товаров в корзине");
     }
-
     const product = await getProduct(id);
-    if (!product) {
-      throw new Error("Один из товаров больше недоступен. Обновите корзину и попробуйте снова");
-    }
-
+    if (!product) throw new Error("Один из товаров больше недоступен. Обновите корзину и попробуйте снова");
     const currentPrice = Number(product.price);
     const submittedPrice = Number(item?.price);
     if (!Number.isFinite(currentPrice) || currentPrice < 0 || submittedPrice !== currentPrice) {
       throw new Error(`Цена товара «${product.name}» изменилась. Обновите страницу перед оплатой`);
     }
-
     canonical.push({ id: product.id, name: product.name, price: currentPrice, qty });
   }
   return canonical;
 }
 
 async function verifyPaidTransition(order, patch) {
-  if (patch?.status !== "paid" || order?.status === "paid") return;
+  if (patch?.status !== "paid" || order?.status === "paid") return null;
   if (!order?.paymentId) throw new Error("Нельзя подтвердить оплату без paymentId");
 
   const payment = await getPayment(order.paymentId);
@@ -148,6 +132,7 @@ async function verifyPaidTransition(order, patch) {
   if (payment?.status !== "succeeded" || !amountMatches || !metadataMatches || !currencyMatches) {
     throw new Error("ЮKassa не подтвердила оплату этого заказа");
   }
+  return payment;
 }
 
 export async function listOrders() {
@@ -166,15 +151,9 @@ export async function findOrderByCode(code) {
 }
 
 export async function createOrder(order) {
-  if (!hasCompleteDeliveryAddress(order?.customer)) {
-    throw new Error("Укажите полный адрес доставки: город, улицу и номер дома");
-  }
-  if (!hasValidPhone(order?.customer)) {
-    throw new Error("Проверьте номер телефона");
-  }
-  if (!hasValidEmail(order?.customer)) {
-    throw new Error("Проверьте адрес электронной почты");
-  }
+  if (!hasCompleteDeliveryAddress(order?.customer)) throw new Error("Укажите полный адрес доставки: город, улицу и номер дома");
+  if (!hasValidPhone(order?.customer)) throw new Error("Проверьте номер телефона");
+  if (!hasValidEmail(order?.customer)) throw new Error("Проверьте адрес электронной почты");
 
   const items = await canonicalizeItems(order?.items);
   const canonicalSubtotal = items.reduce((sum, item) => sum + item.price * item.qty, 0);
@@ -182,15 +161,9 @@ export async function createOrder(order) {
   const discount = Number(order?.discount || 0);
   const amount = Number(order?.amount);
 
-  if (!Number.isFinite(submittedSubtotal) || submittedSubtotal !== canonicalSubtotal) {
-    throw new Error("Состав корзины изменился. Обновите страницу перед оплатой");
-  }
-  if (!Number.isFinite(discount) || discount < 0 || discount > canonicalSubtotal) {
-    throw new Error("Некорректная скидка в заказе");
-  }
-  if (!Number.isFinite(amount) || amount !== canonicalSubtotal - discount || amount < 0) {
-    throw new Error("Итоговая сумма заказа изменилась. Обновите страницу перед оплатой");
-  }
+  if (!Number.isFinite(submittedSubtotal) || submittedSubtotal !== canonicalSubtotal) throw new Error("Состав корзины изменился. Обновите страницу перед оплатой");
+  if (!Number.isFinite(discount) || discount < 0 || discount > canonicalSubtotal) throw new Error("Некорректная скидка в заказе");
+  if (!Number.isFinite(amount) || amount !== canonicalSubtotal - discount || amount < 0) throw new Error("Итоговая сумма заказа изменилась. Обновите страницу перед оплатой");
 
   return withWriteLock(async () => {
     const orders = await readOrders();
@@ -215,12 +188,16 @@ export async function updateOrder(id, patch) {
     const idx = orders.findIndex((o) => o.id === id);
     if (idx === -1) return null;
 
-    await verifyPaidTransition(orders[idx], patch);
-
+    const verifiedPayment = await verifyPaidTransition(orders[idx], patch);
     const normalizedPatch = { ...patch };
     if (normalizedPatch.fulfillmentStatus !== undefined) {
       normalizedPatch.fulfillmentStatus = normalizeFulfillmentStatus(normalizedPatch.fulfillmentStatus);
     }
+    if (normalizedPatch.status === "paid" && orders[idx].status !== "paid" && !normalizedPatch.paidAt) {
+      normalizedPatch.paidAt =
+        verifiedPayment?.captured_at || verifiedPayment?.created_at || new Date().toISOString();
+    }
+
     orders[idx] = {
       ...orders[idx],
       ...normalizedPatch,
@@ -229,12 +206,8 @@ export async function updateOrder(id, patch) {
     };
     await writeFile(ORDERS_FILE, JSON.stringify(orders, null, 2), "utf-8");
 
-    const shouldSync =
-      orders[idx].status === "paid" ||
-      orders[idx].status === "canceled" ||
-      normalizedPatch.fulfillmentStatus !== undefined;
+    const shouldSync = orders[idx].status === "paid" || orders[idx].status === "canceled" || normalizedPatch.fulfillmentStatus !== undefined;
     if (shouldSync) void syncOrderToCrmV2(orders[idx]);
-
     return orders[idx];
   });
 }

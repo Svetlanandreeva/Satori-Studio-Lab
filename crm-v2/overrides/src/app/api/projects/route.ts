@@ -23,6 +23,10 @@ export async function PUT(request: NextRequest) {
     const result = saveProjectDetails({
       dealId,
       orderedAt: body.orderedAt ? String(body.orderedAt) : null,
+      productionTermDays:
+        body.productionTermDays === null || body.productionTermDays === undefined || body.productionTermDays === ""
+          ? null
+          : Number(body.productionTermDays),
       contractDeadline: body.contractDeadline ? String(body.contractDeadline) : null,
       shippedAt: body.shippedAt ? String(body.shippedAt) : null,
       notes: body.notes ? String(body.notes) : null,
