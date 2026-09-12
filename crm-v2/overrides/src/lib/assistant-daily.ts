@@ -43,15 +43,6 @@ function moscowMonth(): string {
   return moscowDate().slice(0, 7);
 }
 
-function countWindow(table: string, column: string, from: number, to: number, where = "1=1"): number {
-  if (!tableExists(table)) return 0;
-  const rows = sqlite.prepare(`SELECT ${column} AS value FROM ${table} WHERE ${where}`).all() as Array<{ value: unknown }>;
-  return rows.filter((row) => {
-    const time = epochMs(row.value);
-    return time >= from && time < to;
-  }).length;
-}
-
 function delta(current: number, previous: number): number {
   return current - previous;
 }
@@ -64,6 +55,61 @@ function money(value: unknown): number {
 function managerCommission(received: number, directCosts: number): number {
   const profitBeforeManager = Math.max(0, received - directCosts);
   return Math.round((profitBeforeManager * MANAGER_COMMISSION_RATE) / 100);
+}
+
+function rejectedStage(stageName: unknown, isLost: unknown): boolean {
+  if (Number(isLost || 0) === 1) return true;
+  const name = String(stageName || "").trim().toLowerCase().replace(/ё/g, "е");
+  return name.includes("отказ") || name.includes("спам") || name.includes("песочница");
+}
+
+interface DailyLeadRow {
+  id: string;
+  source: string | null;
+  createdAt: unknown;
+  totalDeals: number;
+  liveDeals: number;
+}
+
+function dailyLeadRows(): DailyLeadRow[] {
+  if (!tableExists("contacts")) return [];
+  if (!tableExists("deals") || !tableExists("pipeline_stages")) {
+    return sqlite.prepare(`
+      SELECT id, source, created_at AS createdAt, 0 AS totalDeals, 0 AS liveDeals
+      FROM contacts
+      WHERE COALESCE(qualification,'new') NOT IN ('spam','ignore')
+    `).all() as DailyLeadRow[];
+  }
+
+  const contacts = sqlite.prepare(`
+    SELECT c.id, c.source, c.created_at AS createdAt,
+      (SELECT COUNT(*) FROM deals d WHERE d.contact_id=c.id) AS totalDeals,
+      (SELECT COUNT(*)
+       FROM deals d JOIN pipeline_stages ps ON ps.id=d.stage_id
+       WHERE d.contact_id=c.id
+         AND COALESCE(ps.is_lost,0)=0
+         AND lower(COALESCE(ps.name,'')) NOT LIKE '%отказ%'
+         AND lower(COALESCE(ps.name,'')) NOT LIKE '%спам%'
+         AND lower(COALESCE(ps.name,'')) NOT LIKE '%песочниц%') AS liveDeals
+    FROM contacts c
+    WHERE COALESCE(c.qualification,'new') NOT IN ('spam','ignore')
+  `).all() as DailyLeadRow[];
+
+  // Новый контакт без сделки — это лид. Если все его заявки уже переведены в
+  // «Отказ»/спам, он больше не должен раздувать управленческую карточку «Новые лиды».
+  return contacts.filter((row) => Number(row.totalDeals || 0) === 0 || Number(row.liveDeals || 0) > 0);
+}
+
+function dailyDealTimes(): number[] {
+  if (!tableExists("deals")) return [];
+  if (!tableExists("pipeline_stages")) {
+    return (sqlite.prepare("SELECT created_at AS createdAt FROM deals").all() as Array<{ createdAt: unknown }>).map((x) => epochMs(x.createdAt)).filter(Boolean);
+  }
+  const rows = sqlite.prepare(`
+    SELECT d.created_at AS createdAt, ps.name AS stageName, ps.is_lost AS isLost
+    FROM deals d JOIN pipeline_stages ps ON ps.id=d.stage_id
+  `).all() as Array<{ createdAt: unknown; stageName: unknown; isLost: unknown }>;
+  return rows.filter((row) => !rejectedStage(row.stageName, row.isLost)).map((row) => epochMs(row.createdAt)).filter(Boolean);
 }
 
 export interface DailyManagementBrief {
@@ -86,10 +132,17 @@ export function getDailyManagementBrief(): DailyManagementBrief {
   const day = 86_400_000;
   const currentFrom = now - day;
   const previousFrom = now - day * 2;
-  const leadsCurrent = countWindow("contacts", "created_at", currentFrom, now, "COALESCE(qualification,'new') NOT IN ('spam','ignore')");
-  const leadsPrevious = countWindow("contacts", "created_at", previousFrom, currentFrom, "COALESCE(qualification,'new') NOT IN ('spam','ignore')");
-  const dealsCurrent = countWindow("deals", "created_at", currentFrom, now);
-  const dealsPrevious = countWindow("deals", "created_at", previousFrom, currentFrom);
+
+  const leadRows = dailyLeadRows();
+  const leadTimes = leadRows.map((row) => ({ row, time: epochMs(row.createdAt) }));
+  const leadsCurrent = leadTimes.filter(({ time }) => time >= currentFrom && time < now).length;
+  const leadsPrevious = leadTimes.filter(({ time }) => time >= previousFrom && time < currentFrom).length;
+
+  // «Новые сделки» — только реальные заявки, которые всё ещё существуют в рабочей
+  // воронке. Переведённые в «Отказ» не считаются как сегодняшние новые сделки.
+  const dealTimes = dailyDealTimes();
+  const dealsCurrent = dealTimes.filter((time) => time >= currentFrom && time < now).length;
+  const dealsPrevious = dealTimes.filter((time) => time >= previousFrom && time < currentFrom).length;
 
   // Продажа считается только по фактической дате оплаты/старта проекта и только
   // когда в экономике действительно есть поступление. Изменение этапа сделки или
@@ -182,16 +235,12 @@ export function getDailyManagementBrief(): DailyManagementBrief {
   }
 
   const channelsMap = new Map<string, { current: number; previous: number }>();
-  if (tableExists("contacts")) {
-    const rows = sqlite.prepare("SELECT source, created_at AS createdAt FROM contacts WHERE COALESCE(qualification,'new') NOT IN ('spam','ignore')").all() as Array<Record<string, unknown>>;
-    for (const row of rows) {
-      const source = String(row.source || "other");
-      const item = channelsMap.get(source) || { current: 0, previous: 0 };
-      const time = epochMs(row.createdAt);
-      if (time >= currentFrom && time < now) item.current++;
-      else if (time >= previousFrom && time < currentFrom) item.previous++;
-      channelsMap.set(source, item);
-    }
+  for (const { row, time } of leadTimes) {
+    const source = String(row.source || "other");
+    const item = channelsMap.get(source) || { current: 0, previous: 0 };
+    if (time >= currentFrom && time < now) item.current++;
+    else if (time >= previousFrom && time < currentFrom) item.previous++;
+    channelsMap.set(source, item);
   }
   const channels = Array.from(channelsMap.entries())
     .map(([source, item]) => ({ source, leads24h: item.current, previous24h: item.previous, delta: item.current - item.previous }))
