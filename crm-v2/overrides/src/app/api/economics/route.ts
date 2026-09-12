@@ -5,6 +5,7 @@ import {
   listBusinessExpenses,
   listEconomics,
   saveDealEconomics,
+  setBusinessExpensePaidAt,
 } from "@/lib/economics";
 
 export const dynamic = "force-dynamic";
@@ -76,6 +77,11 @@ export async function POST(request: NextRequest) {
       name: String(body.name || ""),
       category: body.category ? String(body.category) : "other",
       amount: cents(body.amount),
+      expenseType: body.expenseType === "percent" ? "percent" : "fixed",
+      percentRate: Number(body.percentRate) || 0,
+      percentBaseAmount: cents(body.percentBaseAmount),
+      dueDate: body.dueDate ? String(body.dueDate) : null,
+      paidAt: body.paidAt ? String(body.paidAt) : null,
       notes: body.notes ? String(body.notes) : null,
     });
     return NextResponse.json(result, { status: 201 });
@@ -84,6 +90,22 @@ export async function POST(request: NextRequest) {
       { error: error instanceof Error ? error.message : "Не удалось добавить постоянный расход" },
       { status: 400 }
     );
+  }
+}
+
+export async function PATCH(request: NextRequest) {
+  try {
+    const body = (await request.json()) as Record<string, unknown>;
+    const expenseId = String(body.expenseId || "").trim();
+    if (!expenseId) return NextResponse.json({ error: "Не указан расход" }, { status: 400 });
+    const result = setBusinessExpensePaidAt(
+      expenseId,
+      body.paidAt ? String(body.paidAt) : null
+    );
+    return NextResponse.json(result);
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Не удалось обновить оплату";
+    return NextResponse.json({ error: message }, { status: message === "Расход не найден" ? 404 : 400 });
   }
 }
 
