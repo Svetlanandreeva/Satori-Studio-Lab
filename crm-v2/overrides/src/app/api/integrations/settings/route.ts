@@ -83,7 +83,20 @@ function savePort(body: Record<string, unknown>, field: string, key: string) {
   setSetting(key, String(value));
 }
 
+async function ensureTelegramInbound() {
+  const token = getSetting(INTEGRATION_KEYS.telegramBotToken);
+  if (!token || getBooleanSetting(TELEGRAM_WEBHOOK_ENABLED_KEY, false)) return;
+  try {
+    await configureTelegramWebhook();
+    setSetting(TELEGRAM_WEBHOOK_ERROR_KEY, "");
+  } catch (error) {
+    setSetting(TELEGRAM_WEBHOOK_ENABLED_KEY, "0");
+    setSetting(TELEGRAM_WEBHOOK_ERROR_KEY, error instanceof Error ? error.message : "Не удалось включить входящие Telegram");
+  }
+}
+
 export async function GET() {
+  await ensureTelegramInbound();
   return NextResponse.json(snapshot());
 }
 
@@ -96,8 +109,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const telegramTouched = body.clearTelegram === true ||
-      typeof body.telegramBotToken === "string" || typeof body.telegramChatId === "string";
+    const telegramTouched = body.clearTelegram === true || typeof body.telegramBotToken === "string" || typeof body.telegramChatId === "string";
 
     if (body.clearTelegram === true) {
       setSetting(INTEGRATION_KEYS.telegramBotToken, "");
@@ -132,23 +144,15 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    if (typeof body.needNumberProjectId === "string") {
-      setSetting(INTEGRATION_KEYS.needNumberProjectId, body.needNumberProjectId.trim() || "1474");
-    }
-    if (typeof body.needNumberCreateDeal === "boolean") {
-      setSetting(INTEGRATION_KEYS.needNumberCreateDeal, body.needNumberCreateDeal ? "1" : "0");
-    }
+    if (typeof body.needNumberProjectId === "string") setSetting(INTEGRATION_KEYS.needNumberProjectId, body.needNumberProjectId.trim() || "1474");
+    if (typeof body.needNumberCreateDeal === "boolean") setSetting(INTEGRATION_KEYS.needNumberCreateDeal, body.needNumberCreateDeal ? "1" : "0");
 
     if (body.clearEmail === true) {
-      for (const key of [INTEGRATION_KEYS.emailAddress, INTEGRATION_KEYS.emailUsername, INTEGRATION_KEYS.emailPassword, INTEGRATION_KEYS.emailImapHost, INTEGRATION_KEYS.emailSmtpHost]) {
-        setSetting(key, "");
-      }
+      for (const key of [INTEGRATION_KEYS.emailAddress, INTEGRATION_KEYS.emailUsername, INTEGRATION_KEYS.emailPassword, INTEGRATION_KEYS.emailImapHost, INTEGRATION_KEYS.emailSmtpHost]) setSetting(key, "");
     } else {
       if (typeof body.emailAddress === "string") {
         const address = body.emailAddress.trim().toLowerCase();
-        if (address && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(address)) {
-          return NextResponse.json({ error: "Некорректный email" }, { status: 400 });
-        }
+        if (address && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(address)) return NextResponse.json({ error: "Некорректный email" }, { status: 400 });
         setSetting(INTEGRATION_KEYS.emailAddress, address);
       }
       saveString(body, "emailUsername", INTEGRATION_KEYS.emailUsername);
