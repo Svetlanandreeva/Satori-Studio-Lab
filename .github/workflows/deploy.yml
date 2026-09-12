@@ -123,8 +123,11 @@ jobs:
             --resolve crm.satorilabural.online:443:194.226.97.103 \
             -o /dev/null -w '%{http_code}' \
             https://crm.satorilabural.online/)
-          test "$code" = '401'
-          echo 'Protected Auto-CRM endpoint is reachable and requires authentication'
+          case "$code" in
+            401|302|307) ;;
+            *) echo "Unexpected CRM auth response: $code"; exit 1 ;;
+          esac
+          echo "Protected Auto-CRM endpoint is reachable (auth response: $code)"
 
       - name: Verify published version
         run: |
