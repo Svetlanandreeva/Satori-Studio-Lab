@@ -1,6 +1,7 @@
 import Database from "better-sqlite3";
 import fs from "fs";
 import path from "path";
+import { randomUUID } from "node:crypto";
 import nodemailer from "nodemailer";
 import { sendTelegramMessage, getSetting, getBooleanSetting, INTEGRATION_KEYS } from "@/lib/satori-integrations";
 
@@ -105,7 +106,7 @@ function recordActivity(input: { contactId: string; dealId: string; description:
     INSERT INTO activities(id,type,description,contact_id,deal_id,scheduled_at,completed_at,created_at)
     VALUES(?,?,?,?,?,NULL,?,?)
   `).run(
-    crypto.randomUUID(), input.type || "note", input.description,
+    randomUUID(), input.type || "note", input.description,
     input.contactId, input.dealId, Date.now(), Date.now()
   );
 }
@@ -158,7 +159,7 @@ export function saveTrackingCode(dealId: string, value: unknown) {
   const previous = getShipmentState(dealId);
   sqlite.prepare(`
     INSERT INTO shipment_state(deal_id,tracking_code,shipped_at,created_at,updated_at)
-    VALUES(?,?,?, ?,?)
+    VALUES(?,?,?,?,?)
     ON CONFLICT(deal_id) DO UPDATE SET
       tracking_code=excluded.tracking_code,
       shipped_at=COALESCE(shipment_state.shipped_at,excluded.shipped_at),
@@ -227,7 +228,19 @@ export async function notifyShipment(dealId: string, trackingCode: string) {
 
 export async function startShipment(dealId: string, trackingCodeInput: unknown) {
   const { trackingCode } = saveTrackingCode(dealId, trackingCodeInput);
-  const notification = await notifyShipment(dealId, trackingCode);
+  let notification: Awaited<ReturnType<typeof notifyShipment>>;
+  try {
+    notification = await notifyShipment(dealId, trackingCode);
+  } catch (error) {
+    notification = {
+      sent: false,
+      channel: null,
+      needsManual: true,
+      error: error instanceof Error ? error.message : "Не удалось отправить уведомление клиенту",
+    };
+    sqlite.prepare(`UPDATE shipment_state SET notification_error=?,updated_at=? WHERE deal_id=?`)
+      .run(notification.error, Date.now(), dealId);
+  }
   return { trackingCode, notification };
 }
 
