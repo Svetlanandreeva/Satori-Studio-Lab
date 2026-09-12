@@ -3,12 +3,16 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  BarChart3,
   Banknote,
+  CalendarClock,
+  Factory,
   FolderKanban,
   Kanban,
   LayoutDashboard,
   MessageCircle,
   Settings,
+  ShieldCheck,
   Sparkles,
   Users,
 } from "lucide-react";
@@ -25,14 +29,18 @@ type Item = {
 const primary: Item[] = [
   { href: "/", label: "Сегодня", icon: LayoutDashboard, iconBg: "bg-blue-50", iconText: "text-blue-600" },
   { href: "/inbox", label: "Сообщения", icon: MessageCircle, iconBg: "bg-sky-50", iconText: "text-sky-600" },
+  { href: "/tasks", label: "Задачи", icon: CalendarClock, iconBg: "bg-blue-50", iconText: "text-blue-700" },
   { href: "/pipeline", label: "Воронка", icon: Kanban, iconBg: "bg-violet-50", iconText: "text-violet-600" },
   { href: "/projects", label: "Проекты", icon: FolderKanban, iconBg: "bg-amber-50", iconText: "text-amber-600" },
+  { href: "/production", label: "Производство", icon: Factory, iconBg: "bg-orange-50", iconText: "text-orange-600" },
   { href: "/contacts", label: "Клиенты", icon: Users, iconBg: "bg-teal-50", iconText: "text-teal-600" },
 ];
 
 const secondary: Item[] = [
   { href: "/economics", label: "Деньги", icon: Banknote, iconBg: "bg-emerald-50", iconText: "text-emerald-600" },
+  { href: "/analytics", label: "Аналитика", icon: BarChart3, iconBg: "bg-fuchsia-50", iconText: "text-fuchsia-600" },
   { href: "/assistant", label: "Помощник", icon: Sparkles, iconBg: "bg-indigo-50", iconText: "text-indigo-600" },
+  { href: "/control", label: "Контроль", icon: ShieldCheck, iconBg: "bg-slate-100", iconText: "text-slate-700" },
   { href: "/settings", label: "Настройки", icon: Settings, iconBg: "bg-slate-100", iconText: "text-slate-600" },
 ];
 
