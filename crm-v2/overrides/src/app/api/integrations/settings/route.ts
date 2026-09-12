@@ -12,6 +12,15 @@ const TELEGRAM_WEBHOOK_ENABLED_KEY = "satori_telegram_webhook_enabled";
 const TELEGRAM_WEBHOOK_URL_KEY = "satori_telegram_webhook_url";
 const TELEGRAM_WEBHOOK_ERROR_KEY = "satori_telegram_webhook_last_error";
 
+const DEFAULT_EMAIL_ADDRESS = "hello@satori.ru";
+const YANDEX_IMAP_HOST = "imap.yandex.ru";
+const YANDEX_SMTP_HOST = "smtp.yandex.ru";
+
+function isYandexMailbox(address: string): boolean {
+  const domain = address.trim().toLowerCase().split("@")[1] || "";
+  return domain === "satori.ru" || domain === "yandex.ru" || domain.startsWith("yandex.");
+}
+
 function snapshot() {
   const secret = ensureNeedNumberSecret();
   const telegramToken = getSetting(INTEGRATION_KEYS.telegramBotToken);
@@ -25,13 +34,14 @@ function snapshot() {
   const projectId = getSetting(INTEGRATION_KEYS.needNumberProjectId) || "1474";
   const createDeal = getBooleanSetting(INTEGRATION_KEYS.needNumberCreateDeal, true);
 
-  const emailAddress = getSetting(INTEGRATION_KEYS.emailAddress) || "";
-  const emailUsername = getSetting(INTEGRATION_KEYS.emailUsername) || "";
+  const emailAddress = getSetting(INTEGRATION_KEYS.emailAddress) || DEFAULT_EMAIL_ADDRESS;
+  const yandexMailbox = isYandexMailbox(emailAddress);
+  const emailUsername = getSetting(INTEGRATION_KEYS.emailUsername) || emailAddress;
   const emailPassword = getSetting(INTEGRATION_KEYS.emailPassword) || "";
-  const emailImapHost = getSetting(INTEGRATION_KEYS.emailImapHost) || "";
+  const emailImapHost = getSetting(INTEGRATION_KEYS.emailImapHost) || (yandexMailbox ? YANDEX_IMAP_HOST : "");
   const emailImapPort = Number(getSetting(INTEGRATION_KEYS.emailImapPort) || "993") || 993;
   const emailImapSecure = getBooleanSetting(INTEGRATION_KEYS.emailImapSecure, true);
-  const emailSmtpHost = getSetting(INTEGRATION_KEYS.emailSmtpHost) || "";
+  const emailSmtpHost = getSetting(INTEGRATION_KEYS.emailSmtpHost) || (yandexMailbox ? YANDEX_SMTP_HOST : "");
   const emailSmtpPort = Number(getSetting(INTEGRATION_KEYS.emailSmtpPort) || "465") || 465;
   const emailSmtpSecure = getBooleanSetting(INTEGRATION_KEYS.emailSmtpSecure, true);
   const emailFromName = getSetting(INTEGRATION_KEYS.emailFromName) || "Satori Studio";
@@ -150,20 +160,34 @@ export async function POST(request: NextRequest) {
     if (body.clearEmail === true) {
       for (const key of [INTEGRATION_KEYS.emailAddress, INTEGRATION_KEYS.emailUsername, INTEGRATION_KEYS.emailPassword, INTEGRATION_KEYS.emailImapHost, INTEGRATION_KEYS.emailSmtpHost]) setSetting(key, "");
     } else {
+      let address = getSetting(INTEGRATION_KEYS.emailAddress) || DEFAULT_EMAIL_ADDRESS;
       if (typeof body.emailAddress === "string") {
-        const address = body.emailAddress.trim().toLowerCase();
+        address = body.emailAddress.trim().toLowerCase();
         if (address && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(address)) return NextResponse.json({ error: "Некорректный email" }, { status: 400 });
-        setSetting(INTEGRATION_KEYS.emailAddress, address);
+        setSetting(INTEGRATION_KEYS.emailAddress, address || DEFAULT_EMAIL_ADDRESS);
       }
-      saveString(body, "emailUsername", INTEGRATION_KEYS.emailUsername);
+
+      if (isYandexMailbox(address || DEFAULT_EMAIL_ADDRESS)) {
+        setSetting(INTEGRATION_KEYS.emailUsername, typeof body.emailUsername === "string" && body.emailUsername.trim() ? body.emailUsername.trim() : (address || DEFAULT_EMAIL_ADDRESS));
+        setSetting(INTEGRATION_KEYS.emailImapHost, YANDEX_IMAP_HOST);
+        setSetting(INTEGRATION_KEYS.emailImapPort, "993");
+        setSetting(INTEGRATION_KEYS.emailImapSecure, "1");
+        setSetting(INTEGRATION_KEYS.emailSmtpHost, YANDEX_SMTP_HOST);
+        setSetting(INTEGRATION_KEYS.emailSmtpPort, "465");
+        setSetting(INTEGRATION_KEYS.emailSmtpSecure, "1");
+        setSetting(INTEGRATION_KEYS.emailFromName, typeof body.emailFromName === "string" && body.emailFromName.trim() ? body.emailFromName.trim() : "Satori Studio");
+      } else {
+        saveString(body, "emailUsername", INTEGRATION_KEYS.emailUsername);
+        saveString(body, "emailImapHost", INTEGRATION_KEYS.emailImapHost);
+        savePort(body, "emailImapPort", INTEGRATION_KEYS.emailImapPort);
+        if (typeof body.emailImapSecure === "boolean") setSetting(INTEGRATION_KEYS.emailImapSecure, body.emailImapSecure ? "1" : "0");
+        saveString(body, "emailSmtpHost", INTEGRATION_KEYS.emailSmtpHost);
+        savePort(body, "emailSmtpPort", INTEGRATION_KEYS.emailSmtpPort);
+        if (typeof body.emailSmtpSecure === "boolean") setSetting(INTEGRATION_KEYS.emailSmtpSecure, body.emailSmtpSecure ? "1" : "0");
+        saveString(body, "emailFromName", INTEGRATION_KEYS.emailFromName);
+      }
+
       if (typeof body.emailPassword === "string" && body.emailPassword.trim()) setSetting(INTEGRATION_KEYS.emailPassword, body.emailPassword.trim());
-      saveString(body, "emailImapHost", INTEGRATION_KEYS.emailImapHost);
-      savePort(body, "emailImapPort", INTEGRATION_KEYS.emailImapPort);
-      if (typeof body.emailImapSecure === "boolean") setSetting(INTEGRATION_KEYS.emailImapSecure, body.emailImapSecure ? "1" : "0");
-      saveString(body, "emailSmtpHost", INTEGRATION_KEYS.emailSmtpHost);
-      savePort(body, "emailSmtpPort", INTEGRATION_KEYS.emailSmtpPort);
-      if (typeof body.emailSmtpSecure === "boolean") setSetting(INTEGRATION_KEYS.emailSmtpSecure, body.emailSmtpSecure ? "1" : "0");
-      saveString(body, "emailFromName", INTEGRATION_KEYS.emailFromName);
       saveString(body, "emailIgnoreSenders", INTEGRATION_KEYS.emailIgnoreSenders);
       saveString(body, "emailIgnoreSubjects", INTEGRATION_KEYS.emailIgnoreSubjects);
       if (body.emailSyncDays !== undefined) {
