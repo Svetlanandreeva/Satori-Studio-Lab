@@ -44,6 +44,7 @@ interface ProjectRow {
   productionTermDays: number | null;
   contractDeadline: string | null;
   shippedAt: string | null;
+  paymentTerms: string | null;
   projectNotes: string | null;
   receivedAmount: number;
   totalCost: number;
@@ -57,13 +58,14 @@ interface ProjectRow {
 }
 
 interface ProjectForm {
+  paymentTerms: string;
   orderedAt: string;
   productionTermDays: string;
   shippedAt: string;
   notes: string;
 }
 
-const emptyForm: ProjectForm = { orderedAt: "", productionTermDays: "", shippedAt: "", notes: "" };
+const emptyForm: ProjectForm = { paymentTerms: "", orderedAt: "", productionTermDays: "", shippedAt: "", notes: "" };
 
 function rubles(cents: number): string {
   return new Intl.NumberFormat("ru-RU", { style: "currency", currency: "RUB", maximumFractionDigits: 0 })
@@ -72,6 +74,12 @@ function rubles(cents: number): string {
 
 function percent(value: number): string {
   return `${(Number(value) || 0).toLocaleString("ru-RU", { maximumFractionDigits: 1 })}%`;
+}
+
+function paymentProgress(received: number, total: number): string {
+  if (!total || total <= 0) return rubles(received);
+  const value = Math.max(0, Math.min(100, Math.round((received / total) * 100)));
+  return `${rubles(received)} · ${value}%`;
 }
 
 function formatDate(value: string | null): string {
@@ -135,6 +143,7 @@ export default function ProjectsPage() {
   const openProject = (project: ProjectRow) => {
     setEditing(project);
     setForm({
+      paymentTerms: project.paymentTerms || "",
       orderedAt: project.orderedAt || "",
       productionTermDays: project.productionTermDays ? String(project.productionTermDays) : "",
       shippedAt: project.shippedAt || "",
@@ -156,6 +165,7 @@ export default function ProjectsPage() {
         headers: { "content-type": "application/json" },
         body: JSON.stringify({
           dealId: editing.dealId,
+          paymentTerms: form.paymentTerms || null,
           orderedAt: form.orderedAt || null,
           productionTermDays: form.productionTermDays || null,
           shippedAt: form.shippedAt || null,
@@ -178,7 +188,7 @@ export default function ProjectsPage() {
     const q = search.trim().toLowerCase();
     if (!q) return projects;
     return projects.filter((project) =>
-      [project.title, project.contactName, project.company, project.phone, project.email, project.stageName]
+      [project.title, project.contactName, project.company, project.phone, project.email, project.stageName, project.paymentTerms]
         .filter(Boolean)
         .some((value) => String(value).toLowerCase().includes(q))
     );
@@ -236,7 +246,7 @@ export default function ProjectsPage() {
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-2 gap-3 md:grid-cols-4 xl:grid-cols-8">
-                <Info label="Оплата / старт" value={formatDate(project.orderedAt)} />
+                <Info label="Дата оплаты" value={formatDate(project.orderedAt)} />
                 <Info label="Срок производства" value={project.productionTermDays ? `${project.productionTermDays} дн.` : "—"} />
                 <Info label="Отправить до" value={formatDate(project.contractDeadline)} />
                 <Info label="Отправлено" value={formatDate(project.shippedAt)} />
@@ -246,9 +256,16 @@ export default function ProjectsPage() {
                 <Info label="Сумма проекта" value={rubles(project.dealValue)} />
               </div>
 
+              {project.paymentTerms && (
+                <div className="rounded-lg border bg-muted/20 px-3 py-2 text-sm">
+                  <span className="text-muted-foreground">Условия оплаты: </span>
+                  <span className="font-medium">{project.paymentTerms}</span>
+                </div>
+              )}
+
               <div className="grid grid-cols-2 gap-3 rounded-xl border bg-muted/20 p-4 md:grid-cols-5">
                 <div><div className="flex items-center gap-1 text-xs text-muted-foreground"><WalletCards className="h-3.5 w-3.5" /> Расчёт</div><div className="mt-1 font-semibold">{rubles(project.dealValue)}</div></div>
-                <Info label="Получено" value={rubles(project.receivedAmount)} />
+                <Info label="Получено" value={paymentProgress(project.receivedAmount, project.dealValue)} />
                 <Info label="Расходы" value={rubles(project.totalCost)} />
                 <Info label="Прибыль" value={rubles(project.profit)} danger={project.profit < 0} />
                 <Info label="Маржа" value={percent(project.margin)} danger={project.profit < 0} />
@@ -271,11 +288,15 @@ export default function ProjectsPage() {
           <DialogHeader>
             <DialogTitle>Условия проекта</DialogTitle>
             <DialogDescription>
-              {editing ? `${editing.contactName} · ${editing.title}` : ""}. Для заказа с сайта дата оплаты заполняется автоматически. Для договора укажи дату платежа и срок производства — дедлайн посчитается сам.
+              {editing ? `${editing.contactName} · ${editing.title}` : ""}. Для заказа с сайта дата оплаты и полученная сумма заполняются автоматически. Для договора укажи условия, дату платежа и срок производства — дедлайн посчитается сам.
             </DialogDescription>
           </DialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="payment-terms">Условия оплаты</Label>
+            <textarea id="payment-terms" value={form.paymentTerms} onChange={(event) => setForm((current) => ({ ...current, paymentTerms: event.target.value }))} className="min-h-20 w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring" placeholder="Например: 100% предоплата или 50% перед запуском + 50% перед отгрузкой" />
+          </div>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <DateField label="Дата оплаты / старта" value={form.orderedAt} onChange={(value) => setForm((current) => ({ ...current, orderedAt: value }))} />
+            <DateField label="Дата платежа" value={form.orderedAt} onChange={(value) => setForm((current) => ({ ...current, orderedAt: value }))} />
             <div className="space-y-2">
               <Label>Срок производства, дней</Label>
               <Input type="number" min={1} max={3650} value={form.productionTermDays} onChange={(event) => setForm((current) => ({ ...current, productionTermDays: event.target.value }))} placeholder="Например, 14" />
@@ -288,7 +309,7 @@ export default function ProjectsPage() {
           </div>
           <div className="space-y-2">
             <Label htmlFor="project-notes">Информация по проекту</Label>
-            <textarea id="project-notes" value={form.notes} onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))} className="min-h-28 w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring" placeholder="Материалы, подрядчик, доставка, номер и условия договора..." />
+            <textarea id="project-notes" value={form.notes} onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))} className="min-h-28 w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring" placeholder="Материалы, подрядчик, доставка, номер договора и другие детали..." />
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditing(null)} disabled={saving}>Отмена</Button>
