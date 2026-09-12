@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { asc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { activities, contacts, deals, pipelineStages } from "@/db/schema";
+import { importTelegramAttachmentsFromUpdate } from "@/lib/telegram-attachment-import";
 import {
   INTEGRATION_KEYS,
   ensureNeedNumberSecret,
@@ -149,6 +150,9 @@ function notesFrom(input: {
 async function proxyTelegramWebhook(request: NextRequest) {
   const body = await request.text();
   const secret = request.headers.get("x-telegram-bot-api-secret-token") || "";
+  let update: unknown = null;
+  try { update = body ? JSON.parse(body) : null; } catch {}
+
   const response = await fetch("http://127.0.0.1:3020/api/integrations/telegram/webhook", {
     method: "POST",
     headers: {
@@ -158,7 +162,18 @@ async function proxyTelegramWebhook(request: NextRequest) {
     body,
     cache: "no-store",
   });
-  return new NextResponse(await response.text(), {
+  const responseText = await response.text();
+
+  if (response.ok && update) {
+    try {
+      const payload = JSON.parse(responseText) as { contactId?: string };
+      if (payload.contactId) await importTelegramAttachmentsFromUpdate(update, payload.contactId);
+    } catch (error) {
+      console.error("Telegram attachment import failed", error);
+    }
+  }
+
+  return new NextResponse(responseText, {
     status: response.status,
     headers: { "content-type": response.headers.get("content-type") || "application/json" },
   });

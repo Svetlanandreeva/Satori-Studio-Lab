@@ -15,7 +15,16 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
-type Doc = { id: string; kind: string; name: string; mimeType?: string | null; sizeBytes: number; createdAt: number };
+type Doc = {
+  id: string;
+  kind: string;
+  name: string;
+  mimeType?: string | null;
+  sizeBytes: number;
+  createdAt: number;
+  sourceChannel?: string | null;
+  sourceDirection?: string | null;
+};
 type Insight = { id: string; severity: string; category: string; title: string; detail: string; actionUrl?: string | null };
 type Deal = {
   id: string; title: string; value: number; probability: number; stageName: string | null; stageColor: string | null; isWon?: boolean | null; isLost?: boolean | null;
@@ -42,6 +51,19 @@ function sourceLabel(value: string) {
   return map[value] || value || "Не указан";
 }
 function bytes(value: number) { return value > 1024 * 1024 ? `${(value / 1024 / 1024).toFixed(1)} МБ` : `${Math.max(1, Math.round(value / 1024))} КБ`; }
+function documentKindLabel(kind: string) {
+  if (kind === "contract") return "Договор";
+  if (kind === "commercial_offer") return "КП";
+  if (kind === "invoice") return "Счёт";
+  if (kind === "specification") return "Спецификация";
+  if (kind === "brief") return "ТЗ / бриф";
+  return "Документ";
+}
+function documentSourceLabel(doc: Doc) {
+  if (doc.sourceChannel === "email") return doc.sourceDirection === "outgoing" ? "Почта · отправлено" : "Почта · получено";
+  if (doc.sourceChannel === "telegram") return doc.sourceDirection === "outgoing" ? "Telegram · отправлено" : "Telegram · получено";
+  return "Добавлен вручную";
+}
 
 export function ContactDetailClient({ contact, deals, activities, documents: initialDocuments, assistantInsights }: Props) {
   const router = useRouter();
@@ -57,7 +79,8 @@ export function ContactDetailClient({ contact, deals, activities, documents: ini
   const totalCost = deals.reduce((s, x) => s + Number(x.totalCost || 0), 0);
   const totalProfit = totalReceived - totalCost;
   const margin = totalReceived > 0 ? (totalProfit / totalReceived) * 100 : 0;
-  const contracts = documents.filter(x => x.kind === "contract");
+  const contracts = documents.filter((x) => x.kind === "contract");
+  const proposals = documents.filter((x) => x.kind === "commercial_offer");
 
   const copy = async (value: string, key: string) => {
     await navigator.clipboard.writeText(value); setCopied(key); toast.success("Скопировано"); setTimeout(() => setCopied(null), 1200);
@@ -75,7 +98,8 @@ export function ContactDetailClient({ contact, deals, activities, documents: ini
       const form = new FormData(); form.set("file", file); form.set("kind", kind);
       const res = await fetch(`/api/contacts/${contact.id}/documents`, { method: "POST", body: form });
       const data = await res.json(); if (!res.ok) throw new Error(data.error || "Не удалось загрузить файл");
-      setFile(null); await reloadDocuments(); toast.success(kind === "contract" ? "Договор добавлен" : "Документ добавлен");
+      setFile(null); await reloadDocuments();
+      toast.success(kind === "contract" ? "Договор добавлен" : kind === "commercial_offer" ? "КП добавлено" : "Документ добавлен");
     } catch (e) { toast.error(e instanceof Error ? e.message : "Ошибка загрузки"); }
     finally { setUploading(false); }
   };
@@ -125,13 +149,14 @@ export function ContactDetailClient({ contact, deals, activities, documents: ini
             {contact.notes && <div className="mt-3 whitespace-pre-wrap rounded-xl bg-muted/40 p-3 text-xs leading-5 text-muted-foreground">{contact.notes}</div>}
           </CardContent></Card>
 
-          <Card className={contracts.length ? "" : "border-amber-200"}><CardHeader><div className="flex items-center justify-between"><CardTitle className="flex items-center gap-2 text-base"><ReceiptText className="h-4 w-4" />Документы клиента</CardTitle>{contracts.length ? <Badge variant="secondary">Договор загружен</Badge> : <Badge variant="outline">Нет договора</Badge>}</div></CardHeader><CardContent className="space-y-4">
-            <div className="grid gap-2 sm:grid-cols-[135px_1fr_auto]">
-              <select className="h-10 rounded-md border bg-background px-3 text-sm" value={kind} onChange={(e) => setKind(e.target.value)}><option value="contract">Договор</option><option value="specification">Спецификация</option><option value="invoice">Счёт</option><option value="brief">ТЗ / бриф</option><option value="other">Другое</option></select>
-              <Input type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.jpg,.jpeg,.png,.webp,.zip" onChange={(e) => setFile(e.target.files?.[0] || null)} />
+          <Card className={contracts.length ? "" : "border-amber-200"}><CardHeader><div className="flex flex-wrap items-center justify-between gap-2"><CardTitle className="flex items-center gap-2 text-base"><ReceiptText className="h-4 w-4" />Документы клиента</CardTitle><div className="flex gap-1.5">{proposals.length > 0 && <Badge variant="secondary">КП {proposals.length}</Badge>}{contracts.length ? <Badge variant="secondary">Договор загружен</Badge> : <Badge variant="outline">Нет договора</Badge>}</div></div></CardHeader><CardContent className="space-y-4">
+            <div className="grid gap-2 sm:grid-cols-[150px_1fr_auto]">
+              <select className="h-10 rounded-md border bg-background px-3 text-sm" value={kind} onChange={(e) => setKind(e.target.value)}><option value="contract">Договор</option><option value="commercial_offer">КП</option><option value="specification">Спецификация</option><option value="invoice">Счёт</option><option value="brief">ТЗ / бриф</option><option value="other">Другое</option></select>
+              <Input type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.jpg,.jpeg,.png,.webp,.heic,.zip,.rar,.7z,.stl,.step,.stp,.3mf" onChange={(e) => setFile(e.target.files?.[0] || null)} />
               <Button onClick={upload} disabled={uploading || !file}><Upload className="mr-2 h-4 w-4" />Загрузить</Button>
             </div>
-            {!documents.length ? <p className="text-sm text-muted-foreground">Здесь будет договор, ТЗ, спецификации, счета и другие файлы клиента.</p> : <div className="space-y-2">{documents.map(doc => <div key={doc.id} className="flex items-center gap-3 rounded-xl border p-3"><FileText className="h-4 w-4 shrink-0 text-muted-foreground" /><div className="min-w-0 flex-1"><div className="truncate text-sm font-medium">{doc.name}</div><div className="text-xs text-muted-foreground">{doc.kind === "contract" ? "Договор" : doc.kind === "invoice" ? "Счёт" : doc.kind === "specification" ? "Спецификация" : doc.kind === "brief" ? "ТЗ / бриф" : "Документ"} · {bytes(doc.sizeBytes)}</div></div><a href={`/api/contacts/${contact.id}/documents/${doc.id}`}><Button variant="ghost" size="icon"><Download className="h-4 w-4" /></Button></a><Button variant="ghost" size="icon" onClick={() => removeDocument(doc.id)}><Trash2 className="h-4 w-4" /></Button></div>)}</div>}
+            <p className="text-xs text-muted-foreground">КП и договор можно добавить вручную. Вложения из связанной почты и Telegram будут появляться здесь автоматически.</p>
+            {!documents.length ? <p className="text-sm text-muted-foreground">Здесь будут КП, договор, ТЗ, спецификации, счета и файлы из переписки.</p> : <div className="space-y-2">{documents.map(doc => <div key={doc.id} className="flex items-center gap-3 rounded-xl border p-3"><FileText className="h-4 w-4 shrink-0 text-muted-foreground" /><div className="min-w-0 flex-1"><div className="truncate text-sm font-medium">{doc.name}</div><div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground"><span>{documentKindLabel(doc.kind)} · {bytes(doc.sizeBytes)}</span><Badge variant="outline" className="h-5 px-1.5 text-[10px] font-normal">{documentSourceLabel(doc)}</Badge></div></div><a href={`/api/contacts/${contact.id}/documents/${doc.id}`}><Button variant="ghost" size="icon"><Download className="h-4 w-4" /></Button></a><Button variant="ghost" size="icon" onClick={() => removeDocument(doc.id)}><Trash2 className="h-4 w-4" /></Button></div>)}</div>}
           </CardContent></Card>
         </div>
 
