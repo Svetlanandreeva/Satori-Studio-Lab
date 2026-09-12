@@ -41,7 +41,7 @@ export function Header() {
         <div className={cn("hidden h-10 w-10 shrink-0 items-center justify-center rounded-2xl sm:flex", meta.bg, meta.text)}><Icon className="h-[18px] w-[18px]" /></div>
         <div className="min-w-0"><div className="truncate text-[15px] font-semibold tracking-tight text-slate-950 sm:text-[16px]">{meta.title}</div><div className="hidden truncate text-[11px] text-slate-400 sm:block">{meta.subtitle}</div></div>
       </div>
-      <GlobalSearch />
+      <div className="min-w-0 flex-1" aria-label="Поиск клиентов и сделок"><GlobalSearch /></div>
       <div className="ml-auto flex shrink-0 items-center gap-2">
         {pathname !== "/assistant" && <Link href="/assistant" className="inline-flex h-9 items-center gap-2 rounded-xl border border-indigo-100 bg-indigo-50/70 px-3 text-[12px] font-medium text-indigo-700 transition-colors hover:bg-indigo-50"><Sparkles className="h-3.5 w-3.5" /><span className="hidden xl:inline">Что важно</span></Link>}
       </div>
