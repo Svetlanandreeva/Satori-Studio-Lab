@@ -66,7 +66,7 @@ function collectLines(contactId: string, email: string): Line[] {
 
   if (tableExists("email_messages") && tableExists("email_threads")) {
     const rows = sqlite.prepare(`
-      SELECT em.direction, em.body_text AS bodyText, em.received_at AS receivedAt
+      SELECT em.direction, em.subject, em.body_text AS bodyText, em.received_at AS receivedAt
       FROM email_messages em
       JOIN email_threads et ON et.id=em.thread_id
       WHERE et.contact_id=? OR (? <> '' AND lower(et.remote_email)=?)
@@ -74,7 +74,7 @@ function collectLines(contactId: string, email: string): Line[] {
       LIMIT 120
     `).all(contactId, email, email) as Array<Record<string, unknown>>;
     for (const row of rows) {
-      const text = cleanText(row.bodyText);
+      const text = cleanText([row.subject, row.bodyText].filter(Boolean).join("\n"));
       if (!text) continue;
       lines.push({
         channel: "email",
@@ -125,7 +125,7 @@ function findSentence(lines: Line[], pattern: RegExp, directions: Array<"incomin
 
 function extractRequest(lines: Line[]): string | null {
   const productOrIntent = /(?:нужн|хот|интерес|заказ|изготов|сдел|разработ|ищем|требу|проект|тираж|мерч|светиль|ламп|абажур|мебел|декор|статуэт|витрин|упаков|стойк|панел|конструкц|вывеск|инсталляц|макет|образец|прототип|ткан|штор|кресл|стол|зеркал|люстр|бра)/iu;
-  return findSentence(lines, productOrIntent, ["incoming"]);
+  return findSentence(lines, productOrIntent, ["incoming", "outgoing"]);
 }
 
 function extractBudget(lines: Line[]): string | null {
