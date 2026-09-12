@@ -60,7 +60,9 @@ export async function PUT(request: NextRequest) {
         );
       }
 
-      const shipment = await startShipment(dealId, body.trackingCode);
+      const shipment = await startShipment(dealId, body.trackingCode, {
+        forceNotification: Boolean(body.forceNotification),
+      });
       runCrmConsistencyRepair();
       const updated = decoratedProjects().find((item) => item.dealId === dealId) || null;
       return NextResponse.json({ project: updated, shipment });
