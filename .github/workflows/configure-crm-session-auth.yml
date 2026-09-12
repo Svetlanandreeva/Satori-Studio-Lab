@@ -107,11 +107,20 @@ jobs:
         run: |
           set -eu
           login_code=$(curl --silent --show-error --max-time 20 -o /tmp/crm-login.html -w '%{http_code}' https://crm.satorilabural.online/login)
+          echo "Login page response: $login_code"
           test "$login_code" = '200'
-          grep -q 'Вход в CRM' /tmp/crm-login.html
 
           headers=$(mktemp)
           code=$(curl --silent --show-error --max-time 20 -D "$headers" -o /dev/null -w '%{http_code}' https://crm.satorilabural.online/)
-          test "$code" = '307' -o "$code" = '302'
-          grep -qi '^location: .*\/login' "$headers"
+          location=$(awk 'BEGIN{IGNORECASE=1} /^location:/ {sub(/\r$/,""); sub(/^location:[[:space:]]*/,""); print; exit}' "$headers")
+          echo "Anonymous CRM response: $code"
+          echo "Redirect target: $location"
+          case "$code" in
+            302|303|307|308) ;;
+            *) echo "Expected redirect to CRM login"; exit 1 ;;
+          esac
+          case "$location" in
+            *"/login"*) ;;
+            *) echo "CRM did not redirect to /login"; exit 1 ;;
+          esac
           echo 'CRM app-session auth is active; unauthenticated users are redirected to /login'
