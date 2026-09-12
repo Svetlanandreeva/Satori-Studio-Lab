@@ -6,11 +6,17 @@ import {
   getSetting,
   setSetting,
 } from "@/lib/satori-integrations";
-import { configureTelegramWebhook } from "@/lib/telegram-webhook";
+import { configureTelegramWebhook, readTelegramWebhookInfo } from "@/lib/telegram-webhook";
 
 const TELEGRAM_WEBHOOK_ENABLED_KEY = "satori_telegram_webhook_enabled";
 const TELEGRAM_WEBHOOK_URL_KEY = "satori_telegram_webhook_url";
 const TELEGRAM_WEBHOOK_ERROR_KEY = "satori_telegram_webhook_last_error";
+const REQUIRED_TELEGRAM_BUSINESS_UPDATES = [
+  "business_connection",
+  "business_message",
+  "edited_business_message",
+  "deleted_business_messages",
+];
 
 const DEFAULT_EMAIL_ADDRESS = "hello@satori.ru";
 const YANDEX_IMAP_HOST = "imap.yandex.ru";
@@ -31,6 +37,8 @@ function snapshot() {
   const telegramBusinessConnectionId = getSetting(INTEGRATION_KEYS.telegramBusinessConnectionId) || "";
   const telegramBusinessEnabled = getBooleanSetting(INTEGRATION_KEYS.telegramBusinessEnabled, false);
   const telegramBusinessCanReply = getBooleanSetting(INTEGRATION_KEYS.telegramBusinessCanReply, false);
+  const telegramLastUpdateAt = getSetting("satori_telegram_last_update_at") || "";
+  const telegramLastUpdateType = getSetting("satori_telegram_last_update_type") || "";
   const projectId = getSetting(INTEGRATION_KEYS.needNumberProjectId) || "1474";
   const createDeal = getBooleanSetting(INTEGRATION_KEYS.needNumberCreateDeal, true);
 
@@ -60,6 +68,8 @@ function snapshot() {
     telegramWebhookLastError,
     telegramBusinessConfigured: Boolean(telegramBusinessConnectionId && telegramBusinessEnabled),
     telegramBusinessCanReply,
+    telegramLastUpdateAt,
+    telegramLastUpdateType,
     needNumberProjectId: projectId,
     needNumberCreateDeal: createDeal,
     needNumberWebhookPath: `/api/integrations/need-number?key=${encodeURIComponent(secret)}`,
@@ -95,9 +105,14 @@ function savePort(body: Record<string, unknown>, field: string, key: string) {
 
 async function ensureTelegramInbound() {
   const token = getSetting(INTEGRATION_KEYS.telegramBotToken);
-  if (!token || getBooleanSetting(TELEGRAM_WEBHOOK_ENABLED_KEY, false)) return;
+  if (!token) return;
   try {
-    await configureTelegramWebhook();
+    const webhook = await readTelegramWebhookInfo();
+    const allowed = new Set(webhook.allowedUpdates || []);
+    const businessUpdatesReady = REQUIRED_TELEGRAM_BUSINESS_UPDATES.every((item) => allowed.has(item));
+    if (!webhook.configured || !webhook.healthy || !businessUpdatesReady) {
+      await configureTelegramWebhook();
+    }
     setSetting(TELEGRAM_WEBHOOK_ERROR_KEY, "");
   } catch (error) {
     setSetting(TELEGRAM_WEBHOOK_ENABLED_KEY, "0");
