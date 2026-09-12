@@ -2,7 +2,6 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { useSearchParams } from "next/navigation";
 import { Bot, FileText, Loader2, Mail, MessageCircle, Paperclip, RefreshCw, Search, Send, UserPlus, X } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
@@ -23,10 +22,13 @@ function dateLabel(value: string) {
   return new Intl.DateTimeFormat("ru-RU", sameDay ? { hour: "2-digit", minute: "2-digit" } : { day: "2-digit", month: "short", hour: "2-digit", minute: "2-digit" }).format(date);
 }
 function unreadLabel(value: number) { return value > 99 ? "99+" : String(value); }
+function threadFromLocation() {
+  if (typeof window === "undefined") return null;
+  return new URLSearchParams(window.location.search).get("thread");
+}
 const filters: Array<{ value: Filter; label: string }> = [{ value: "all", label: "Все" }, { value: "telegram", label: "Telegram" }, { value: "email", label: "Почта" }, { value: "service", label: "Сервисные" }];
 
 export default function InboxPage() {
-  const params = useSearchParams();
   const [threads, setThreads] = useState<UnifiedThread[]>([]);
   const [templates, setTemplates] = useState<Template[]>([]);
   const [filter, setFilter] = useState<Filter>("all");
@@ -69,7 +71,7 @@ export default function InboxPage() {
       }
       const list = (await Promise.all(tasks)).flat().sort((a, b) => { const u = Number(b.unreadCount > 0) - Number(a.unreadCount > 0); return u || new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime(); });
       setThreads(list);
-      const wanted = preferredKey || selectedKey || params.get("thread");
+      const wanted = preferredKey || selectedKey || threadFromLocation();
       const nextKey = wanted && list.some((item) => item.key === wanted) ? wanted : list[0]?.key || null;
       setSelectedKey(nextKey); if (!nextKey) setDetail(null);
     } catch (error) { toast.error(error instanceof Error ? error.message : "Ошибка загрузки сообщений"); }
@@ -93,7 +95,7 @@ export default function InboxPage() {
   }
 
   useEffect(() => { void loadTemplates(); }, []);
-  useEffect(() => { const timer = window.setTimeout(() => void loadThreads(params.get("thread")), 180); return () => window.clearTimeout(timer); }, [filter, search]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => { const timer = window.setTimeout(() => void loadThreads(threadFromLocation()), 180); return () => window.clearTimeout(timer); }, [filter, search]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { if (selectedKey) void loadDetail(selectedKey); else setDetail(null); }, [selectedKey]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const counts = useMemo(() => ({ telegram: threads.filter((item) => item.channel === "telegram").length, email: threads.filter((item) => item.channel === "email" && !item.isService).length }), [threads]);
