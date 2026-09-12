@@ -7,6 +7,21 @@ import {
 } from "@/lib/satori-integrations";
 import { configureTelegramWebhook } from "@/lib/telegram-webhook";
 
+interface TelegramBotInfo {
+  id?: number;
+  username?: string;
+  first_name?: string;
+}
+
+interface TelegramChatInfo {
+  id?: number;
+  type?: string;
+  username?: string;
+  first_name?: string;
+  last_name?: string;
+  title?: string;
+}
+
 function externalOrigin(request: NextRequest): string {
   const forwardedProto = request.headers.get("x-forwarded-proto")?.split(",")[0]?.trim();
   const forwardedHost = request.headers.get("x-forwarded-host")?.split(",")[0]?.trim();
@@ -50,24 +65,17 @@ export async function POST(request: NextRequest) {
     );
   }
 
-  let bot: { username?: string; first_name?: string } | null = null;
-  let recipient: {
-    id?: number;
-    type?: string;
-    username?: string;
-    first_name?: string;
-    last_name?: string;
-    title?: string;
-  } | null = null;
+  let bot: TelegramBotInfo | null = null;
+  let recipient: TelegramChatInfo | null = null;
 
   if (token) {
     try {
-      const me = await telegramApiRequest<typeof bot>(token, "getMe", {});
+      const me = await telegramApiRequest<TelegramBotInfo>(token, "getMe", {});
       if (me.ok && me.result) bot = me.result;
     } catch {}
     if (chatId) {
       try {
-        const chat = await telegramApiRequest<typeof recipient>(token, "getChat", {
+        const chat = await telegramApiRequest<TelegramChatInfo>(token, "getChat", {
           chat_id: chatId,
         });
         if (chat.ok && chat.result) recipient = chat.result;
@@ -78,9 +86,7 @@ export async function POST(request: NextRequest) {
   return NextResponse.json({
     success: true,
     inbound: true,
-    bot: bot
-      ? { username: bot.username || "", name: bot.first_name || "" }
-      : null,
+    bot: bot ? { username: bot.username || "", name: bot.first_name || "" } : null,
     recipient: recipient
       ? {
           type: recipient.type || "",
