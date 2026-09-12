@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { CheckCircle2, Loader2, MessageCircle, RefreshCw } from "lucide-react";
+import { CheckCircle2, Loader2, MessageCircle, RefreshCw, Send } from "lucide-react";
 import { toast } from "sonner";
 
 interface IntegrationState {
@@ -15,8 +15,14 @@ interface IntegrationState {
   telegramBusinessCanReply: boolean;
 }
 
+interface TestTarget {
+  bot?: { username?: string; name?: string } | null;
+  recipient?: { username?: string; name?: string; type?: string } | null;
+}
+
 export default function TelegramBusinessSettingsPage() {
   const [state, setState] = useState<IntegrationState | null>(null);
+  const [target, setTarget] = useState<TestTarget | null>(null);
   const [busy, setBusy] = useState(false);
 
   const load = async () => {
@@ -29,6 +35,24 @@ export default function TelegramBusinessSettingsPage() {
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Ошибка Telegram");
     } finally {
+      setBusy(false);
+    }
+  };
+
+  const testNotifications = async () => {
+    setBusy(true);
+    try {
+      const response = await fetch("/api/integrations/telegram/test", { method: "POST" });
+      const data = (await response.json()) as TestTarget & { error?: string };
+      if (!response.ok) throw new Error(data.error || "Тест Telegram не прошёл");
+      setTarget(data);
+      const recipient = data.recipient?.username
+        ? `@${data.recipient.username.replace(/^@/, "")}`
+        : data.recipient?.name || "сохранённый чат";
+      toast.success(`Тест отправлен: ${recipient}`);
+      await load();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Ошибка Telegram");
       setBusy(false);
     }
   };
@@ -73,6 +97,16 @@ export default function TelegramBusinessSettingsPage() {
             </div>
           </div>
 
+          {target && (
+            <div className="rounded-lg border p-3 text-sm">
+              <div className="font-medium">Куда приходят уведомления CRM</div>
+              <div className="mt-1 text-muted-foreground">
+                Получатель: {target.recipient?.username ? `@${target.recipient.username.replace(/^@/, "")}` : target.recipient?.name || "не определён"}
+                {target.bot?.username ? ` · бот @${target.bot.username.replace(/^@/, "")}` : ""}
+              </div>
+            </div>
+          )}
+
           {state?.telegramBusinessConfigured ? (
             <div className="rounded-lg border border-emerald-200 bg-emerald-50/50 p-4 text-sm">
               <div className="font-medium flex items-center gap-2">
@@ -96,6 +130,10 @@ export default function TelegramBusinessSettingsPage() {
             <Button onClick={load} disabled={busy}>
               {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}
               Обновить статус
+            </Button>
+            <Button variant="outline" onClick={testNotifications} disabled={busy || !state?.telegramConfigured}>
+              <Send className="mr-2 h-4 w-4" />
+              Проверить уведомления
             </Button>
             <Button variant="outline" asChild>
               <a href="/settings">Обычные настройки Telegram</a>
