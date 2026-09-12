@@ -52,7 +52,8 @@ export async function PUT(request: NextRequest) {
     if (String(body.action || "") === "shipment") {
       const project = listProjects().find((item) => item.dealId === dealId);
       if (!project) return NextResponse.json({ error: "Проект не найден" }, { status: 404 });
-      if (!["Доставка", "Завершено"].includes(String(project.stageName || ""))) {
+      const stageName = String((project as unknown as Record<string, unknown>).stageName || "");
+      if (!["Доставка", "Завершено"].includes(stageName)) {
         return NextResponse.json(
           { error: "Трек-номер можно отправить клиенту после перевода сделки в «Доставка»" },
           { status: 400 }
