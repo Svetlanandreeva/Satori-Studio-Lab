@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { asc } from "drizzle-orm";
+import { asc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { activities, contacts, deals, pipelineStages } from "@/db/schema";
 import {
@@ -68,7 +68,10 @@ function externalOrigin(request: NextRequest): string {
 
 function displayName(message: TelegramMessage): string {
   const user = message.from;
-  const parts = [user?.first_name || message.chat.first_name, user?.last_name || message.chat.last_name]
+  const parts = [
+    user?.first_name || message.chat.first_name,
+    user?.last_name || message.chat.last_name,
+  ]
     .filter(Boolean)
     .join(" ")
     .trim();
@@ -87,10 +90,17 @@ function bodyOf(message: TelegramMessage): string {
   if (message.text?.trim()) return message.text.trim();
   if (message.caption?.trim()) return message.caption.trim();
   if (message.contact) {
-    const who = [message.contact.first_name, message.contact.last_name].filter(Boolean).join(" ").trim();
-    return `📇 Контакт${who ? `: ${who}` : ""}${message.contact.phone_number ? ` · ${message.contact.phone_number}` : ""}`;
+    const who = [message.contact.first_name, message.contact.last_name]
+      .filter(Boolean)
+      .join(" ")
+      .trim();
+    return `📇 Контакт${who ? `: ${who}` : ""}${
+      message.contact.phone_number ? ` · ${message.contact.phone_number}` : ""
+    }`;
   }
-  if (message.document) return `📎 Документ${message.document.file_name ? `: ${message.document.file_name}` : ""}`;
+  if (message.document) {
+    return `📎 Документ${message.document.file_name ? `: ${message.document.file_name}` : ""}`;
+  }
   if (message.photo?.length) return "🖼 Фото";
   if (message.voice) return "🎤 Голосовое сообщение";
   if (message.video) return "🎬 Видео";
@@ -124,7 +134,9 @@ function hasChat(notes: string | null, chatId: string): boolean {
 
 function hasUsername(notes: string | null, username: string | null): boolean {
   if (!username) return false;
-  return String(notes || "").toLowerCase().includes(`[telegram-user:${username.toLowerCase()}]`);
+  return String(notes || "")
+    .toLowerCase()
+    .includes(`[telegram-user:${username.toLowerCase()}]`);
 }
 
 function alreadyProcessed(notes: string | null, chatId: string, messageId: number): boolean {
@@ -162,8 +174,12 @@ export async function POST(request: NextRequest) {
   const allContacts = db.select().from(contacts).all();
 
   let contact = allContacts.find((item) => hasChat(item.notes, chatId));
-  if (!contact && username) contact = allContacts.find((item) => hasUsername(item.notes, username));
-  if (!contact && phoneKey) contact = allContacts.find((item) => phoneIdentity(item.phone) === phoneKey);
+  if (!contact && username) {
+    contact = allContacts.find((item) => hasUsername(item.notes, username));
+  }
+  if (!contact && phoneKey) {
+    contact = allContacts.find((item) => phoneIdentity(item.phone) === phoneKey);
+  }
 
   if (contact && alreadyProcessed(contact.notes, chatId, message.message_id)) {
     return NextResponse.json({ ok: true, duplicate: true, contactId: contact.id });
@@ -197,12 +213,11 @@ export async function POST(request: NextRequest) {
   } else {
     db.update(contacts)
       .set({
-        name: contact.name || displayName(message),
         phone: contact.phone || sharedPhone || null,
         notes,
         updatedAt: now,
       })
-      .where((await import("drizzle-orm")).eq(contacts.id, contact.id))
+      .where(eq(contacts.id, contact.id))
       .run();
   }
 
@@ -220,7 +235,7 @@ export async function POST(request: NextRequest) {
   const activeDeals = db
     .select({ deal: deals, stage: pipelineStages })
     .from(deals)
-    .innerJoin(pipelineStages, (await import("drizzle-orm")).eq(deals.stageId, pipelineStages.id))
+    .innerJoin(pipelineStages, eq(deals.stageId, pipelineStages.id))
     .all()
     .filter((row) => row.deal.contactId === contact.id && !row.stage.isWon && !row.stage.isLost);
 
@@ -251,7 +266,9 @@ export async function POST(request: NextRequest) {
   await sendTelegramMessage({
     text: [
       "💬 <b>Новое сообщение Telegram</b>",
-      `От: ${escapeTelegramHtml(displayName(message))}${username ? ` (${escapeTelegramHtml(username)})` : ""}`,
+      `От: ${escapeTelegramHtml(displayName(message))}${
+        username ? ` (${escapeTelegramHtml(username)})` : ""
+      }`,
       `Сообщение: ${escapeTelegramHtml(body.slice(0, 1200))}`,
     ].join("\n"),
     url: contactUrl,
