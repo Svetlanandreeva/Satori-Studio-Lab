@@ -15,6 +15,8 @@ import {
 } from "@/lib/satori-integrations";
 
 const WEBHOOK_SECRET_KEY = "satori_telegram_webhook_secret";
+const LAST_UPDATE_AT_KEY = "satori_telegram_last_update_at";
+const LAST_UPDATE_TYPE_KEY = "satori_telegram_last_update_type";
 
 interface TelegramUser {
   id: number;
@@ -74,6 +76,21 @@ interface TelegramUpdate {
     chat?: TelegramChat;
     message_ids?: number[];
   };
+}
+
+function updateType(update: TelegramUpdate): string {
+  if (update.business_connection) return "business_connection";
+  if (update.business_message) return "business_message";
+  if (update.edited_business_message) return "edited_business_message";
+  if (update.deleted_business_messages) return "deleted_business_messages";
+  if (update.message) return "message";
+  if (update.edited_message) return "edited_message";
+  return "unknown";
+}
+
+function markWebhookReceipt(update: TelegramUpdate) {
+  setSetting(LAST_UPDATE_AT_KEY, new Date().toISOString());
+  setSetting(LAST_UPDATE_TYPE_KEY, updateType(update));
 }
 
 function externalOrigin(request: NextRequest): string {
@@ -190,6 +207,10 @@ function saveBusinessConnection(connection: TelegramBusinessConnection) {
     INTEGRATION_KEYS.telegramBusinessCanReply,
     connection.rights?.can_reply ? "1" : "0"
   );
+  setSetting(
+    "satori_telegram_business_can_read_messages",
+    connection.rights?.can_read_messages ? "1" : "0"
+  );
 }
 
 async function resolveBusinessOwner(connectionId: string): Promise<string> {
@@ -226,6 +247,9 @@ export async function POST(request: NextRequest) {
   } catch {
     return NextResponse.json({ ok: true });
   }
+
+  // Record only event type/time before any CRM filtering. No message text is stored here.
+  markWebhookReceipt(update);
 
   if (update.business_connection) {
     saveBusinessConnection(update.business_connection);

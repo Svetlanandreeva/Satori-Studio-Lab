@@ -13,6 +13,13 @@ import {
   telegramWebhookUrl,
 } from "@/lib/telegram-webhook";
 
+const REQUIRED_BUSINESS_UPDATES = [
+  "business_connection",
+  "business_message",
+  "edited_business_message",
+  "deleted_business_messages",
+];
+
 interface TelegramUser {
   id: number;
   first_name?: string;
@@ -51,6 +58,11 @@ function latestBusinessMessageAt(): string | null {
   return value ? new Date(value).toISOString() : null;
 }
 
+function hasRequiredBusinessUpdates(allowedUpdates: string[]) {
+  const allowed = new Set(allowedUpdates || []);
+  return REQUIRED_BUSINESS_UPDATES.every((item) => allowed.has(item));
+}
+
 export const dynamic = "force-dynamic";
 
 export async function GET() {
@@ -66,17 +78,22 @@ export async function GET() {
         pendingUpdates: 0,
         webhookLastError: "Telegram-бот не настроен",
         webhookLastErrorAt: null,
+        allowedUpdates: [],
+        businessUpdatesSubscribed: false,
         businessConfigured: false,
         businessEnabled: false,
         businessCanReply: false,
         businessCanReadMessages: false,
         businessUser: null,
+        lastWebhookUpdateAt: getSetting("satori_telegram_last_update_at") || null,
+        lastWebhookUpdateType: getSetting("satori_telegram_last_update_type") || null,
         lastBusinessMessageAt: latestBusinessMessageAt(),
       });
     }
 
     let webhook = await readTelegramWebhookInfo();
-    if (!webhook.configured) {
+    const needsRepair = !webhook.configured || !webhook.healthy || !hasRequiredBusinessUpdates(webhook.allowedUpdates);
+    if (needsRepair) {
       try {
         await configureTelegramWebhook();
         webhook = await readTelegramWebhookInfo();
@@ -128,6 +145,7 @@ export async function GET() {
       webhookLastError: webhook.lastError,
       webhookLastErrorAt: webhook.lastErrorAt,
       allowedUpdates: webhook.allowedUpdates,
+      businessUpdatesSubscribed: hasRequiredBusinessUpdates(webhook.allowedUpdates),
       businessConfigured: Boolean(connectionId && businessEnabled),
       businessConnectionId: connectionId || null,
       businessEnabled,
@@ -141,6 +159,8 @@ export async function GET() {
             name: [business.user.first_name, business.user.last_name].filter(Boolean).join(" ") || null,
           }
         : null,
+      lastWebhookUpdateAt: getSetting("satori_telegram_last_update_at") || null,
+      lastWebhookUpdateType: getSetting("satori_telegram_last_update_type") || null,
       lastBusinessMessageAt: latestBusinessMessageAt(),
     });
   } catch (error) {

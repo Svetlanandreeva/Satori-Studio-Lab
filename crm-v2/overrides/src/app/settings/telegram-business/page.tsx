@@ -16,6 +16,8 @@ interface TelegramStatus {
   pendingUpdates?: number;
   webhookLastError?: string;
   webhookLastErrorAt?: string | null;
+  allowedUpdates?: string[];
+  businessUpdatesSubscribed?: boolean;
   businessConfigured: boolean;
   businessConnectionId?: string | null;
   businessEnabled: boolean;
@@ -23,6 +25,8 @@ interface TelegramStatus {
   businessCanReadMessages: boolean;
   businessError?: string;
   businessUser?: { id: number; username?: string | null; name?: string | null } | null;
+  lastWebhookUpdateAt?: string | null;
+  lastWebhookUpdateType?: string | null;
   lastBusinessMessageAt?: string | null;
 }
 
@@ -83,6 +87,7 @@ export default function TelegramBusinessSettingsPage() {
     state?.tokenConfigured &&
       state?.webhookConfigured &&
       state?.webhookHealthy &&
+      state?.businessUpdatesSubscribed &&
       state?.businessConfigured &&
       state?.businessEnabled
   );
@@ -117,9 +122,9 @@ export default function TelegramBusinessSettingsPage() {
             />
             <StatusBox
               label="Доставка webhook"
-              ok={Boolean(state?.webhookConfigured && state?.webhookHealthy)}
-              good="Telegram доставляет"
-              bad={state?.webhookConfigured ? "Есть ошибка доставки" : "Не подключён"}
+              ok={Boolean(state?.webhookConfigured && state?.webhookHealthy && state?.businessUpdatesSubscribed)}
+              good="Business-события включены"
+              bad={state?.webhookConfigured ? "Нужна переподписка" : "Не подключён"}
             />
             <StatusBox
               label="Личный аккаунт"
@@ -135,9 +140,14 @@ export default function TelegramBusinessSettingsPage() {
             />
           </div>
 
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid gap-3 sm:grid-cols-3">
             <div className="rounded-lg border p-3 text-sm">
-              <div className="text-xs text-muted-foreground">Последнее личное сообщение, увиденное CRM</div>
+              <div className="text-xs text-muted-foreground">Последнее событие, дошедшее до webhook</div>
+              <div className="mt-1 font-medium">{dateTime(state?.lastWebhookUpdateAt)}</div>
+              {state?.lastWebhookUpdateType && <div className="mt-1 text-xs text-muted-foreground">{state.lastWebhookUpdateType}</div>}
+            </div>
+            <div className="rounded-lg border p-3 text-sm">
+              <div className="text-xs text-muted-foreground">Последнее личное сообщение, записанное CRM</div>
               <div className="mt-1 font-medium">{dateTime(state?.lastBusinessMessageAt)}</div>
             </div>
             <div className="rounded-lg border p-3 text-sm">
