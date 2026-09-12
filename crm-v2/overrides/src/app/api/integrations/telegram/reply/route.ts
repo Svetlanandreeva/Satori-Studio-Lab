@@ -41,6 +41,7 @@ export async function POST(request: NextRequest) {
     text,
     chatId: meta.chatId,
     businessConnectionId: meta.businessConnectionId,
+    parseMode: null,
   });
   if (!sent.sent) {
     return NextResponse.json({ error: sent.error || "Telegram не отправил сообщение" }, { status: 400 });
