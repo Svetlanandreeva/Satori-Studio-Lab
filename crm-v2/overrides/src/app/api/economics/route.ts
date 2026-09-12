@@ -21,10 +21,76 @@ function currentMonth(): string {
   return `${year}-${month}`;
 }
 
+function isRejectedStage(name: unknown): boolean {
+  return String(name || "")
+    .trim()
+    .toLowerCase()
+    .replace(/ё/g, "е")
+    .includes("отказ");
+}
+
+function withoutRejectedDeals(report: ReturnType<typeof listEconomics>) {
+  const deals = report.deals.filter((deal) => !isRejectedStage(deal.stageName));
+
+  const clients = new Map<string, {
+    contactId: string;
+    contactName: string;
+    company: string | null;
+    deals: number;
+    receivedAmount: number;
+    totalCost: number;
+    profit: number;
+  }>();
+
+  for (const row of deals) {
+    const current = clients.get(row.contactId) || {
+      contactId: row.contactId,
+      contactName: row.contactName || "Без имени",
+      company: row.company,
+      deals: 0,
+      receivedAmount: 0,
+      totalCost: 0,
+      profit: 0,
+    };
+    current.deals += 1;
+    current.receivedAmount += Number(row.receivedAmount || 0);
+    current.totalCost += Number(row.totalCost || 0);
+    current.profit += Number(row.profit || 0);
+    clients.set(row.contactId, current);
+  }
+
+  const clientRows = Array.from(clients.values())
+    .map((client) => ({
+      ...client,
+      margin: client.receivedAmount > 0 ? (client.profit / client.receivedAmount) * 100 : 0,
+    }))
+    .sort((a, b) => b.profit - a.profit);
+
+  const totals = deals.reduce(
+    (acc, row) => {
+      acc.dealValue += Number(row.dealValue || 0);
+      acc.receivedAmount += Number(row.receivedAmount || 0);
+      acc.totalCost += Number(row.totalCost || 0);
+      acc.profit += Number(row.profit || 0);
+      return acc;
+    },
+    { dealValue: 0, receivedAmount: 0, totalCost: 0, profit: 0 }
+  );
+
+  return {
+    deals,
+    clients: clientRows,
+    totals: {
+      ...totals,
+      margin: totals.receivedAmount > 0 ? (totals.profit / totals.receivedAmount) * 100 : 0,
+    },
+  };
+}
+
 export async function GET(request: NextRequest) {
   try {
     const month = new URL(request.url).searchParams.get("month") || currentMonth();
-    const report = listEconomics();
+    const report = withoutRejectedDeals(listEconomics());
     const fixedExpenses = listBusinessExpenses(month);
     return NextResponse.json({ ...report, fixedExpenses });
   } catch (error) {
