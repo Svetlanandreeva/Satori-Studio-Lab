@@ -28,6 +28,7 @@ import { startSeoEnhancements } from "./seoEnhancements";
 import { prepareSeoRoute, startSeoRoutes } from "./seoRoutes";
 import { startMetrikaSpaTracking } from "./metrikaSpa";
 import { startContactOverrides } from "./contactOverrides";
+import { startHeaderContactButton } from "./headerContactButton";
 import { startDesignerExperience } from "./designerExperience";
 import { startDesignerReadability } from "./designerReadability";
 
@@ -60,6 +61,7 @@ if (!isAdmin) {
   startSeoRoutes();
   startSeoEnhancements();
   startContactOverrides();
+  startHeaderContactButton();
   startDesignerExperience();
   startDesignerReadability();
 }
