@@ -13,6 +13,7 @@ import {
   Users,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { useUnreadMessages } from "@/lib/use-unread-messages";
 
 type NavItem = {
   href: string;
@@ -45,8 +46,13 @@ const settingsItem: NavItem = {
   dot: "bg-slate-500",
 };
 
-function NavLink({ item, pathname }: { item: NavItem; pathname: string }) {
+function unreadLabel(value: number) {
+  return value > 99 ? "99+" : String(value);
+}
+
+function NavLink({ item, pathname, unreadCount = 0 }: { item: NavItem; pathname: string; unreadCount?: number }) {
   const isActive = pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href));
+  const showUnread = item.href === "/inbox" && unreadCount > 0;
   return (
     <Link
       href={item.href}
@@ -58,21 +64,28 @@ function NavLink({ item, pathname }: { item: NavItem; pathname: string }) {
           : "text-slate-600 hover:bg-white/80 hover:text-slate-950"
       )}
     >
-      <span className={cn("flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition-transform group-hover:scale-[1.03]", item.iconBg, item.iconText)}>
+      <span className={cn("relative flex h-9 w-9 shrink-0 items-center justify-center rounded-xl transition-transform group-hover:scale-[1.03]", item.iconBg, item.iconText)}>
         <item.icon className="h-[17px] w-[17px]" />
+        {showUnread && <span className="absolute -right-1 -top-1 h-2.5 w-2.5 rounded-full bg-sky-500 ring-2 ring-white" />}
       </span>
       <span className="min-w-0 flex-1 truncate">{item.label}</span>
-      <span className={cn("h-1.5 w-1.5 rounded-full transition-opacity", item.dot, isActive ? "opacity-100" : "opacity-0")} />
+      {showUnread ? (
+        <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-sky-500 px-1.5 py-0.5 text-[10px] font-bold leading-none text-white shadow-sm">
+          {unreadLabel(unreadCount)}
+        </span>
+      ) : (
+        <span className={cn("h-1.5 w-1.5 rounded-full transition-opacity", item.dot, isActive ? "opacity-100" : "opacity-0")} />
+      )}
     </Link>
   );
 }
 
-function NavGroup({ title, items, pathname }: { title: string; items: NavItem[]; pathname: string }) {
+function NavGroup({ title, items, pathname, unreadCount = 0 }: { title: string; items: NavItem[]; pathname: string; unreadCount?: number }) {
   return (
     <section>
       <div className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-[.16em] text-slate-400">{title}</div>
       <div className="space-y-1 rounded-[22px] border border-slate-200/70 bg-slate-50/70 p-1.5">
-        {items.map((item) => <NavLink key={item.href} item={item} pathname={pathname} />)}
+        {items.map((item) => <NavLink key={item.href} item={item} pathname={pathname} unreadCount={item.href === "/inbox" ? unreadCount : 0} />)}
       </div>
     </section>
   );
@@ -80,6 +93,7 @@ function NavGroup({ title, items, pathname }: { title: string; items: NavItem[];
 
 export function Sidebar() {
   const pathname = usePathname();
+  const { summary } = useUnreadMessages();
 
   return (
     <aside className="hidden min-h-screen w-[248px] shrink-0 flex-col border-r border-slate-200/80 bg-[#fbfbfc] md:flex">
@@ -94,7 +108,7 @@ export function Sidebar() {
       </div>
 
       <nav className="flex-1 space-y-6 overflow-y-auto px-3 pb-5">
-        <NavGroup title="Работа" items={workItems} pathname={pathname} />
+        <NavGroup title="Работа" items={workItems} pathname={pathname} unreadCount={summary.all} />
         <NavGroup title="Управление" items={managementItems} pathname={pathname} />
       </nav>
 
