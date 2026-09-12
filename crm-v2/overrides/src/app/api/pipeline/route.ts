@@ -4,6 +4,8 @@ import { pipelineStages, deals, contacts } from "@/db/schema";
 import { eq, asc } from "drizzle-orm";
 import { SANDBOX_QUALIFICATIONS, SPAM_STAGE_NAME, type LeadQualification } from "@/lib/lead-qualification";
 import { markDealReachedCalculation } from "@/lib/deal-flow";
+import { DELIVERY_STAGE_NAME, COMPLETED_STAGE_NAME, runCrmConsistencyRepair } from "@/lib/crm-consistency";
+import { startShipment, markShipmentDelivered } from "@/lib/shipment";
 
 function migrateExistingSandboxContacts() {
   const stages = db.select().from(pipelineStages).all();
@@ -35,6 +37,7 @@ function migrateExistingSandboxContacts() {
 }
 
 export async function GET() {
+  runCrmConsistencyRepair();
   migrateExistingSandboxContacts();
 
   const stages = db
@@ -76,6 +79,7 @@ export async function GET() {
 }
 
 export async function PUT(request: NextRequest) {
+  runCrmConsistencyRepair();
   let body: Record<string, unknown>;
   try {
     body = await request.json();
@@ -102,6 +106,14 @@ export async function PUT(request: NextRequest) {
       return NextResponse.json({ error: "Недоступный этап воронки" }, { status: 400 });
     }
 
+    const trackingCode = String(body.trackingCode || "").trim();
+    if (targetStage.name === DELIVERY_STAGE_NAME && !trackingCode) {
+      return NextResponse.json(
+        { error: "Перед переводом в доставку укажите трек-номер / код отправления" },
+        { status: 400 }
+      );
+    }
+
     const result = db
       .update(deals)
       .set({ stageId: targetStage.id, updatedAt: new Date() })
@@ -110,7 +122,16 @@ export async function PUT(request: NextRequest) {
       .get();
 
     markDealReachedCalculation(existing.id, targetStage.id);
-    return NextResponse.json(result);
+
+    let shipment: Awaited<ReturnType<typeof startShipment>> | null = null;
+    if (targetStage.name === DELIVERY_STAGE_NAME) {
+      shipment = await startShipment(existing.id, trackingCode);
+    } else if (targetStage.name === COMPLETED_STAGE_NAME) {
+      markShipmentDelivered(existing.id);
+    }
+
+    runCrmConsistencyRepair();
+    return NextResponse.json({ ...result, shipment });
   }
 
   if (body.stages && Array.isArray(body.stages)) {
