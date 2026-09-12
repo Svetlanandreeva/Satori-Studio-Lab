@@ -28,7 +28,7 @@ type Doc = {
 type Insight = { id: string; severity: string; category: string; title: string; detail: string; actionUrl?: string | null };
 type Deal = {
   id: string; title: string; value: number; probability: number; stageName: string | null; stageColor: string | null; isWon?: boolean | null; isLost?: boolean | null;
-  receivedAmount: number; totalCost: number; profit: number; margin: number;
+  receivedAmount: number; directCost: number; profitBeforeManager: number; managerCommission: number; managerCommissionRate: number; totalCost: number; profit: number; margin: number;
   project?: { contractDeadline?: string | null; deadlineStatus?: string; daysRemaining?: number | null; overdueDays?: number; orderedAt?: string | null } | null;
 };
 type Activity = { id: string; type: string; description: string; scheduledAt?: number | Date | null; completedAt?: number | Date | null; createdAt: number | Date };
@@ -47,7 +47,7 @@ function relative(value: number | Date) {
   if (days <= 0) return "сегодня"; if (days === 1) return "вчера"; if (days < 7) return `${days} дн. назад`; return date(value);
 }
 function sourceLabel(value: string) {
-  const map: Record<string, string> = { need_number: "Парсер / Need Number", website: "Сайт", telegram: "Telegram-бот", telegram_account: "Личный Telegram", ads: "Реклама", instagram: "Instagram", linkedin: "LinkedIn", referral: "Рекомендации", other: "Другое", otro: "Другое" };
+  const map: Record<string, string> = { need_number: "Парсер / Need Number", website: "Сайт", order: "Сайт", telegram: "Telegram-бот", telegram_account: "Личный Telegram", ads: "Реклама", instagram: "Instagram", linkedin: "LinkedIn", referral: "Рекомендации", other: "Другое", otro: "Другое" };
   return map[value] || value || "Не указан";
 }
 function bytes(value: number) { return value > 1024 * 1024 ? `${(value / 1024 / 1024).toFixed(1)} МБ` : `${Math.max(1, Math.round(value / 1024))} КБ`; }
@@ -64,6 +64,20 @@ function documentSourceLabel(doc: Doc) {
   if (doc.sourceChannel === "telegram") return doc.sourceDirection === "outgoing" ? "Telegram · отправлено" : "Telegram · получено";
   return "Добавлен вручную";
 }
+function visibleContactNotes(notes: string | null): string {
+  return String(notes || "")
+    .split("\n")
+    .filter((line) => !/^\[(?:legacy-contact|store-customer-order|telegram-chat|telegram-business):/i.test(line.trim()))
+    .join("\n")
+    .trim();
+}
+function activityDisplay(description: string): { text: string; paymentFailure: boolean } {
+  const paymentFailure = /^\[store-payment-failed:[^\]]+\]/i.test(description.trim());
+  return {
+    paymentFailure,
+    text: description.replace(/^\[store-payment-failed:[^\]]+\]\s*/i, "").trim(),
+  };
+}
 
 export function ContactDetailClient({ contact, deals, activities, documents: initialDocuments, assistantInsights }: Props) {
   const router = useRouter();
@@ -76,11 +90,13 @@ export function ContactDetailClient({ contact, deals, activities, documents: ini
   const [copied, setCopied] = useState<string | null>(null);
 
   const totalReceived = deals.reduce((s, x) => s + Number(x.receivedAmount || 0), 0);
-  const totalCost = deals.reduce((s, x) => s + Number(x.totalCost || 0), 0);
-  const totalProfit = totalReceived - totalCost;
+  const totalDirectCost = deals.reduce((s, x) => s + Number(x.directCost || 0), 0);
+  const totalManagerCommission = deals.reduce((s, x) => s + Number(x.managerCommission || 0), 0);
+  const totalProfit = deals.reduce((s, x) => s + Number(x.profit || 0), 0);
   const margin = totalReceived > 0 ? (totalProfit / totalReceived) * 100 : 0;
   const contracts = documents.filter((x) => x.kind === "contract");
   const proposals = documents.filter((x) => x.kind === "commercial_offer");
+  const contactNotes = visibleContactNotes(contact.notes);
 
   const copy = async (value: string, key: string) => {
     await navigator.clipboard.writeText(value); setCopied(key); toast.success("Скопировано"); setTimeout(() => setCopied(null), 1200);
@@ -146,7 +162,7 @@ export function ContactDetailClient({ contact, deals, activities, documents: ini
             {contact.phone && <ContactRow icon={Phone} value={contact.phone} onCopy={() => copy(contact.phone!, "phone")} copied={copied === "phone"} href={`tel:${contact.phone}`} />}
             {contact.email && <ContactRow icon={Mail} value={contact.email} onCopy={() => copy(contact.email!, "email")} copied={copied === "email"} href={`mailto:${contact.email}`} />}
             <Row icon={CalendarDays} value={`Создан ${date(contact.createdAt)}`} />
-            {contact.notes && <div className="mt-3 whitespace-pre-wrap rounded-xl bg-muted/40 p-3 text-xs leading-5 text-muted-foreground">{contact.notes}</div>}
+            {contactNotes && <div className="mt-3 whitespace-pre-wrap rounded-xl bg-muted/40 p-3 text-xs leading-5 text-muted-foreground">{contactNotes}</div>}
           </CardContent></Card>
 
           <Card className={contracts.length ? "" : "border-amber-200"}><CardHeader><div className="flex flex-wrap items-center justify-between gap-2"><CardTitle className="flex items-center gap-2 text-base"><ReceiptText className="h-4 w-4" />Документы клиента</CardTitle><div className="flex gap-1.5">{proposals.length > 0 && <Badge variant="secondary">КП {proposals.length}</Badge>}{contracts.length ? <Badge variant="secondary">Договор загружен</Badge> : <Badge variant="outline">Нет договора</Badge>}</div></div></CardHeader><CardContent className="space-y-4">
@@ -162,12 +178,12 @@ export function ContactDetailClient({ contact, deals, activities, documents: ini
 
         <div className="space-y-6">
           <Card><CardHeader><CardTitle className="flex items-center gap-2 text-base"><WalletCards className="h-4 w-4" />Сделки и экономика</CardTitle></CardHeader><CardContent>
-            <div className="mb-4 grid grid-cols-2 gap-3 lg:grid-cols-4"><Mini label="Поступило" value={money(totalReceived)} /><Mini label="Затраты" value={money(totalCost)} /><Mini label="Прибыль" value={money(totalProfit)} /><Mini label="Маржа" value={totalReceived ? `${margin.toFixed(1)}%` : "—"} /></div>
-            {!deals.length ? <p className="text-sm text-muted-foreground">Сделок пока нет.</p> : <div className="space-y-3">{deals.map(deal => <Link href={`/deals/${deal.id}`} key={deal.id}><div className="rounded-xl border p-4 transition-colors hover:bg-muted/30"><div className="flex items-start justify-between gap-4"><div><div className="font-medium">{deal.title}</div><div className="mt-1 text-xs text-muted-foreground">{deal.stageName || "Без этапа"}{deal.project?.contractDeadline ? ` · срок ${deal.project.contractDeadline}` : ""}</div></div><div className="text-right"><div className="font-semibold">{money(deal.value)}</div>{deal.receivedAmount > 0 && <div className={`text-xs ${deal.margin < 25 ? "text-amber-700" : "text-muted-foreground"}`}>маржа {deal.margin.toFixed(1)}%</div>}</div></div></div></Link>)}</div>}
+            <div className="mb-4 grid grid-cols-2 gap-3 xl:grid-cols-5"><Mini label="Поступило" value={money(totalReceived)} /><Mini label="Прямые расходы" value={money(totalDirectCost)} /><Mini label="Менеджер 50%" value={money(totalManagerCommission)} /><Mini label="Прибыль компании" value={money(totalProfit)} /><Mini label="Маржа компании" value={totalReceived ? `${margin.toFixed(1)}%` : "—"} /></div>
+            {!deals.length ? <p className="text-sm text-muted-foreground">Сделок пока нет.</p> : <div className="space-y-3">{deals.map(deal => <Link href={`/deals/${deal.id}`} key={deal.id}><div className="rounded-xl border p-4 transition-colors hover:bg-muted/30"><div className="flex items-start justify-between gap-4"><div><div className="font-medium">{deal.title}</div><div className="mt-1 text-xs text-muted-foreground">{deal.stageName || "Без этапа"}{deal.project?.contractDeadline ? ` · срок ${deal.project.contractDeadline}` : ""}</div><div className="mt-2 text-xs text-muted-foreground">Поступило {money(deal.receivedAmount)} · прямые расходы {money(deal.directCost)} · менеджер {money(deal.managerCommission)} · компании {money(deal.profit)}</div></div><div className="text-right"><div className="font-semibold">{money(deal.value)}</div>{deal.receivedAmount > 0 && <div className={`text-xs ${deal.margin < 25 ? "text-amber-700" : "text-muted-foreground"}`}>маржа компании {deal.margin.toFixed(1)}%</div>}</div></div></div></Link>)}</div>}
           </CardContent></Card>
 
           <Card><CardHeader><div className="flex items-center justify-between"><CardTitle className="text-base">История клиента</CardTitle><Button variant="outline" size="sm" onClick={() => setShowActivity(true)}><Plus className="mr-1 h-4 w-4" />Добавить</Button></div></CardHeader><CardContent>
-            {!activities.length ? <p className="text-sm text-muted-foreground">Активности пока нет.</p> : <div className="space-y-4">{activities.slice(0, 30).map(a => <div key={a.id} className="flex gap-3"><div className="mt-1 rounded-full bg-muted p-2"><FileText className="h-3.5 w-3.5" /></div><div className="min-w-0 flex-1"><div className="text-sm whitespace-pre-wrap">{a.description}</div><div className="mt-1 text-xs text-muted-foreground">{a.type} · {relative(a.createdAt)}</div></div></div>)}</div>}
+            {!activities.length ? <p className="text-sm text-muted-foreground">Активности пока нет.</p> : <div className="space-y-4">{activities.slice(0, 30).map(a => { const display = activityDisplay(a.description); return <div key={a.id} className="flex gap-3"><div className="mt-1 rounded-full bg-muted p-2"><FileText className="h-3.5 w-3.5" /></div><div className="min-w-0 flex-1"><div className="flex flex-wrap items-center gap-2"><div className="text-sm whitespace-pre-wrap">{display.text}</div>{display.paymentFailure && <Badge variant="outline" className="text-[10px]">Попытка оплаты · не сделка</Badge>}</div><div className="mt-1 text-xs text-muted-foreground">{a.type} · {relative(a.createdAt)}</div></div></div>; })}</div>}
           </CardContent></Card>
         </div>
       </div>
