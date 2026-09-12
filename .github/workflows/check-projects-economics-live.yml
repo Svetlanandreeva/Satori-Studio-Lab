@@ -1,0 +1,45 @@
+name: Check live projects and economics
+
+on:
+  push:
+    branches: [check/projects-economics-live]
+    paths:
+      - '.github/workflows/check-projects-economics-live.yml'
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.DEPLOY_SSH_KEY }}
+      - name: Trust production server
+        run: ssh-keyscan -H 194.226.97.103 >> ~/.ssh/known_hosts
+      - name: Inspect live CRM project and economics state
+        run: |
+          ssh root@194.226.97.103 'bash -se' <<'REMOTE'
+          set -eu
+          systemctl is-active --quiet satori-crm-v2
+          echo '=== stages ==='
+          python3 - <<'PY'
+          import sqlite3
+          db=sqlite3.connect('/opt/satori-crm-v2/data/crm.db')
+          for row in db.execute('select name, "order", is_won, is_lost from pipeline_stages order by "order"'):
+              print(row)
+          PY
+          echo '=== economics ==='
+          curl -fsS http://127.0.0.1:3020/api/economics | python3 -c 'import json,sys,collections; d=json.load(sys.stdin); print({"dealCount":len(d.get("deals",[])),"stages":dict(collections.Counter(x.get("stageName") for x in d.get("deals",[]))),"fixedExpenseFields":sorted((d.get("fixedExpenses",{}).get("items") or [{}])[0].keys()) if d.get("fixedExpenses",{}).get("items") else []})'
+          echo '=== projects ==='
+          curl -fsS http://127.0.0.1:3020/api/projects | python3 -c 'import json,sys,collections; d=json.load(sys.stdin); p=d.get("projects",[]); print({"projectCount":len(p),"stages":dict(collections.Counter(x.get("stageName") for x in p)),"hasDeadlineMetrics":all(all(k in x for k in ["daysRemaining","overdueDays","deadlineStatus"]) for x in p)})'
+          echo '=== flow state ==='
+          python3 - <<'PY'
+          import sqlite3
+          db=sqlite3.connect('/opt/satori-crm-v2/data/crm.db')
+          print('tracked', db.execute('select count(*) from deal_flow_state where calculation_entered_at is not null').fetchone()[0])
+          print('tracked by stage')
+          for row in db.execute('select ps.name,count(*) from deal_flow_state f join deals d on d.id=f.deal_id join pipeline_stages ps on ps.id=d.stage_id where f.calculation_entered_at is not null group by ps.name order by ps.name'):
+              print(row)
+          PY
+          REMOTE
