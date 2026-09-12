@@ -4,25 +4,50 @@ on:
   push:
     branches: [fix/telegram-business-pipeline]
     paths:
+      - 'crm-v2/**'
       - '.github/workflows/diagnose-live-crm.yml'
 
 jobs:
-  diagnose:
+  verify:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Production-like CRM build
+        run: |
+          git clone --filter=blob:none https://github.com/Hainrixz/auto-crm.git /tmp/satori-auto-crm
+          cd /tmp/satori-auto-crm
+          git checkout --detach 0aef51a9aef0487c59b964b4eea9d964a2321f0c
+          cd "$GITHUB_WORKSPACE"
+          python3 - <<'PY'
+          from pathlib import Path
+          root=Path('/tmp/satori-auto-crm')
+          p=root/'next.config.ts'
+          s=p.read_text().replace('const nextConfig: NextConfig = {\n  serverExternalPackages: ["better-sqlite3"],\n};','const nextConfig: NextConfig = {\n  output: "standalone",\n  serverExternalPackages: ["better-sqlite3"],\n};')
+          p.write_text(s)
+          p=root/'src/db/index.ts'
+          p.write_text(p.read_text().replace('const DB_PATH = path.join(process.cwd(), "data", "crm.db");','const DB_PATH = process.env.CRM_DB_PATH || path.join(process.cwd(), "data", "crm.db");'))
+          PY
+          python3 crm-v2/russianize.py
+          cp -a crm-v2/overrides/src/. /tmp/satori-auto-crm/src/
+          cd /tmp/satori-auto-crm
+          npm ci
+          npm run build
+          test -f .next/standalone/server.js
+
       - uses: webfactory/ssh-agent@v0.9.0
         with:
           ssh-private-key: ${{ secrets.DEPLOY_SSH_KEY }}
       - name: Trust production server
         run: ssh-keyscan -H 194.226.97.103 >> ~/.ssh/known_hosts
-      - name: Check Telegram and pipeline runtime
+      - name: Verify live Telegram target and reversible pipeline move
         run: |
           ssh root@194.226.97.103 'bash -se' <<'REMOTE'
           set -eu
-          echo '=== service ==='
-          systemctl is-active satori-crm-v2
+          systemctl is-active --quiet satori-crm-v2
 
           echo '=== sanitized integration state ==='
           curl -fsS http://127.0.0.1:3020/api/integrations/settings >/tmp/settings.json
@@ -38,35 +63,37 @@ jobs:
           })
           PY
 
-          echo '=== telegram test response ==='
-          code=$(curl -sS -o /tmp/tgtest.json -w '%{http_code}' -X POST http://127.0.0.1:3020/api/integrations/telegram/test || true)
-          echo "HTTP $code"
-          cat /tmp/tgtest.json
-          echo
-
-          echo '=== pipeline same-stage write ==='
+          echo '=== reversible cross-stage move ==='
           curl -fsS http://127.0.0.1:3020/api/pipeline >/tmp/pipeline.json
-          python3 - <<'PY' >/tmp/payload.json
+          python3 - <<'PY' >/tmp/move.json
           import json
           p=json.load(open('/tmp/pipeline.json'))
-          deal=None
+          source=None
           for stage in p:
             if stage.get('deals'):
-              deal=stage['deals'][0]
-              print(json.dumps({'dealId': deal['id'], 'stageId': stage['id']}))
+              source=(stage, stage['deals'][0])
               break
-          if deal is None:
-            print(json.dumps({'skip': True}))
+          if not source or len(p)<2:
+            print(json.dumps({'skip':True}))
+          else:
+            s,d=source
+            target=next((x for x in p if x['id']!=s['id']),None)
+            if not target:
+              print(json.dumps({'skip':True}))
+            else:
+              print(json.dumps({'dealId':d['id'],'from':s['id'],'to':target['id']}))
           PY
-          if grep -q '"skip"' /tmp/payload.json; then
-            echo 'No visible deals to test'
+          if grep -q '"skip"' /tmp/move.json; then
+            echo 'No suitable deal to verify'
           else
-            code=$(curl -sS -o /tmp/pipeline-put.json -w '%{http_code}' -X PUT http://127.0.0.1:3020/api/pipeline -H 'Content-Type: application/json' --data-binary @/tmp/payload.json || true)
-            echo "HTTP $code"
-            cat /tmp/pipeline-put.json
-            echo
+            deal=$(python3 -c "import json;print(json.load(open('/tmp/move.json'))['dealId'])")
+            from=$(python3 -c "import json;print(json.load(open('/tmp/move.json'))['from'])")
+            to=$(python3 -c "import json;print(json.load(open('/tmp/move.json'))['to'])")
+            code=$(curl -sS -o /tmp/move-out.json -w '%{http_code}' -X PUT http://127.0.0.1:3020/api/pipeline -H 'Content-Type: application/json' --data "{\"dealId\":\"$deal\",\"stageId\":\"$to\"}")
+            echo "move HTTP $code"
+            test "$code" = 200
+            code=$(curl -sS -o /tmp/move-back.json -w '%{http_code}' -X PUT http://127.0.0.1:3020/api/pipeline -H 'Content-Type: application/json' --data "{\"dealId\":\"$deal\",\"stageId\":\"$from\"}")
+            echo "restore HTTP $code"
+            test "$code" = 200
           fi
-
-          echo '=== recent service errors ==='
-          journalctl -u satori-crm-v2 -n 80 --no-pager | grep -Ei 'telegram|error|exception|failed|pipeline' | tail -40 || true
           REMOTE
