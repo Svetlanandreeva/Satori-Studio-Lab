@@ -17,30 +17,50 @@ jobs:
           ssh-private-key: ${{ secrets.DEPLOY_SSH_KEY }}
       - name: Trust production server
         run: ssh-keyscan -H 194.226.97.103 >> ~/.ssh/known_hosts
-      - name: Inspect live CRM project and economics state
+      - name: Verify live calculation gate, projects and expense fields
         run: |
           ssh root@194.226.97.103 'bash -se' <<'REMOTE'
           set -eu
-          DB=/var/lib/satori-auto-crm/crm.db
           systemctl is-active --quiet satori-crm-v2
-          echo '=== stages ==='
+
+          curl -fsS http://127.0.0.1:3020/api/economics >/tmp/economics.json
+          curl -fsS http://127.0.0.1:3020/api/projects >/tmp/projects.json
+
           python3 - <<'PY'
-          import sqlite3
+          import collections, json, sqlite3
+
+          economics=json.load(open('/tmp/economics.json'))
+          projects=json.load(open('/tmp/projects.json')).get('projects', [])
+          deals=economics.get('deals', [])
+          expense_items=economics.get('fixedExpenses', {}).get('items', [])
+
+          econ_stages=dict(collections.Counter(x.get('stageName') for x in deals))
+          project_stages=dict(collections.Counter(x.get('stageName') for x in projects))
+          print('economics', {'count': len(deals), 'stages': econ_stages})
+          print('projects', {'count': len(projects), 'stages': project_stages})
+          print('deadlineMetrics', all(all(k in x for k in ['daysRemaining','overdueDays','deadlineStatus']) for x in projects))
+          if expense_items:
+              print('expenseFields', sorted(expense_items[0].keys()))
+              required={'expenseType','percentRate','percentBaseAmount','dueDate','paidAt','paymentStatus'}
+              assert required.issubset(expense_items[0].keys())
+
+          assert 'Отказ' not in econ_stages, econ_stages
+          assert 'Отказ' not in project_stages, project_stages
+          assert all(all(k in x for k in ['daysRemaining','overdueDays','deadlineStatus']) for x in projects)
+
           db=sqlite3.connect('/var/lib/satori-auto-crm/crm.db')
-          for row in db.execute('select name, "order", is_won, is_lost from pipeline_stages order by "order"'):
-              print(row)
-          PY
-          echo '=== economics ==='
-          curl -fsS http://127.0.0.1:3020/api/economics | python3 -c 'import json,sys,collections; d=json.load(sys.stdin); print({"dealCount":len(d.get("deals",[])),"stages":dict(collections.Counter(x.get("stageName") for x in d.get("deals",[]))),"fixedExpenseFields":sorted((d.get("fixedExpenses",{}).get("items") or [{}])[0].keys()) if d.get("fixedExpenses",{}).get("items") else []})'
-          echo '=== projects ==='
-          curl -fsS http://127.0.0.1:3020/api/projects | python3 -c 'import json,sys,collections; d=json.load(sys.stdin); p=d.get("projects",[]); print({"projectCount":len(p),"stages":dict(collections.Counter(x.get("stageName") for x in p)),"hasDeadlineMetrics":all(all(k in x for k in ["daysRemaining","overdueDays","deadlineStatus"]) for x in p)})'
-          echo '=== flow state ==='
-          python3 - <<'PY'
-          import sqlite3
-          db=sqlite3.connect('/var/lib/satori-auto-crm/crm.db')
-          print('tracked', db.execute('select count(*) from deal_flow_state where calculation_entered_at is not null').fetchone()[0])
-          print('tracked by stage')
-          for row in db.execute('select ps.name,count(*) from deal_flow_state f join deals d on d.id=f.deal_id join pipeline_stages ps on ps.id=d.stage_id where f.calculation_entered_at is not null group by ps.name order by ps.name'):
-              print(row)
+          tracked=list(db.execute('''
+            select ps.name,count(*)
+            from deal_flow_state f
+            join deals d on d.id=f.deal_id
+            join pipeline_stages ps on ps.id=d.stage_id
+            where f.calculation_entered_at is not null
+            group by ps.name order by ps.name
+          '''))
+          print('trackedByStage', tracked)
+          assert not any(name == 'Отказ' for name, _ in tracked), tracked
+          marker=db.execute("select value from deal_flow_meta where key='lost_backfill_cleaned_v1'").fetchone()
+          print('cleanupMarker', marker)
+          assert marker and marker[0] == '1'
           PY
           REMOTE
