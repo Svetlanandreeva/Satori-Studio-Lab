@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { syncStoreOrder, type StoreOrder } from "@/lib/store-orders";
+import { runCrmConsistencyRepair } from "@/lib/crm-consistency";
 
 export const dynamic = "force-dynamic";
 
@@ -26,9 +27,14 @@ export async function POST(request: NextRequest) {
       }
     });
 
+    // Старый storefront всё ещё может прислать/создать технический этап
+    // «Отправлен клиенту». После каждой синхронизации сводим его к единой
+    // стадии «Доставка», чтобы воронка не расползалась повторно.
+    const repair = runCrmConsistencyRepair();
+
     const failed = results.filter((result) => !result.ok);
     return NextResponse.json(
-      { ok: failed.length === 0, processed: results.length, failed: failed.length, results },
+      { ok: failed.length === 0, processed: results.length, failed: failed.length, results, repair },
       { status: failed.length === results.length ? 500 : 200 }
     );
   } catch (error) {
