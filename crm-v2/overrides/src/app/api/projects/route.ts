@@ -3,9 +3,19 @@ import { listProjects, saveProjectDetails } from "@/lib/projects";
 
 export const dynamic = "force-dynamic";
 
+function normalizeDeadlineBucket<T extends Record<string, unknown> | null>(project: T): T {
+  if (!project) return project;
+  const daysRemaining = Number(project.daysRemaining);
+  if (project.deadlineStatus === "due_soon" && Number.isFinite(daysRemaining) && daysRemaining > 2) {
+    return { ...project, deadlineStatus: "on_track" } as T;
+  }
+  return project;
+}
+
 export async function GET() {
   try {
-    return NextResponse.json({ projects: listProjects() });
+    const projects = listProjects().map((project) => normalizeDeadlineBucket(project));
+    return NextResponse.json({ projects });
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "Не удалось загрузить проекты" },
@@ -32,7 +42,7 @@ export async function PUT(request: NextRequest) {
       paymentTerms: body.paymentTerms ? String(body.paymentTerms) : null,
       notes: body.notes ? String(body.notes) : null,
     });
-    return NextResponse.json(result);
+    return NextResponse.json(normalizeDeadlineBucket(result));
   } catch (error) {
     const message = error instanceof Error ? error.message : "Не удалось сохранить проект";
     return NextResponse.json({ error: message }, { status: 400 });
