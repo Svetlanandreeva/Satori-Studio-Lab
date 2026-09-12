@@ -2,7 +2,12 @@
 
 const https = require("node:https");
 const { randomBytes } = require("node:crypto");
-const Database = require("better-sqlite3");
+let Database;
+try {
+  Database = require("better-sqlite3");
+} catch {
+  Database = require("/var/www/satori/crm-v2/node_modules/better-sqlite3");
+}
 
 const DB_PATH = process.env.CRM_DB_PATH || "/var/lib/satori-auto-crm/crm.db";
 const CRM_ORIGIN = (process.env.CRM_INTERNAL_ORIGIN || "http://127.0.0.1:3020").replace(/\/$/, "");
@@ -188,8 +193,6 @@ async function runOnce() {
   const response = await telegramRequest(token, "getUpdates", payload);
   if (!response || response.ok !== true) {
     const description = response && response.description ? response.description : "Telegram getUpdates вернул ошибку";
-    // Another route or an old process may have restored a webhook. Heal it here
-    // instead of leaving inbound messages broken.
     if (/webhook/i.test(description) || Number(response && response.error_code) === 409) {
       activeToken = "";
       await switchToPolling(token);
