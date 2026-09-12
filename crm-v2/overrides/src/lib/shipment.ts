@@ -52,10 +52,12 @@ function telegramMeta(notes: unknown): { chatId: string | null; businessConnecti
 }
 
 function emailConfig() {
-  const address = String(getSetting(INTEGRATION_KEYS.emailAddress) || "").trim();
+  const address = String(getSetting(INTEGRATION_KEYS.emailAddress) || "").trim().toLowerCase();
+  const domain = address.split("@")[1] || "";
+  const isYandexMailbox = domain === "satori.ru" || domain === "yandex.ru" || domain.startsWith("yandex.");
   const username = String(getSetting(INTEGRATION_KEYS.emailUsername) || address).trim();
   const password = String(getSetting(INTEGRATION_KEYS.emailPassword) || "");
-  const host = String(getSetting(INTEGRATION_KEYS.emailSmtpHost) || "").trim();
+  const host = String(getSetting(INTEGRATION_KEYS.emailSmtpHost) || (isYandexMailbox ? "smtp.yandex.ru" : "")).trim();
   const port = Number(getSetting(INTEGRATION_KEYS.emailSmtpPort) || 465);
   const secure = getBooleanSetting(INTEGRATION_KEYS.emailSmtpSecure, true);
   const fromName = String(getSetting(INTEGRATION_KEYS.emailFromName) || "Satori Studio").trim() || "Satori Studio";
@@ -64,8 +66,10 @@ function emailConfig() {
 
 async function sendStandaloneEmail(to: string, subject: string, text: string): Promise<{ sent: boolean; error?: string }> {
   const config = emailConfig();
+  const recipient = String(to || "").trim().toLowerCase();
+  if (!recipient) return { sent: false, error: "У клиента не указан email" };
   if (!config.address || !config.username || !config.password || !config.host) {
-    return { sent: false, error: "Почта не настроена" };
+    return { sent: false, error: "Почта не настроена для исходящей отправки" };
   }
   try {
     const transporter = nodemailer.createTransport({
@@ -80,7 +84,7 @@ async function sendStandaloneEmail(to: string, subject: string, text: string): P
     });
     await transporter.sendMail({
       from: { name: config.fromName, address: config.address },
-      to,
+      to: recipient,
       subject,
       text,
     });
@@ -103,7 +107,6 @@ function shipmentMessage(name: string, title: string, trackingCode: string): str
 
 function recordActivity(input: { contactId: string; dealId: string; description: string; type?: string }) {
   if (!tableExists("activities")) return;
-  // activities.created_at/completed_at — drizzle timestamp в секундах, не миллисекундах.
   const now = Math.floor(Date.now() / 1000);
   sqlite.prepare(`
     INSERT INTO activities(id,type,description,contact_id,deal_id,scheduled_at,completed_at,created_at)
@@ -220,12 +223,11 @@ export async function notifyShipment(dealId: string, trackingCode: string) {
   }
 
   let emailError = "";
-  if (row.email) {
-    // Если с клиентом уже есть почтовый диалог, отвечаем именно в него — тогда
-    // отправка видна в «Сообщениях». Без истории используем обычное SMTP-письмо.
+  const recipientEmail = String(row.email || "").trim().toLowerCase();
+  if (recipientEmail) {
     const thread = tableExists("email_threads")
       ? sqlite.prepare(`SELECT id FROM email_threads WHERE contact_id=? AND lower(remote_email)=lower(?) ORDER BY last_message_at DESC LIMIT 1`)
-          .get(row.contactId, row.email) as { id: string } | undefined
+          .get(row.contactId, recipientEmail) as { id: string } | undefined
       : undefined;
     if (thread?.id) {
       try {
@@ -240,18 +242,18 @@ export async function notifyShipment(dealId: string, trackingCode: string) {
       }
     }
 
-    const mail = await sendStandaloneEmail(row.email, `Ваш заказ отправлен · трек ${trackingCode}`, text);
+    const mail = await sendStandaloneEmail(recipientEmail, `Ваш заказ отправлен · трек ${trackingCode}`, text);
     if (mail.sent) {
       const now = Date.now();
       sqlite.prepare(`UPDATE shipment_state SET notified_at=?,notification_channel='email',notification_error=NULL,updated_at=? WHERE deal_id=?`)
         .run(now, now, dealId);
-      recordActivity({ contactId: row.contactId, dealId, type: "email_outgoing", description: `[shipment:${trackingCode}] Трек-номер отправлен на ${row.email}` });
+      recordActivity({ contactId: row.contactId, dealId, type: "email_outgoing", description: `[shipment:${trackingCode}] Трек-номер отправлен на ${recipientEmail}` });
       return { sent: true, channel: "email" };
     }
     emailError = [emailError, mail.error || "Email не отправлен"].filter(Boolean).join("; ");
   }
 
-  const error = [telegramError, emailError, !meta.chatId && !row.email ? "У клиента нет Telegram-диалога и email" : ""]
+  const error = [telegramError, emailError, !meta.chatId && !recipientEmail ? "У клиента нет Telegram-диалога и email" : ""]
     .filter(Boolean).join("; ");
   sqlite.prepare(`UPDATE shipment_state SET notification_error=?,updated_at=? WHERE deal_id=?`).run(error || "Не удалось отправить уведомление", Date.now(), dealId);
   return { sent: false, channel: null, needsManual: true, error: error || "Не удалось отправить уведомление" };
