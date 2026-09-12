@@ -107,8 +107,8 @@ function externalOrigin(request: NextRequest): string {
   return `${proto}://${host}`;
 }
 
-function displayName(message: TelegramMessage): string {
-  const user = message.from;
+function displayName(message: TelegramMessage, preferChat = false): string {
+  const user = preferChat ? undefined : message.from;
   const parts = [
     user?.first_name || message.chat.first_name,
     user?.last_name || message.chat.last_name,
@@ -117,13 +117,13 @@ function displayName(message: TelegramMessage): string {
     .join(" ")
     .trim();
   if (parts) return parts;
-  const username = user?.username || message.chat.username;
+  const username = (preferChat ? message.chat.username : user?.username || message.chat.username);
   if (username) return `@${username}`;
   return `Telegram ${message.chat.id}`;
 }
 
-function usernameOf(message: TelegramMessage): string | null {
-  const value = message.from?.username || message.chat.username;
+function usernameOf(message: TelegramMessage, preferChat = false): string | null {
+  const value = preferChat ? message.chat.username : message.from?.username || message.chat.username;
   return value ? `@${value}` : null;
 }
 
@@ -285,7 +285,10 @@ export async function POST(request: NextRequest) {
     isBusiness && businessOwnerUserId && String(message.from?.id || "") === businessOwnerUserId
   );
 
-  const username = fromOwner ? null : usernameOf(message);
+  // For outgoing Business messages message.from is the Satori account itself,
+  // while message.chat is the customer. Use the chat identity so a conversation
+  // started in the Telegram app is also created and visible in CRM.
+  const username = usernameOf(message, fromOwner);
   const sharedPhone = fromOwner ? null : normalizeRussianPhone(message.contact?.phone_number);
   const phoneKey = phoneIdentity(sharedPhone);
   const allContacts = db.select().from(contacts).all();
@@ -296,10 +299,6 @@ export async function POST(request: NextRequest) {
   }
   if (!contact && phoneKey) {
     contact = allContacts.find((item) => phoneIdentity(item.phone) === phoneKey);
-  }
-
-  if (!contact && fromOwner) {
-    return NextResponse.json({ ok: true, ignored: "outgoing-business-without-contact" });
   }
 
   if (contact && alreadyProcessed(contact.notes, chatId, message.message_id)) {
@@ -318,7 +317,7 @@ export async function POST(request: NextRequest) {
     contact = db
       .insert(contacts)
       .values({
-        name: displayName(message),
+        name: displayName(message, fromOwner),
         email: null,
         phone: sharedPhone,
         company: null,
@@ -363,6 +362,8 @@ export async function POST(request: NextRequest) {
     })
     .run();
 
+  // Outgoing messages written in the Telegram app are mirrored into CRM, but
+  // they should not create a sales deal by themselves or trigger a notification.
   if (fromOwner) {
     return NextResponse.json({ ok: true, contactId: contact.id, outgoing: true });
   }
