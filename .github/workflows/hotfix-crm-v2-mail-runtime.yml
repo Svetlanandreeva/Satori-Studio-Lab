@@ -1,0 +1,51 @@
+name: Hotfix CRM v2 mail runtime
+
+on:
+  push:
+    branches: ['diag/crm-v2-500']
+    paths:
+      - '.github/workflows/hotfix-crm-v2-mail-runtime.yml'
+
+jobs:
+  hotfix:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.DEPLOY_SSH_KEY }}
+      - name: Trust production server
+        run: ssh-keyscan -H 194.226.97.103 >> ~/.ssh/known_hosts
+      - name: Repair mail runtime and restart CRM
+        run: |
+          ssh root@194.226.97.103 'bash -se' <<'REMOTE'
+          set -eux
+          runtime=/var/lib/satori-auto-crm/mail-runtime
+          cache=/var/lib/satori-auto-crm/.npm-cache
+          mkdir -p "$runtime" "$cache" /etc/systemd/system/satori-crm-v2.service.d
+          chown -R www-data:www-data /var/lib/satori-auto-crm
+          sudo -u www-data env HOME=/var/lib/satori-auto-crm NPM_CONFIG_CACHE="$cache" \
+            /opt/node22/bin/npm install --omit=dev --no-audit --no-fund --prefix "$runtime" \
+            'imapflow@^1' 'nodemailer@^7' 'mailparser@^3'
+          cat >/etc/systemd/system/satori-crm-v2.service.d/mail-runtime.conf <<'UNIT'
+          [Service]
+          Environment=HOME=/var/lib/satori-auto-crm
+          Environment=NPM_CONFIG_CACHE=/var/lib/satori-auto-crm/.npm-cache
+          Environment=CRM_MAIL_MODULE_ROOT=/var/lib/satori-auto-crm/mail-runtime
+          UNIT
+          systemctl daemon-reload
+          systemctl restart satori-crm-v2
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:3020/api/pipeline >/tmp/pipeline.json; then break; fi
+            sleep 2
+          done
+          python3 - <<'PY'
+          import json
+          data=json.load(open('/tmp/pipeline.json'))
+          assert len(data) >= 1, data
+          print('pipeline ok:', len(data))
+          PY
+          curl -fsS 'http://127.0.0.1:3020/api/inbox?filter=client' >/tmp/inbox.json
+          curl -fsS http://127.0.0.1:3020/api/integrations/settings >/tmp/settings.json
+          echo 'CRM runtime repaired'
+          REMOTE
