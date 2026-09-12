@@ -9,6 +9,7 @@ import { getDealEconomics } from "@/lib/economics";
 import { listProjects } from "@/lib/projects";
 import { getAssistantState } from "@/lib/assistant";
 import { enrichContactFromDialogs } from "@/lib/contact-intelligence";
+import { repairContactContextFromDialogs } from "@/lib/contact-context-repair";
 
 export const dynamic = "force-dynamic";
 
@@ -20,6 +21,7 @@ export default async function ContactDetailPage({ params }: { params: Promise<{ 
   let intelligence = null;
   try {
     intelligence = enrichContactFromDialogs(id).intelligence;
+    intelligence = repairContactContextFromDialogs(id) || intelligence;
     contact = db.select().from(contacts).where(eq(contacts.id, id)).get() || contact;
   } catch {}
 
