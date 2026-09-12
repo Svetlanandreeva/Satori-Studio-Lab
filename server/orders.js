@@ -188,6 +188,7 @@ export async function updateOrder(id, patch) {
     const idx = orders.findIndex((o) => o.id === id);
     if (idx === -1) return null;
 
+    const previousFulfillment = normalizeFulfillmentStatus(orders[idx].fulfillmentStatus);
     const verifiedPayment = await verifyPaidTransition(orders[idx], patch);
     const normalizedPatch = { ...patch };
     if (normalizedPatch.fulfillmentStatus !== undefined) {
@@ -198,10 +199,23 @@ export async function updateOrder(id, patch) {
         verifiedPayment?.captured_at || verifiedPayment?.created_at || new Date().toISOString();
     }
 
+    const nextFulfillment = normalizeFulfillmentStatus(
+      normalizedPatch.fulfillmentStatus ?? orders[idx].fulfillmentStatus
+    );
+    const statusChanged = nextFulfillment !== previousFulfillment;
+    if (statusChanged && nextFulfillment === "Отправлен клиенту" && !orders[idx].shippedAt && !normalizedPatch.shippedAt) {
+      normalizedPatch.shippedAt = new Date().toISOString();
+    }
+    if (statusChanged && nextFulfillment === "Выполнен") {
+      const completedAt = new Date().toISOString();
+      if (!orders[idx].shippedAt && !normalizedPatch.shippedAt) normalizedPatch.shippedAt = completedAt;
+      if (!orders[idx].deliveredAt && !normalizedPatch.deliveredAt) normalizedPatch.deliveredAt = completedAt;
+    }
+
     orders[idx] = {
       ...orders[idx],
       ...normalizedPatch,
-      fulfillmentStatus: normalizeFulfillmentStatus(normalizedPatch.fulfillmentStatus ?? orders[idx].fulfillmentStatus),
+      fulfillmentStatus: nextFulfillment,
       crmNumber: orders[idx].crmNumber || crmNumber(id),
     };
     await writeFile(ORDERS_FILE, JSON.stringify(orders, null, 2), "utf-8");
