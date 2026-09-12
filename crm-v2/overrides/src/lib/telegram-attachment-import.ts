@@ -60,7 +60,11 @@ function attachmentFromMessage(message: TelegramMessage): { ref: TelegramFileRef
   return null;
 }
 
-export async function importTelegramAttachmentsFromUpdate(update: unknown, contactId: string): Promise<number> {
+export async function importTelegramAttachmentsFromUpdate(
+  update: unknown,
+  contactId: string,
+  direction: "incoming" | "outgoing" = "incoming"
+): Promise<number> {
   const message = messageFromUpdate((update || {}) as TelegramUpdate);
   if (!message || !contactId) return 0;
   const attachment = attachmentFromMessage(message);
@@ -90,7 +94,7 @@ export async function importTelegramAttachmentsFromUpdate(update: unknown, conta
       sourceChannel: "telegram",
       sourceMessageId: messageKey,
       sourceAttachmentId: attachmentKey,
-      sourceDirection: message.business_connection_id ? null : "incoming",
+      sourceDirection: direction,
       createdAt: message.date ? new Date(message.date * 1000) : new Date(),
     });
     return saved ? 1 : 0;
