@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Building2, Calculator, CheckCircle2, Edit3, Loader2, Plus, Search, Trash2, WalletCards } from "lucide-react";
+import { Building2, Calculator, CheckCircle2, Edit3, Eye, Loader2, Plus, Search, Trash2, WalletCards } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -70,6 +70,7 @@ export default function EconomicsPage() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [search, setSearch] = useState("");
+  const [viewing, setViewing] = useState<EconomicsDeal | null>(null);
   const [editing, setEditing] = useState<EconomicsDeal | null>(null);
   const [form, setForm] = useState<FormState>(emptyForm);
   const [month, setMonth] = useState(browserMonth);
@@ -236,9 +237,49 @@ export default function EconomicsPage() {
     <Card>
       <CardHeader><CardTitle className="flex items-center gap-2 text-base"><WalletCards className="h-4 w-4" />Экономика по сделкам после «Расчёта»</CardTitle></CardHeader>
       <CardContent className="p-0"><div className="overflow-x-auto"><table className="w-full text-sm"><thead className="bg-muted/50 text-xs text-muted-foreground"><tr><th className="p-3 text-left">Клиент / сделка</th><th className="p-3 text-right">Сумма</th><th className="p-3 text-right">Получено</th><th className="p-3 text-right">Эквайринг</th><th className="p-3 text-right">Прямые расходы</th><th className="p-3 text-right">Менеджер 50%</th><th className="p-3 text-right">Компания</th><th className="p-3 text-right">Маржа</th><th className="p-3"></th></tr></thead><tbody>
-        {visibleDeals.map((deal) => <tr key={deal.dealId} className="border-t"><td className="p-3"><Link href={`/contacts/${deal.contactId}`} className="font-medium hover:underline">{deal.contactName}</Link><div className="text-xs text-muted-foreground">{deal.dealTitle} · {deal.stageName}</div></td><td className="p-3 text-right">{rubles(deal.dealValue)}</td><td className="p-3 text-right">{rubles(deal.receivedAmount)}</td><td className="p-3 text-right">{percent(deal.paymentCommissionRate)}<div className="text-xs text-muted-foreground">{rubles(deal.paymentCommission)}</div></td><td className="p-3 text-right">{rubles(deal.directCost)}</td><td className="p-3 text-right font-medium text-violet-700">{rubles(deal.managerCommission)}</td><td className={`p-3 text-right font-medium ${profitClass(deal.profit)}`}>{rubles(deal.profit)}</td><td className="p-3 text-right">{percent(deal.margin)}</td><td className="p-3 text-right"><Button variant="outline" size="sm" onClick={() => openDeal(deal)}><Edit3 className="mr-2 h-4 w-4" />Изменить</Button></td></tr>)}
+        {visibleDeals.map((deal) => <tr key={deal.dealId} className="border-t hover:bg-muted/20"><td className="p-3"><Link href={`/contacts/${deal.contactId}`} className="font-medium hover:underline">{deal.contactName}</Link><div className="text-xs text-muted-foreground">{deal.dealTitle} · {deal.stageName}</div></td><td className="p-3 text-right">{rubles(deal.dealValue)}</td><td className="p-3 text-right">{rubles(deal.receivedAmount)}</td><td className="p-3 text-right">{percent(deal.paymentCommissionRate)}<div className="text-xs text-muted-foreground">{rubles(deal.paymentCommission)}</div></td><td className="p-3 text-right"><button type="button" onClick={() => setViewing(deal)} className="font-medium underline-offset-4 hover:underline">{rubles(deal.directCost)}</button></td><td className="p-3 text-right font-medium text-violet-700">{rubles(deal.managerCommission)}</td><td className={`p-3 text-right font-medium ${profitClass(deal.profit)}`}>{rubles(deal.profit)}</td><td className="p-3 text-right">{percent(deal.margin)}</td><td className="p-3"><div className="flex justify-end gap-2"><Button variant="ghost" size="sm" onClick={() => setViewing(deal)}><Eye className="mr-2 h-4 w-4" />Посмотреть</Button><Button variant="outline" size="sm" onClick={() => openDeal(deal)}><Edit3 className="mr-2 h-4 w-4" />Изменить</Button></div></td></tr>)}
       </tbody></table></div></CardContent>
     </Card>
+
+    <Dialog open={Boolean(viewing)} onOpenChange={(open) => !open && setViewing(null)}><DialogContent className="sm:max-w-2xl"><DialogHeader><DialogTitle>Разбор экономики сделки</DialogTitle><DialogDescription>{viewing ? `${viewing.contactName} · ${viewing.dealTitle} · ${viewing.stageName}` : ""}</DialogDescription></DialogHeader>
+      {viewing && <div className="space-y-5">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+          <Mini label="Сумма сделки" value={rubles(viewing.dealValue)} />
+          <Mini label="Получено" value={rubles(viewing.receivedAmount)} good />
+          <Mini label="Осталось получить" value={rubles(viewing.unpaid)} />
+          <Mini label="Маржа компании" value={percent(viewing.margin)} good={viewing.profit >= 0} />
+        </div>
+
+        <div className="overflow-hidden rounded-xl border">
+          <div className="border-b bg-muted/40 px-4 py-3"><div className="font-medium">Из чего сложились расходы</div><div className="mt-0.5 text-xs text-muted-foreground">Только расходы этой сделки. Постоянные расходы бизнеса считаются отдельно.</div></div>
+          <div className="divide-y">
+            <BreakdownRow label="Производство / материалы" value={viewing.productionCost} />
+            <BreakdownRow label={`Эквайринг · ${percent(viewing.paymentCommissionRate)}`} value={viewing.paymentCommission} />
+            <BreakdownRow label="Доставка" value={viewing.deliveryCost} />
+            <BreakdownRow label="Упаковка" value={viewing.packagingCost} />
+            <BreakdownRow label="Подрядчики" value={viewing.contractorCost} />
+            <BreakdownRow label="Налог / сбор по сделке" value={viewing.taxCost} />
+            <BreakdownRow label="Прочее" value={viewing.otherCost} />
+            <BreakdownRow label="Прямые расходы итого" value={viewing.directCost} strong />
+          </div>
+        </div>
+
+        <div className="rounded-xl border bg-slate-50/70 p-4">
+          <div className="mb-3 text-sm font-medium">Как получилась прибыль</div>
+          <div className="space-y-2 text-sm">
+            <FormulaRow label="Получено от клиента" value={viewing.receivedAmount} />
+            <FormulaRow label="− Прямые расходы" value={-viewing.directCost} />
+            <FormulaRow label="= Прибыль до менеджера" value={viewing.profitBeforeManager} strong />
+            <FormulaRow label={`− Менеджер ${viewing.managerCommissionRate || MANAGER_COMMISSION_RATE}%`} value={-viewing.managerCommission} tone="violet" />
+            <div className="my-2 border-t" />
+            <FormulaRow label="= Остаётся компании" value={viewing.profit} strong tone={viewing.profit >= 0 ? "green" : "red"} />
+          </div>
+        </div>
+
+        {viewing.economicsNotes && <div className="rounded-xl border bg-muted/20 p-4"><div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Комментарий</div><div className="mt-2 whitespace-pre-wrap text-sm">{viewing.economicsNotes}</div></div>}
+      </div>}
+      <DialogFooter className="gap-2 sm:justify-between"><div>{viewing && <Link href={`/contacts/${viewing.contactId}`}><Button variant="ghost">Открыть клиента</Button></Link>}</div><div className="flex gap-2"><Button variant="outline" onClick={() => setViewing(null)}>Закрыть</Button>{viewing && <Button onClick={() => { const deal = viewing; setViewing(null); openDeal(deal); }}><Edit3 className="mr-2 h-4 w-4" />Изменить</Button>}</div></DialogFooter>
+    </DialogContent></Dialog>
 
     <Dialog open={expenseOpen} onOpenChange={(open) => { setExpenseOpen(open); if (!open) resetExpense(); }}><DialogContent className="sm:max-w-xl"><DialogHeader><DialogTitle>Добавить расход</DialogTitle><DialogDescription>Фиксированные зарплаты, реклама, сервер, подписки и налоги. Комиссия менеджера по сделкам считается автоматически отдельно.</DialogDescription></DialogHeader>
       <div className="flex flex-wrap gap-2"><Button type="button" variant="outline" size="sm" onClick={() => preset("salary")}>Зарплаты</Button><Button type="button" variant="outline" size="sm" onClick={() => preset("ads")}>Реклама</Button><Button type="button" variant="outline" size="sm" onClick={() => preset("server")}>Сервер</Button><Button type="button" variant="outline" size="sm" onClick={() => preset("taxes")}>Налог</Button></div>
@@ -265,3 +306,5 @@ function Stat({ label, value, note, tone = "" }: { label: string; value: string;
 function Mini({ label, value, good = false }: { label: string; value: string; good?: boolean }) { return <div className="rounded-lg border bg-background p-3"><div className="text-xs text-muted-foreground">{label}</div><div className={`mt-1 text-lg font-semibold ${good ? "text-emerald-700" : ""}`}>{value}</div></div>; }
 function Field({ label, children }: { label: string; children: React.ReactNode }) { return <div className="space-y-2"><Label>{label}</Label>{children}</div>; }
 function MoneyField({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) { return <Field label={label}><div className="relative"><Input inputMode="decimal" value={value} onChange={(e) => onChange(e.target.value)} placeholder="0" className="pr-8" /><span className="pointer-events-none absolute right-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">₽</span></div></Field>; }
+function BreakdownRow({ label, value, strong = false }: { label: string; value: number; strong?: boolean }) { return <div className={`flex items-center justify-between gap-4 px-4 py-3 ${strong ? "bg-muted/25 font-semibold" : ""}`}><span className="text-sm text-muted-foreground">{label}</span><span className="text-sm tabular-nums">{rubles(value)}</span></div>; }
+function FormulaRow({ label, value, strong = false, tone }: { label: string; value: number; strong?: boolean; tone?: "violet" | "green" | "red" }) { const toneClass = tone === "violet" ? "text-violet-700" : tone === "green" ? "text-emerald-700" : tone === "red" ? "text-red-700" : ""; return <div className={`flex items-center justify-between gap-4 ${strong ? "font-semibold" : ""}`}><span className="text-muted-foreground">{label}</span><span className={`tabular-nums ${toneClass}`}>{value < 0 ? `−${rubles(Math.abs(value))}` : rubles(value)}</span></div>; }
