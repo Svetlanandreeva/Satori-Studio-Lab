@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
-import { Bot, Loader2, Mail, MessageCircle, RefreshCw, Search, Send, UserRound } from "lucide-react";
+import { Bot, Loader2, Mail, MessageCircle, RefreshCw, Search, Send, UserPlus } from "lucide-react";
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -41,6 +41,7 @@ interface UnifiedDetail {
   title: string;
   subtitle: string;
   isService: boolean;
+  pipelineStage: string | null;
   messages: UnifiedMessage[];
 }
 
@@ -71,6 +72,7 @@ export default function InboxPage() {
   const [detailLoading, setDetailLoading] = useState(false);
   const [syncing, setSyncing] = useState(false);
   const [sending, setSending] = useState(false);
+  const [promoting, setPromoting] = useState(false);
   const [draft, setDraft] = useState("");
 
   async function loadThreads(preferredKey?: string | null) {
@@ -152,6 +154,7 @@ export default function InboxPage() {
           title: payload.contact?.name || payload.thread?.remoteName || "Telegram",
           subtitle: payload.thread?.remoteHandle || (payload.thread?.channel === "telegram_account" ? "Личный Telegram" : "Telegram-бот"),
           isService: false,
+          pipelineStage: null,
           messages: (payload.messages || []).map((message: any) => ({
             id: message.id,
             direction: message.direction,
@@ -171,6 +174,7 @@ export default function InboxPage() {
           title: payload.contact?.name || payload.thread?.remoteName || payload.thread?.remoteEmail || "Почта",
           subtitle: [payload.thread?.remoteEmail, payload.thread?.subject].filter(Boolean).join(" · "),
           isService: Boolean(payload.thread?.isService),
+          pipelineStage: payload.deal?.stageName || null,
           messages: (payload.messages || []).map((message: any) => ({
             id: message.id,
             direction: message.direction,
@@ -212,6 +216,7 @@ export default function InboxPage() {
       if (!response.ok) throw new Error(payload.error || "Не удалось синхронизировать почту");
       toast.success(payload.configured === false ? "Почта ещё не подключена в Настройках" : payload.imported ? `Добавлено писем: ${payload.imported}` : "Сообщения обновлены");
       await loadThreads(selectedKey);
+      if (selectedKey) await loadDetail(selectedKey);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Ошибка синхронизации");
     } finally {
@@ -254,9 +259,27 @@ export default function InboxPage() {
       });
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.error || "Не удалось изменить тип переписки");
-      await loadThreads(null);
+      await loadThreads(selectedKey);
+      if (selectedKey) await loadDetail(selectedKey);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Ошибка классификации");
+    }
+  }
+
+  async function promote() {
+    if (!detail || detail.channel !== "email" || detail.contactId) return;
+    setPromoting(true);
+    try {
+      const response = await fetch(`/api/inbox/${encodeURIComponent(detail.threadId)}/promote`, { method: "POST" });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "Не удалось добавить клиента в CRM");
+      toast.success(`Клиент добавлен в CRM · воронка: ${payload.stageName || "Новый запрос"}`);
+      await loadThreads(selectedKey);
+      if (selectedKey) await loadDetail(selectedKey);
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Ошибка добавления клиента");
+    } finally {
+      setPromoting(false);
     }
   }
 
@@ -265,7 +288,7 @@ export default function InboxPage() {
       <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
         <div>
           <div className="flex items-center gap-2"><MessageCircle className="h-6 w-6" /><h1 className="text-2xl font-bold tracking-tight">Сообщения</h1></div>
-          <p className="mt-1 text-sm text-muted-foreground">Telegram и почта в одном окне. Подключения и пароли находятся только в «Настройках».</p>
+          <p className="mt-1 text-sm text-muted-foreground">Письма сами не создают клиентов. Нужный диалог добавляется в CRM вручную кнопкой «Добавить в CRM».</p>
         </div>
         <Button variant="outline" onClick={sync} disabled={syncing}>
           {syncing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}Обновить
@@ -291,7 +314,7 @@ export default function InboxPage() {
                     <div className="flex items-center gap-2"><span className="truncate text-sm font-semibold">{thread.title}</span>{thread.unreadCount > 0 && <Badge className="ml-auto h-5 px-1.5 text-[10px]">{thread.unreadCount}</Badge>}</div>
                     <div className="truncate text-xs text-muted-foreground">{thread.subtitle}</div>
                     <div className="mt-1 line-clamp-2 text-xs text-muted-foreground">{thread.lastDirection === "outgoing" ? "Вы: " : ""}{thread.lastSnippet || "—"}</div>
-                    <div className="mt-2 flex items-center justify-between text-[10px] text-muted-foreground"><span>{thread.channel === "telegram" ? (thread.telegramKind === "telegram_account" ? "Telegram аккаунт" : "Telegram-бот") : thread.isService ? "Сервисное письмо" : "Почта"}</span><span>{dateLabel(thread.lastMessageAt)}</span></div>
+                    <div className="mt-2 flex items-center justify-between text-[10px] text-muted-foreground"><span>{thread.channel === "telegram" ? (thread.telegramKind === "telegram_account" ? "Telegram аккаунт" : "Telegram-бот") : thread.isService ? "Сервисное письмо" : thread.contactId ? "Клиент CRM" : "Почта · не в CRM"}</span><span>{dateLabel(thread.lastMessageAt)}</span></div>
                   </div>
                 </div>
               </button>
@@ -303,12 +326,17 @@ export default function InboxPage() {
           {!selectedKey ? <div className="flex flex-1 items-center justify-center text-sm text-muted-foreground">Выбери диалог слева</div> : detailLoading && !detail ? <div className="flex flex-1 items-center justify-center"><Loader2 className="h-5 w-5 animate-spin" /></div> : detail ? <>
             <header className="flex flex-col gap-3 border-b p-4 sm:flex-row sm:items-center sm:justify-between">
               <div className="min-w-0">
-                <div className="flex flex-wrap items-center gap-2"><h2 className="truncate text-lg font-semibold">{detail.title}</h2><Badge variant={detail.channel === "telegram" ? "default" : detail.isService ? "secondary" : "outline"}>{detail.channel === "telegram" ? "Telegram" : detail.isService ? "Сервисное" : "Почта"}</Badge></div>
+                <div className="flex flex-wrap items-center gap-2">
+                  <h2 className="truncate text-lg font-semibold">{detail.title}</h2>
+                  <Badge variant={detail.channel === "telegram" ? "default" : detail.isService ? "secondary" : "outline"}>{detail.channel === "telegram" ? "Telegram" : detail.isService ? "Сервисное" : "Почта"}</Badge>
+                  {detail.pipelineStage && <Badge variant="outline">Воронка: {detail.pipelineStage}</Badge>}
+                </div>
                 <div className="truncate text-sm text-muted-foreground">{detail.subtitle}</div>
               </div>
               <div className="flex flex-wrap gap-2">
                 {detail.contactId && <Link href={`/contacts/${detail.contactId}`} className="inline-flex h-8 items-center justify-center rounded-md border bg-background px-3 text-xs font-medium hover:bg-muted">Открыть клиента</Link>}
-                {detail.channel === "email" && <Button variant="outline" size="sm" onClick={classify}>{detail.isService ? "Это клиент" : "В сервисные"}</Button>}
+                {detail.channel === "email" && !detail.contactId && <Button size="sm" onClick={promote} disabled={promoting}>{promoting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <UserPlus className="mr-2 h-4 w-4" />}Добавить в CRM</Button>}
+                {detail.channel === "email" && <Button variant="outline" size="sm" onClick={classify}>{detail.isService ? "В обычные" : "В сервисные"}</Button>}
               </div>
             </header>
             <div className="flex-1 space-y-3 overflow-y-auto bg-muted/20 p-4 xl:max-h-[calc(100vh-390px)]">
@@ -321,7 +349,7 @@ export default function InboxPage() {
           </> : null}
         </section>
       </div>
-      <div className="text-xs text-muted-foreground">В текущей выборке: Telegram — {counts.telegram}, почта — {counts.email}. Настройка каналов находится в «Настройках».</div>
+      <div className="text-xs text-muted-foreground">В текущей выборке: Telegram — {counts.telegram}, почта — {counts.email}. Неизвестные отправители остаются только во входящих, пока вы сами не добавите их в CRM.</div>
     </div>
   );
 }
