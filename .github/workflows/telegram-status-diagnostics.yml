@@ -1,0 +1,43 @@
+name: Telegram status diagnostics
+
+on:
+  push:
+    branches:
+      - debug/telegram-live-diagnostics
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Start SSH agent
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.DEPLOY_SSH_KEY }}
+
+      - name: Trust production server
+        run: ssh-keyscan -H 194.226.97.103 >> ~/.ssh/known_hosts
+
+      - name: Read sanitized Telegram status from production
+        run: |
+          ssh root@194.226.97.103 'bash -se' <<'REMOTE'
+          set -eu
+          curl -fsS http://127.0.0.1:3020/api/integrations/telegram/status >/tmp/tg-status.json
+          python3 - <<'PY'
+          import json
+          d=json.load(open('/tmp/tg-status.json'))
+          for k in [
+              'tokenConfigured','webhookConfigured','webhookHealthy','pendingUpdates',
+              'webhookLastError','webhookLastErrorAt','allowedUpdates',
+              'businessUpdatesSubscribed','businessConfigured','businessEnabled',
+              'businessCanReply','businessCanReadMessages','businessError',
+              'lastWebhookUpdateAt','lastWebhookUpdateType','lastBusinessMessageAt'
+          ]:
+              print(f'{k}={d.get(k)!r}')
+          PY
+          echo '=== recent public webhook access ==='
+          if [ -f /var/log/nginx/access.log ]; then
+            tail -n 1000 /var/log/nginx/access.log | grep -E '/api/integrations/(need-number|telegram/webhook)' | tail -n 40 || true
+          fi
+          echo '=== recent CRM Telegram errors ==='
+          journalctl -u satori-crm-v2 --since '90 minutes ago' --no-pager 2>/dev/null | grep -Ei 'telegram|webhook|error|exception' | tail -n 80 || true
+          REMOTE
