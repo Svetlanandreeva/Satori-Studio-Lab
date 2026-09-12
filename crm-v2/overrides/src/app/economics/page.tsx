@@ -15,6 +15,7 @@ interface EconomicsDeal {
   dealId: string; dealTitle: string; dealValue: number; contactId: string; contactName: string; company: string | null; stageName: string;
   receivedAmount: number; productionCost: number; paymentCommission: number; paymentCommissionRate: number; deliveryCost: number;
   packagingCost: number; contractorCost: number; taxCost: number; otherCost: number; economicsNotes: string | null;
+  directCost: number; profitBeforeManager: number; managerCommission: number; managerCommissionRate: number;
   totalCost: number; profit: number; margin: number; unpaid: number;
 }
 
@@ -26,7 +27,7 @@ interface FixedExpense {
 
 interface EconomicsPayload {
   deals: EconomicsDeal[];
-  totals: { dealValue: number; receivedAmount: number; totalCost: number; profit: number; margin: number };
+  totals: { dealValue: number; receivedAmount: number; directCost: number; managerCommission: number; managerCommissionRate: number; totalCost: number; profitBeforeManager: number; profit: number; margin: number };
   fixedExpenses: { month: string; items: FixedExpense[]; total: number; paidTotal: number; unpaidTotal: number; taxBase?: { baseMonth: string; amount: number } };
   taxBase: { baseMonth: string; amount: number };
 }
@@ -37,9 +38,10 @@ interface FormState {
 }
 
 const emptyForm: FormState = { receivedAmount: "", productionCost: "", paymentCommissionRate: "", deliveryCost: "", packagingCost: "", contractorCost: "", taxCost: "", otherCost: "", notes: "" };
+const MANAGER_COMMISSION_RATE = 50;
 
 const expenseCategories: Record<string, string> = {
-  salary: "Зарплаты", ads: "Реклама за месяц", server: "Сервер / IT", subscriptions: "Подписки / сервисы",
+  salary: "Фиксированные зарплаты", ads: "Реклама за месяц", server: "Сервер / IT", subscriptions: "Подписки / сервисы",
   rent: "Аренда", utilities: "Коммунальные", accounting: "Бухгалтерия", taxes: "Налоги", other: "Прочее",
 };
 
@@ -111,9 +113,12 @@ export default function EconomicsPage() {
   const dealPreview = useMemo(() => {
     const received = toCents(form.receivedAmount);
     const acquiring = Math.round((received * numericRate(form.paymentCommissionRate)) / 100);
-    const costs = toCents(form.productionCost) + acquiring + toCents(form.deliveryCost) + toCents(form.packagingCost) + toCents(form.contractorCost) + toCents(form.taxCost) + toCents(form.otherCost);
+    const directCosts = toCents(form.productionCost) + acquiring + toCents(form.deliveryCost) + toCents(form.packagingCost) + toCents(form.contractorCost) + toCents(form.taxCost) + toCents(form.otherCost);
+    const profitBeforeManager = received - directCosts;
+    const managerCommission = Math.max(0, Math.round(profitBeforeManager * MANAGER_COMMISSION_RATE / 100));
+    const costs = directCosts + managerCommission;
     const profit = received - costs;
-    return { acquiring, costs, profit, margin: received > 0 ? (profit / received) * 100 : 0 };
+    return { acquiring, directCosts, profitBeforeManager, managerCommission, costs, profit, margin: received > 0 ? (profit / received) * 100 : 0 };
   }, [form]);
 
   async function saveDeal() {
@@ -137,7 +142,7 @@ export default function EconomicsPage() {
   function preset(category: string) {
     setExpenseCategory(category);
     setExpenseRecurring(true);
-    if (category === "salary") { setExpenseName("Зарплаты"); setExpenseType("fixed"); }
+    if (category === "salary") { setExpenseName("Фиксированные зарплаты"); setExpenseType("fixed"); }
     if (category === "ads") { setExpenseName("Реклама за месяц"); setExpenseType("fixed"); }
     if (category === "server") { setExpenseName("Сервер"); setExpenseType("fixed"); }
     if (category === "taxes") { setExpenseName("Налог"); setExpenseType("percent"); }
@@ -179,21 +184,22 @@ export default function EconomicsPage() {
 
   if (loading && !data) return <div className="flex min-h-80 items-center justify-center text-muted-foreground"><Loader2 className="mr-2 h-5 w-5 animate-spin" />Загрузка экономики...</div>;
 
-  const totals = data?.totals || { dealValue: 0, receivedAmount: 0, totalCost: 0, profit: 0, margin: 0 };
+  const totals = data?.totals || { dealValue: 0, receivedAmount: 0, directCost: 0, managerCommission: 0, managerCommissionRate: MANAGER_COMMISSION_RATE, totalCost: 0, profitBeforeManager: 0, profit: 0, margin: 0 };
   const fixed = data?.fixedExpenses || { month, items: [], total: 0, paidTotal: 0, unpaidTotal: 0 };
   const netProfit = totals.profit - fixed.total;
 
   return <div className="space-y-6">
     <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-      <div><div className="flex items-center gap-2"><Calculator className="h-6 w-6" /><h1 className="text-2xl font-bold tracking-tight">Экономика</h1></div><p className="mt-1 text-sm text-muted-foreground">Фактические оплаты, расходы по сделкам и ежемесячные расходы бизнеса.</p></div>
+      <div><div className="flex items-center gap-2"><Calculator className="h-6 w-6" /><h1 className="text-2xl font-bold tracking-tight">Экономика</h1></div><p className="mt-1 text-sm text-muted-foreground">Фактические оплаты, прямые расходы, зарплата менеджера и ежемесячные расходы бизнеса.</p></div>
       <div className="relative w-full lg:w-96"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" /><Input className="pl-9" placeholder="Клиент или сделка..." value={search} onChange={(e) => setSearch(e.target.value)} /></div>
     </div>
 
-    <div className="grid grid-cols-2 gap-3 xl:grid-cols-4">
+    <div className="grid grid-cols-2 gap-3 xl:grid-cols-5">
       <Stat label="Получено от клиентов" value={rubles(totals.receivedAmount)} note={`Сумма сделок: ${rubles(totals.dealValue)}`} />
-      <Stat label="Расходы по сделкам" value={rubles(totals.totalCost)} note="Производство + эквайринг + логистика" />
+      <Stat label="Прямые расходы" value={rubles(totals.directCost)} note="Материалы, доставка, производство и т.д." />
+      <Stat label="Зарплата / комиссия менеджера" value={rubles(totals.managerCommission)} note={`${totals.managerCommissionRate || MANAGER_COMMISSION_RATE}% от прибыли после прямых расходов`} />
       <Stat label="Постоянные расходы месяца" value={rubles(fixed.total)} note={`Оплачено: ${rubles(fixed.paidTotal)}`} />
-      <Stat label="Чистый результат" value={rubles(netProfit)} note={`До постоянных: ${rubles(totals.profit)}`} tone={profitClass(netProfit)} />
+      <Stat label="Чистый результат компании" value={rubles(netProfit)} note={`После менеджера, до постоянных: ${rubles(totals.profit)}`} tone={profitClass(netProfit)} />
     </div>
 
     <Card>
@@ -229,12 +235,12 @@ export default function EconomicsPage() {
 
     <Card>
       <CardHeader><CardTitle className="flex items-center gap-2 text-base"><WalletCards className="h-4 w-4" />Экономика по сделкам после «Расчёта»</CardTitle></CardHeader>
-      <CardContent className="p-0"><div className="overflow-x-auto"><table className="w-full text-sm"><thead className="bg-muted/50 text-xs text-muted-foreground"><tr><th className="p-3 text-left">Клиент / сделка</th><th className="p-3 text-right">Сумма</th><th className="p-3 text-right">Получено</th><th className="p-3 text-right">Эквайринг</th><th className="p-3 text-right">Расходы</th><th className="p-3 text-right">Прибыль</th><th className="p-3 text-right">Маржа</th><th className="p-3"></th></tr></thead><tbody>
-        {visibleDeals.map((deal) => <tr key={deal.dealId} className="border-t"><td className="p-3"><Link href={`/contacts/${deal.contactId}`} className="font-medium hover:underline">{deal.contactName}</Link><div className="text-xs text-muted-foreground">{deal.dealTitle} · {deal.stageName}</div></td><td className="p-3 text-right">{rubles(deal.dealValue)}</td><td className="p-3 text-right">{rubles(deal.receivedAmount)}</td><td className="p-3 text-right">{percent(deal.paymentCommissionRate)}<div className="text-xs text-muted-foreground">{rubles(deal.paymentCommission)}</div></td><td className="p-3 text-right">{rubles(deal.totalCost)}</td><td className={`p-3 text-right font-medium ${profitClass(deal.profit)}`}>{rubles(deal.profit)}</td><td className="p-3 text-right">{percent(deal.margin)}</td><td className="p-3 text-right"><Button variant="outline" size="sm" onClick={() => openDeal(deal)}><Edit3 className="mr-2 h-4 w-4" />Изменить</Button></td></tr>)}
+      <CardContent className="p-0"><div className="overflow-x-auto"><table className="w-full text-sm"><thead className="bg-muted/50 text-xs text-muted-foreground"><tr><th className="p-3 text-left">Клиент / сделка</th><th className="p-3 text-right">Сумма</th><th className="p-3 text-right">Получено</th><th className="p-3 text-right">Эквайринг</th><th className="p-3 text-right">Прямые расходы</th><th className="p-3 text-right">Менеджер 50%</th><th className="p-3 text-right">Компания</th><th className="p-3 text-right">Маржа</th><th className="p-3"></th></tr></thead><tbody>
+        {visibleDeals.map((deal) => <tr key={deal.dealId} className="border-t"><td className="p-3"><Link href={`/contacts/${deal.contactId}`} className="font-medium hover:underline">{deal.contactName}</Link><div className="text-xs text-muted-foreground">{deal.dealTitle} · {deal.stageName}</div></td><td className="p-3 text-right">{rubles(deal.dealValue)}</td><td className="p-3 text-right">{rubles(deal.receivedAmount)}</td><td className="p-3 text-right">{percent(deal.paymentCommissionRate)}<div className="text-xs text-muted-foreground">{rubles(deal.paymentCommission)}</div></td><td className="p-3 text-right">{rubles(deal.directCost)}</td><td className="p-3 text-right font-medium text-violet-700">{rubles(deal.managerCommission)}</td><td className={`p-3 text-right font-medium ${profitClass(deal.profit)}`}>{rubles(deal.profit)}</td><td className="p-3 text-right">{percent(deal.margin)}</td><td className="p-3 text-right"><Button variant="outline" size="sm" onClick={() => openDeal(deal)}><Edit3 className="mr-2 h-4 w-4" />Изменить</Button></td></tr>)}
       </tbody></table></div></CardContent>
     </Card>
 
-    <Dialog open={expenseOpen} onOpenChange={(open) => { setExpenseOpen(open); if (!open) resetExpense(); }}><DialogContent className="sm:max-w-xl"><DialogHeader><DialogTitle>Добавить расход</DialogTitle><DialogDescription>Зарплата, реклама, сервер, подписки и налоги. По умолчанию расход повторяется каждый месяц.</DialogDescription></DialogHeader>
+    <Dialog open={expenseOpen} onOpenChange={(open) => { setExpenseOpen(open); if (!open) resetExpense(); }}><DialogContent className="sm:max-w-xl"><DialogHeader><DialogTitle>Добавить расход</DialogTitle><DialogDescription>Фиксированные зарплаты, реклама, сервер, подписки и налоги. Комиссия менеджера по сделкам считается автоматически отдельно.</DialogDescription></DialogHeader>
       <div className="flex flex-wrap gap-2"><Button type="button" variant="outline" size="sm" onClick={() => preset("salary")}>Зарплаты</Button><Button type="button" variant="outline" size="sm" onClick={() => preset("ads")}>Реклама</Button><Button type="button" variant="outline" size="sm" onClick={() => preset("server")}>Сервер</Button><Button type="button" variant="outline" size="sm" onClick={() => preset("taxes")}>Налог</Button></div>
       <div className="grid gap-4 sm:grid-cols-2"><Field label="Название"><Input value={expenseName} onChange={(e) => setExpenseName(e.target.value)} placeholder="Например, таргет" /></Field><Field label="Категория"><select className="h-10 w-full rounded-md border bg-background px-3 text-sm" value={expenseCategory} onChange={(e) => { const value = e.target.value; setExpenseCategory(value); if (value === "taxes") setExpenseType("percent"); }}>{Object.entries(expenseCategories).map(([key, label]) => <option key={key} value={key}>{label}</option>)}</select></Field></div>
       <div className="grid grid-cols-2 gap-2"><Button type="button" variant={expenseType === "fixed" ? "default" : "outline"} onClick={() => expenseCategory !== "taxes" && setExpenseType("fixed")}>Фиксированная сумма</Button><Button type="button" variant={expenseType === "percent" ? "default" : "outline"} onClick={() => setExpenseType("percent")}>Процент</Button></div>
@@ -245,9 +251,10 @@ export default function EconomicsPage() {
       <DialogFooter><Button variant="outline" onClick={() => setExpenseOpen(false)}>Отмена</Button><Button onClick={() => void addExpense()} disabled={expenseSaving}>{expenseSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Добавить</Button></DialogFooter>
     </DialogContent></Dialog>
 
-    <Dialog open={Boolean(editing)} onOpenChange={(open) => !open && setEditing(null)}><DialogContent className="sm:max-w-2xl"><DialogHeader><DialogTitle>Экономика сделки</DialogTitle><DialogDescription>{editing ? `${editing.contactName} · ${editing.dealTitle}` : ""}. Эквайринг задаётся процентом от фактически полученной суммы.</DialogDescription></DialogHeader>
-      <div className="grid gap-4 sm:grid-cols-2"><MoneyField label="Получено" value={form.receivedAmount} onChange={(v) => setForm((s) => ({ ...s, receivedAmount: v }))} /><MoneyField label="Производство" value={form.productionCost} onChange={(v) => setForm((s) => ({ ...s, productionCost: v }))} /><Field label="Эквайринг, %"><Input inputMode="decimal" value={form.paymentCommissionRate} onChange={(e) => setForm((s) => ({ ...s, paymentCommissionRate: e.target.value }))} placeholder="2.5" /><div className="mt-1 text-xs text-muted-foreground">Комиссия: {rubles(dealPreview.acquiring)}</div></Field><MoneyField label="Доставка" value={form.deliveryCost} onChange={(v) => setForm((s) => ({ ...s, deliveryCost: v }))} /><MoneyField label="Упаковка" value={form.packagingCost} onChange={(v) => setForm((s) => ({ ...s, packagingCost: v }))} /><MoneyField label="Подрядчики" value={form.contractorCost} onChange={(v) => setForm((s) => ({ ...s, contractorCost: v }))} /><MoneyField label="Налог/сбор по конкретной сделке" value={form.taxCost} onChange={(v) => setForm((s) => ({ ...s, taxCost: v }))} /><MoneyField label="Прочее" value={form.otherCost} onChange={(v) => setForm((s) => ({ ...s, otherCost: v }))} /></div>
-      <div className="grid grid-cols-3 gap-3 rounded-lg border bg-muted/20 p-3"><Mini label="Расходы" value={rubles(dealPreview.costs)} /><Mini label="Прибыль" value={rubles(dealPreview.profit)} good={dealPreview.profit >= 0} /><Mini label="Маржа" value={percent(dealPreview.margin)} /></div>
+    <Dialog open={Boolean(editing)} onOpenChange={(open) => !open && setEditing(null)}><DialogContent className="sm:max-w-2xl"><DialogHeader><DialogTitle>Экономика сделки</DialogTitle><DialogDescription>{editing ? `${editing.contactName} · ${editing.dealTitle}` : ""}. Зарплата / комиссия менеджера считается автоматически: 50% от положительной прибыли после всех прямых расходов.</DialogDescription></DialogHeader>
+      <div className="grid gap-4 sm:grid-cols-2"><MoneyField label="Получено" value={form.receivedAmount} onChange={(v) => setForm((s) => ({ ...s, receivedAmount: v }))} /><MoneyField label="Производство / материалы" value={form.productionCost} onChange={(v) => setForm((s) => ({ ...s, productionCost: v }))} /><Field label="Эквайринг, %"><Input inputMode="decimal" value={form.paymentCommissionRate} onChange={(e) => setForm((s) => ({ ...s, paymentCommissionRate: e.target.value }))} placeholder="2.5" /><div className="mt-1 text-xs text-muted-foreground">Комиссия: {rubles(dealPreview.acquiring)}</div></Field><MoneyField label="Доставка" value={form.deliveryCost} onChange={(v) => setForm((s) => ({ ...s, deliveryCost: v }))} /><MoneyField label="Упаковка" value={form.packagingCost} onChange={(v) => setForm((s) => ({ ...s, packagingCost: v }))} /><MoneyField label="Подрядчики" value={form.contractorCost} onChange={(v) => setForm((s) => ({ ...s, contractorCost: v }))} /><MoneyField label="Налог/сбор по конкретной сделке" value={form.taxCost} onChange={(v) => setForm((s) => ({ ...s, taxCost: v }))} /><MoneyField label="Прочее" value={form.otherCost} onChange={(v) => setForm((s) => ({ ...s, otherCost: v }))} /></div>
+      <div className="rounded-lg border border-violet-200 bg-violet-50/50 p-3 text-sm text-violet-900">Комиссия менеджера = 50% от остатка после производства/материалов, эквайринга, доставки, упаковки, подрядчиков, сборов и прочих прямых расходов. Если заказ уже в минусе, комиссия не начисляется.</div>
+      <div className="grid grid-cols-2 gap-3 sm:grid-cols-5"><Mini label="Прямые расходы" value={rubles(dealPreview.directCosts)} /><Mini label="До менеджера" value={rubles(dealPreview.profitBeforeManager)} good={dealPreview.profitBeforeManager >= 0} /><Mini label="Менеджер 50%" value={rubles(dealPreview.managerCommission)} /><Mini label="Компания" value={rubles(dealPreview.profit)} good={dealPreview.profit >= 0} /><Mini label="Маржа компании" value={percent(dealPreview.margin)} /></div>
       <Field label="Комментарий"><textarea className="min-h-20 w-full rounded-md border bg-background px-3 py-2 text-sm" value={form.notes} onChange={(e) => setForm((s) => ({ ...s, notes: e.target.value }))} /></Field>
       <DialogFooter><Button variant="outline" onClick={() => setEditing(null)}>Отмена</Button><Button onClick={() => void saveDeal()} disabled={saving}>{saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Сохранить</Button></DialogFooter>
     </DialogContent></Dialog>
