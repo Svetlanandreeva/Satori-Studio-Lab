@@ -14,52 +14,68 @@ import {
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
-const primary = [
-  { href: "/", label: "Сегодня", icon: LayoutDashboard },
-  { href: "/inbox", label: "Сообщения", icon: MessageCircle },
-  { href: "/pipeline", label: "Воронка", icon: Kanban },
-  { href: "/projects", label: "Проекты", icon: FolderKanban },
-  { href: "/contacts", label: "Клиенты", icon: Users },
+type Item = {
+  href: string;
+  label: string;
+  icon: typeof LayoutDashboard;
+  iconBg: string;
+  iconText: string;
+};
+
+const primary: Item[] = [
+  { href: "/", label: "Сегодня", icon: LayoutDashboard, iconBg: "bg-blue-50", iconText: "text-blue-600" },
+  { href: "/inbox", label: "Сообщения", icon: MessageCircle, iconBg: "bg-sky-50", iconText: "text-sky-600" },
+  { href: "/pipeline", label: "Воронка", icon: Kanban, iconBg: "bg-violet-50", iconText: "text-violet-600" },
+  { href: "/projects", label: "Проекты", icon: FolderKanban, iconBg: "bg-amber-50", iconText: "text-amber-600" },
+  { href: "/contacts", label: "Клиенты", icon: Users, iconBg: "bg-teal-50", iconText: "text-teal-600" },
 ];
 
-const secondary = [
-  { href: "/economics", label: "Деньги", icon: Banknote },
-  { href: "/assistant", label: "Помощник", icon: Sparkles },
-  { href: "/settings", label: "Настройки", icon: Settings },
+const secondary: Item[] = [
+  { href: "/economics", label: "Деньги", icon: Banknote, iconBg: "bg-emerald-50", iconText: "text-emerald-600" },
+  { href: "/assistant", label: "Помощник", icon: Sparkles, iconBg: "bg-indigo-50", iconText: "text-indigo-600" },
+  { href: "/settings", label: "Настройки", icon: Settings, iconBg: "bg-slate-100", iconText: "text-slate-600" },
 ];
 
 export function MobileNav() {
   const pathname = usePathname();
-  const render = (item: typeof primary[number]) => {
+  const render = (item: Item) => {
     const active = pathname === item.href || (item.href !== "/" && pathname.startsWith(item.href));
     return (
       <Link
         key={item.href}
         href={item.href}
+        aria-current={active ? "page" : undefined}
         className={cn(
-          "flex items-center gap-3 rounded-2xl px-4 py-3 text-[15px] font-medium transition-colors",
-          active ? "bg-slate-950 text-white" : "text-slate-600 hover:bg-slate-100"
+          "flex items-center gap-3 rounded-2xl px-2.5 py-2 text-[15px] font-medium transition-all",
+          active ? "bg-white text-slate-950 shadow-sm ring-1 ring-slate-200/80" : "text-slate-600"
         )}
       >
-        <item.icon className={cn("h-5 w-5", active ? "text-white" : "text-slate-400")} />
+        <span className={cn("flex h-10 w-10 items-center justify-center rounded-xl", item.iconBg, item.iconText)}>
+          <item.icon className="h-[19px] w-[19px]" />
+        </span>
         {item.label}
       </Link>
     );
   };
 
   return (
-    <div className="flex h-full flex-col bg-white text-slate-950">
-      <div className="flex h-[72px] items-center gap-3 border-b border-slate-100 px-5">
-        <div className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-950 text-[10px] font-semibold tracking-[.12em] text-white">S</div>
+    <div className="flex h-full flex-col bg-[#fbfbfc] text-slate-950">
+      <div className="flex h-[76px] items-center gap-3 border-b border-slate-200/70 px-5">
+        <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-950 text-[11px] font-semibold tracking-[.14em] text-white">S</div>
         <div>
-          <div className="text-[15px] font-semibold">Satori</div>
-          <div className="text-[11px] text-slate-400">рабочее пространство</div>
+          <div className="text-[15px] font-semibold">Satori CRM</div>
+          <div className="mt-0.5 text-[11px] text-slate-400">рабочее пространство</div>
         </div>
       </div>
-      <nav className="flex-1 space-y-1 overflow-y-auto px-3 py-4">
-        {primary.map(render)}
-        <div className="px-4 pb-1 pt-5 text-[10px] font-semibold uppercase tracking-[.16em] text-slate-400">Управление</div>
-        {secondary.map(render)}
+      <nav className="flex-1 space-y-5 overflow-y-auto px-3 py-4">
+        <section>
+          <div className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-[.16em] text-slate-400">Работа</div>
+          <div className="space-y-1 rounded-[22px] border border-slate-200/70 bg-slate-50/70 p-1.5">{primary.map(render)}</div>
+        </section>
+        <section>
+          <div className="mb-2 px-3 text-[10px] font-semibold uppercase tracking-[.16em] text-slate-400">Управление</div>
+          <div className="space-y-1 rounded-[22px] border border-slate-200/70 bg-slate-50/70 p-1.5">{secondary.map(render)}</div>
+        </section>
       </nav>
     </div>
   );
