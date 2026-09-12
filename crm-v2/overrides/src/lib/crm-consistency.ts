@@ -1,6 +1,7 @@
 import Database from "better-sqlite3";
 import fs from "fs";
 import path from "path";
+import { randomUUID } from "node:crypto";
 
 const DB_PATH = process.env.CRM_DB_PATH || path.join(process.cwd(), "data", "crm.db");
 const dataDir = path.dirname(DB_PATH);
@@ -56,7 +57,7 @@ function ensureCanonicalPipeline(): { created: number; merged: number; movedDeal
       const rows = stageRows(stage.name);
       let primary = rows[0];
       if (!primary) {
-        primary = { id: crypto.randomUUID(), name: stage.name };
+        primary = { id: randomUUID(), name: stage.name };
         sqlite.prepare(`INSERT INTO pipeline_stages(id,name,"order",color,is_won,is_lost) VALUES(?,?,?,?,?,?)`)
           .run(primary.id, stage.name, stage.order, stage.color, stage.isWon, stage.isLost);
         created += 1;
@@ -112,7 +113,7 @@ function ensureShipmentWarning(): number {
           detail=excluded.detail, entity_type=excluded.entity_type, entity_id=excluded.entity_id,
           action_url=excluded.action_url, status='open', updated_at=excluded.updated_at
       `).run(
-        crypto.randomUUID(), fingerprint, "warning", "projects",
+        randomUUID(), fingerprint, "warning", "projects",
         `Нет трек-номера: ${row.title}`,
         "Сделка уже находится в доставке, но код отправления не указан. Добавьте трек-номер и отправьте его клиенту.",
         "deal", row.dealId, "/pipeline", now, now
