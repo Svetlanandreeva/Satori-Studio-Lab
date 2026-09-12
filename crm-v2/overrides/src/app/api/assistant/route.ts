@@ -1,7 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getAssistantState, runAssistantAudit, saveChannelSpend } from "@/lib/assistant";
+import { saveChannelSpend } from "@/lib/assistant";
 import { enrichContactsFromDialogs } from "@/lib/contact-intelligence";
 import { getDailyManagementBrief } from "@/lib/assistant-daily";
+import { getSanitizedAssistantState, runAssistantSafely } from "@/lib/assistant-runtime";
 
 export const dynamic = "force-dynamic";
 
@@ -15,13 +16,13 @@ function withManagementData<T extends Record<string, unknown>>(state: T, dialogu
 
 async function runFullAudit(notify: boolean) {
   const dialogueEnrichment = enrichContactsFromDialogs();
-  const state = await runAssistantAudit({ notify });
+  const state = await runAssistantSafely({ notify });
   return withManagementData(state as Record<string, unknown>, dialogueEnrichment);
 }
 
 export async function GET() {
   try {
-    const state = getAssistantState() as Record<string, unknown>;
+    const state = getSanitizedAssistantState() as Record<string, unknown>;
     if (!state.latestRun) return NextResponse.json(await runFullAudit(false));
     return NextResponse.json(withManagementData(state));
   } catch (error) {
