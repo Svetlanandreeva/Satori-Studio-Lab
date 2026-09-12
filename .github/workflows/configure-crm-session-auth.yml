@@ -1,0 +1,117 @@
+name: Configure CRM session auth
+
+on:
+  workflow_run:
+    workflows: ["Deploy CRM v2 stage"]
+    types: [completed]
+  workflow_dispatch:
+
+concurrency:
+  group: crm-session-auth-config
+  cancel-in-progress: true
+
+jobs:
+  configure:
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.head_branch == 'main')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.DEPLOY_SSH_KEY }}
+
+      - name: Trust production server
+        run: ssh-keyscan -H 194.226.97.103 >> ~/.ssh/known_hosts
+
+      - name: Enable long-lived app session and disable browser Basic Auth
+        run: |
+          ssh root@194.226.97.103 'bash -se' <<'REMOTE'
+          set -eu
+
+          unit=/etc/systemd/system/satori-crm-v2.service
+          test -f "$unit"
+          python3 - <<'PY'
+          from pathlib import Path
+
+          p = Path('/etc/systemd/system/satori-crm-v2.service')
+          s = p.read_text()
+          line = 'EnvironmentFile=-/var/www/satori/.env'
+          if line not in s:
+              marker = '[Service]\n'
+              if marker not in s:
+                  raise SystemExit('CRM v2 [Service] section not found')
+              s = s.replace(marker, marker + line + '\n', 1)
+          p.write_text(s)
+          PY
+
+          cfg=/etc/nginx/conf.d/satori-crm.conf
+          test -f "$cfg"
+          CFG="$cfg" python3 - <<'PY'
+          import os, re
+          from pathlib import Path
+
+          p = Path(os.environ['CFG'])
+          s = p.read_text()
+
+          starts = list(re.finditer(r'(?m)^(?P<indent>\s*)location\s+[^\n{]+\{', s))
+          candidates = []
+          for match in starts:
+              depth = 0
+              end = None
+              for index in range(match.start(), len(s)):
+                  if s[index] == '{': depth += 1
+                  elif s[index] == '}':
+                      depth -= 1
+                      if depth == 0:
+                          end = index + 1
+                          break
+              if not end:
+                  continue
+              block = s[match.start():end]
+              if 'proxy_pass http://127.0.0.1:3020;' not in block:
+                  continue
+              if 'SATORI NEED NUMBER WEBHOOK' in block:
+                  continue
+              header = s[match.start():s.find('\n', match.start())]
+              candidates.append((0 if re.search(r'location\s+/\s*\{', header) else 1, match, end, block))
+
+          if not candidates:
+              raise SystemExit('Main CRM nginx location for port 3020 not found')
+
+          _, match, end, block = sorted(candidates, key=lambda item: item[0])[0]
+          lines = block.splitlines()
+          if not lines:
+              raise SystemExit('CRM location block is empty')
+          indent = match.group('indent') + '  '
+          cleaned = [lines[0]]
+          cleaned.append(f'{indent}auth_basic off;')
+          for line in lines[1:]:
+              if re.match(r'^\s*auth_basic(?:_user_file)?\s+', line):
+                  continue
+              cleaned.append(line)
+          replacement = '\n'.join(cleaned)
+          s = s[:match.start()] + replacement + s[end:]
+          p.write_text(s)
+          PY
+
+          systemctl daemon-reload
+          systemctl restart satori-crm-v2
+          systemctl is-active --quiet satori-crm-v2
+          nginx -t
+          systemctl reload nginx
+          REMOTE
+
+      - name: Verify persistent login flow
+        run: |
+          set -eu
+          login_code=$(curl --silent --show-error --max-time 20 -o /tmp/crm-login.html -w '%{http_code}' https://crm.satorilabural.online/login)
+          test "$login_code" = '200'
+          grep -q 'Вход в CRM' /tmp/crm-login.html
+
+          headers=$(mktemp)
+          code=$(curl --silent --show-error --max-time 20 -D "$headers" -o /dev/null -w '%{http_code}' https://crm.satorilabural.online/)
+          test "$code" = '307' -o "$code" = '302'
+          grep -qi '^location: .*\/login' "$headers"
+          echo 'CRM app-session auth is active; unauthenticated users are redirected to /login'
