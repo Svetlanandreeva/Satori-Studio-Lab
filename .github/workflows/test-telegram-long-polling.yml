@@ -1,0 +1,38 @@
+name: Test Telegram long polling branch
+
+on:
+  push:
+    branches: [fix/telegram-long-polling]
+
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Check poller syntax
+        run: node --check crm-v2/runtime/telegram-poller.cjs
+      - name: Build CRM overrides
+        run: |
+          git clone --filter=blob:none https://github.com/Hainrixz/auto-crm.git /tmp/satori-auto-crm
+          cd /tmp/satori-auto-crm
+          git checkout --detach 0aef51a9aef0487c59b964b4eea9d964a2321f0c
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('/tmp/satori-auto-crm/next.config.ts')
+          s=p.read_text()
+          s=s.replace('const nextConfig: NextConfig = {\n  serverExternalPackages: ["better-sqlite3"],\n};','const nextConfig: NextConfig = {\n  output: "standalone",\n  serverExternalPackages: ["better-sqlite3"],\n};')
+          p.write_text(s)
+          p=Path('/tmp/satori-auto-crm/src/db/index.ts')
+          s=p.read_text().replace('const DB_PATH = path.join(process.cwd(), "data", "crm.db");','const DB_PATH = process.env.CRM_DB_PATH || path.join(process.cwd(), "data", "crm.db");')
+          p.write_text(s)
+          PY
+          cd "$GITHUB_WORKSPACE"
+          python3 crm-v2/russianize.py
+          cp -a crm-v2/overrides/src/. /tmp/satori-auto-crm/src/
+          cd /tmp/satori-auto-crm
+          npm ci
+          npm run build
