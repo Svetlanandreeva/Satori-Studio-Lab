@@ -147,15 +147,15 @@ function initTables(database: Database.Database): void {
       completed_at INTEGER,
       created_at INTEGER NOT NULL
     )`,
-    `CREATE TABLE IF NOT EXISTS production_checklist (
+    `CREATE TABLE IF NOT EXISTS project_checklist (
       id TEXT PRIMARY KEY,
       deal_id TEXT NOT NULL REFERENCES deals(id) ON DELETE CASCADE,
-      item_key TEXT NOT NULL,
-      label TEXT NOT NULL,
-      completed_at INTEGER,
-      completed_by TEXT,
+      key TEXT NOT NULL,
+      title TEXT NOT NULL,
+      done INTEGER NOT NULL DEFAULT 0,
       sort_order INTEGER NOT NULL DEFAULT 0,
-      UNIQUE(deal_id,item_key)
+      updated_at INTEGER NOT NULL,
+      UNIQUE(deal_id,key)
     )`,
     `CREATE TABLE IF NOT EXISTS message_templates (
       id TEXT PRIMARY KEY,
@@ -220,7 +220,15 @@ function initTables(database: Database.Database): void {
     `CREATE INDEX IF NOT EXISTS idx_deals_owner ON deals(owner_id)`,
     `CREATE INDEX IF NOT EXISTS idx_stage_history_deal ON deal_stage_history(deal_id, created_at DESC)`,
     `CREATE INDEX IF NOT EXISTS idx_activities_owner_due ON activities(owner_id, completed_at, scheduled_at)`,
+    `CREATE INDEX IF NOT EXISTS idx_project_checklist_deal ON project_checklist(deal_id, sort_order)`,
     `CREATE INDEX IF NOT EXISTS idx_audit_created ON audit_log(created_at DESC)`,
+    `CREATE TRIGGER IF NOT EXISTS trg_deals_stage_history
+      AFTER UPDATE OF stage_id ON deals
+      WHEN OLD.stage_id IS NOT NEW.stage_id
+      BEGIN
+        INSERT INTO deal_stage_history(id,deal_id,from_stage_id,to_stage_id,reason,changed_by,created_at)
+        VALUES(lower(hex(randomblob(16))),NEW.id,OLD.stage_id,NEW.stage_id,NULL,NULL,(unixepoch('now') * 1000));
+      END`,
   ];
 
   for (const sql of tables) {
