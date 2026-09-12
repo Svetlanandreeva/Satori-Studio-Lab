@@ -2,6 +2,7 @@ import Database from "better-sqlite3";
 import fs from "fs";
 import path from "path";
 import { syncCalculationMilestones } from "@/lib/deal-flow";
+import { calculateDealFinancials } from "@/lib/deal-financials";
 
 const DB_PATH = process.env.CRM_DB_PATH || path.join(process.cwd(), "data", "crm.db");
 const dataDir = path.dirname(DB_PATH);
@@ -13,7 +14,6 @@ try { sqlite.pragma("busy_timeout = 15000"); } catch {}
 try { sqlite.pragma("foreign_keys = ON"); } catch {}
 
 const STORE_PRODUCTION_TERM_DAYS = 7;
-const MANAGER_COMMISSION_RATE = 50;
 
 sqlite.exec(`
   CREATE TABLE IF NOT EXISTS project_details (
@@ -137,7 +137,7 @@ function deadlineMetrics(deadline: string | null, shippedAt: string | null) {
   const delta = daysBetween(moscowDate(), deadline);
   if (delta < 0) return { deadlineStatus: "overdue", daysRemaining: 0, overdueDays: Math.abs(delta) };
   if (delta === 0) return { deadlineStatus: "due_today", daysRemaining: 0, overdueDays: 0 };
-  if (delta <= 3) return { deadlineStatus: "due_soon", daysRemaining: delta, overdueDays: 0 };
+  if (delta <= 2) return { deadlineStatus: "due_soon", daysRemaining: delta, overdueDays: 0 };
   return { deadlineStatus: "on_track", daysRemaining: delta, overdueDays: 0 };
 }
 
@@ -305,15 +305,7 @@ export function listProjects() {
   `).all() as Array<Record<string, unknown>>;
 
   const projects = rows.map((row) => {
-    const directCost = Number(row.productionCost || 0) + Number(row.paymentCommission || 0) +
-      Number(row.deliveryCost || 0) + Number(row.packagingCost || 0) +
-      Number(row.contractorCost || 0) + Number(row.taxCost || 0) + Number(row.otherCost || 0);
-    const received = Number(row.receivedAmount || 0);
-    const profitBeforeManager = received - directCost;
-    const managerCommission = Math.max(0, Math.round(profitBeforeManager * MANAGER_COMMISSION_RATE / 100));
-    const costs = directCost + managerCommission;
-    const profit = received - costs;
-    const margin = received > 0 ? (profit / received) * 100 : 0;
+    const finance = calculateDealFinancials(row);
     const dealNotes = String(row.dealNotes || "");
     const isStoreOrder = Boolean(storeOrderIdFromNotes(dealNotes));
     const orderedAt = row.orderedAt ? String(row.orderedAt) : null;
@@ -345,14 +337,7 @@ export function listProjects() {
       deliveredAt,
       paymentTerms,
       productionTermDays,
-      directCost,
-      profitBeforeManager,
-      managerCommission,
-      managerCommissionRate: MANAGER_COMMISSION_RATE,
-      totalCost: costs,
-      profit,
-      margin,
-      unpaid: Math.max(0, Number(row.dealValue || 0) - received),
+      ...finance,
       productionDays: elapsedProductionDays,
       deliveryDays,
       ...deadline,
