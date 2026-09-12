@@ -12,12 +12,14 @@ import {
   LayoutDashboard,
   MessageCircle,
   Settings,
+  Sparkles,
   Users,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const navItems = [
   { href: "/", label: "Главная", icon: LayoutDashboard },
+  { href: "/assistant", label: "Помощник", icon: Sparkles },
   { href: "/pipeline", label: "Воронка", icon: Kanban },
   { href: "/projects", label: "Проекты", icon: FolderKanban },
   { href: "/contacts", label: "Клиенты", icon: Users },
