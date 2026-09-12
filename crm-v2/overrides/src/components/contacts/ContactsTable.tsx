@@ -1,28 +1,21 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import {
-  Table,
-  TableBody,
-  TableCell,
-  TableHead,
-  TableHeader,
-  TableRow,
-} from "@/components/ui/table";
+import { Search, ChevronRight, Download, Mail, Phone, Users } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
-import { StatusBadge } from "@/components/shared/StatusBadge";
-import { QualificationBadge } from "@/components/shared/QualificationBadge";
-import { EmptyState } from "@/components/shared/EmptyState";
-import { Search, Users, Download } from "lucide-react";
-import { formatDate, SOURCE_LABELS } from "@/lib/constants";
 import { LEAD_QUALIFICATION_OPTIONS, type LeadQualification } from "@/lib/lead-qualification";
-import type { Contact, Temperature, LeadSource } from "@/types";
+import type { Contact, Temperature } from "@/types";
 
-interface ContactsTableProps {
-  contacts: Contact[];
-}
+interface ContactsTableProps { contacts: Contact[]; }
+
+const sourceLabels: Record<string, string> = {
+  need_number: "Парсер", website: "Сайт", ads: "Реклама", email: "Почта", telegram: "Telegram-бот",
+  telegram_account: "Telegram", instagram: "Instagram", linkedin: "LinkedIn", referral: "Рекомендация", other: "Другое", otro: "Другое",
+};
+const tempLabels: Record<string, string> = { hot: "Горячий", warm: "Тёплый", cold: "Холодный" };
+const qualificationLabels: Record<string, string> = Object.fromEntries(LEAD_QUALIFICATION_OPTIONS.map((x) => [x.value, x.label]));
 
 export function ContactsTable({ contacts }: ContactsTableProps) {
   const router = useRouter();
@@ -30,120 +23,65 @@ export function ContactsTable({ contacts }: ContactsTableProps) {
   const [filterTemp, setFilterTemp] = useState<Temperature | "">("");
   const [filterQualification, setFilterQualification] = useState<LeadQualification | "">("");
 
-  const filtered = contacts.filter((contact) => {
-    const needle = search.toLowerCase();
-    const matchesSearch =
-      !search ||
-      contact.name.toLowerCase().includes(needle) ||
-      contact.email?.toLowerCase().includes(needle) ||
-      contact.phone?.toLowerCase().includes(needle) ||
-      contact.company?.toLowerCase().includes(needle);
-    const matchesTemp = !filterTemp || contact.temperature === filterTemp;
-    const matchesQualification =
-      !filterQualification || contact.qualification === filterQualification;
-    return Boolean(matchesSearch && matchesTemp && matchesQualification);
-  });
+  const filtered = useMemo(() => contacts.filter((c) => {
+    const q = search.trim().toLowerCase();
+    const matchesSearch = !q || [c.name, c.email, c.company, c.phone].some((v) => String(v || "").toLowerCase().includes(q));
+    return matchesSearch && (!filterTemp || c.temperature === filterTemp) && (!filterQualification || c.qualification === filterQualification);
+  }), [contacts, search, filterTemp, filterQualification]);
 
-  if (contacts.length === 0) {
+  if (!contacts.length) {
     return (
-      <EmptyState
-        icon={Users}
-        title="Клиентов пока нет"
-        description="Добавьте первого клиента, чтобы начать работу с воронкой продаж."
-        actionLabel="Добавить клиента"
-        onAction={() => router.push("/contacts?new=true")}
-      />
+      <div className="rounded-[24px] border border-slate-200/80 bg-white px-6 py-16 text-center shadow-sm">
+        <div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-slate-100"><Users className="h-5 w-5 text-slate-500" /></div>
+        <h2 className="mt-4 font-semibold text-slate-900">Пока нет клиентов</h2>
+        <p className="mx-auto mt-1 max-w-sm text-sm leading-5 text-slate-500">Клиенты появятся из воронки или после ручного добавления из переписки.</p>
+      </div>
     );
   }
 
   return (
-    <div className="space-y-4">
-      <div className="flex flex-col gap-3">
-        <div className="flex flex-col sm:flex-row gap-3">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-            <Input
-              placeholder="Поиск по имени, телефону, email или компании..."
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              className="pl-9"
-            />
+    <section className="overflow-hidden rounded-[24px] border border-slate-200/80 bg-white shadow-sm">
+      <div className="space-y-3 border-b border-slate-100 p-4">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+          <div className="relative min-w-0 flex-1">
+            <Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
+            <Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Имя, телефон, email или компания" className="h-11 rounded-xl border-slate-200 bg-slate-50/60 pl-10" />
           </div>
-          <Button variant="outline" size="sm" onClick={() => window.open("/api/export?type=contacts") }>
-            <Download className="h-4 w-4 mr-1" /> Экспорт
-          </Button>
+          <Button variant="ghost" size="sm" onClick={() => window.open("/api/export?type=contacts")} className="h-10 rounded-xl px-3 text-xs text-slate-400"><Download className="mr-1.5 h-3.5 w-3.5" /> Экспорт</Button>
         </div>
-
-        <div className="flex flex-wrap gap-2 items-center">
-          <select
-            value={filterQualification}
-            onChange={(event) => setFilterQualification(event.target.value as LeadQualification | "")}
-            className="h-9 rounded-md border bg-background px-3 text-sm"
-          >
-            <option value="">Все квалификации</option>
-            {LEAD_QUALIFICATION_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value}>{option.label}</option>
-            ))}
+        <div className="flex gap-1.5 overflow-x-auto pb-1">
+          <select value={filterQualification} onChange={(e) => setFilterQualification(e.target.value as LeadQualification | "")} className="h-9 shrink-0 rounded-xl border border-slate-200 bg-white px-3 text-xs text-slate-600 outline-none">
+            <option value="">Все статусы</option>
+            {LEAD_QUALIFICATION_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
           </select>
-
-          {(["", "hot", "warm", "cold"] as const).map((temperature) => (
-            <Button
-              key={temperature || "all"}
-              variant={filterTemp === temperature ? "default" : "outline"}
-              size="sm"
-              onClick={() => setFilterTemp(temperature)}
-            >
-              {temperature === "" ? "Все" : temperature === "hot" ? "Горячие" : temperature === "warm" ? "Тёплые" : "Холодные"}
+          {(["", "hot", "warm", "cold"] as const).map((temp) => (
+            <Button key={temp || "all"} variant="outline" size="sm" onClick={() => setFilterTemp(temp)} className={`h-9 shrink-0 rounded-xl border-slate-200 px-3 text-xs ${filterTemp === temp ? "bg-slate-950 text-white hover:bg-slate-900 hover:text-white" : "bg-white text-slate-500"}`}>
+              {temp ? tempLabels[temp] : "Любая температура"}
             </Button>
           ))}
         </div>
       </div>
 
-      <div className="rounded-lg border overflow-hidden">
-        <Table>
-          <TableHeader>
-            <TableRow>
-              <TableHead>Клиент</TableHead>
-              <TableHead className="hidden sm:table-cell">Компания</TableHead>
-              <TableHead>Квалификация</TableHead>
-              <TableHead className="hidden md:table-cell">Источник</TableHead>
-              <TableHead className="hidden md:table-cell">Температура</TableHead>
-              <TableHead className="hidden lg:table-cell">Оценка</TableHead>
-              <TableHead className="hidden xl:table-cell">Дата</TableHead>
-            </TableRow>
-          </TableHeader>
-          <TableBody>
-            {filtered.map((contact) => (
-              <TableRow
-                key={contact.id}
-                className="cursor-pointer hover:bg-muted/50"
-                onClick={() => router.push(`/contacts/${contact.id}`)}
-              >
-                <TableCell>
-                  <div>
-                    <p className="font-medium">{contact.name}</p>
-                    <p className="text-xs text-muted-foreground">{contact.phone || contact.email || "Нет контакта"}</p>
-                  </div>
-                </TableCell>
-                <TableCell className="hidden sm:table-cell">{contact.company || "—"}</TableCell>
-                <TableCell><QualificationBadge qualification={contact.qualification} /></TableCell>
-                <TableCell className="hidden md:table-cell text-sm">
-                  {SOURCE_LABELS[contact.source as LeadSource] || contact.source}
-                </TableCell>
-                <TableCell className="hidden md:table-cell">
-                  <StatusBadge temperature={contact.temperature as Temperature} size="sm" />
-                </TableCell>
-                <TableCell className="hidden lg:table-cell">{contact.score}</TableCell>
-                <TableCell className="hidden xl:table-cell text-sm text-muted-foreground">{formatDate(contact.createdAt)}</TableCell>
-              </TableRow>
-            ))}
-          </TableBody>
-        </Table>
+      <div className="divide-y divide-slate-100">
+        {filtered.map((contact) => (
+          <button key={contact.id} onClick={() => router.push(`/contacts/${contact.id}`)} className="group grid w-full grid-cols-[1fr_auto] gap-3 px-4 py-4 text-left transition-colors hover:bg-slate-50/80 sm:grid-cols-[minmax(230px,1.2fr)_minmax(120px,.7fr)_minmax(100px,.55fr)_minmax(100px,.55fr)_auto] sm:items-center sm:px-5">
+            <div className="min-w-0">
+              <div className="flex items-center gap-2"><span className="truncate text-[14px] font-semibold text-slate-900">{contact.name || "Без имени"}</span><span className={`hidden rounded-full px-2 py-0.5 text-[10px] sm:inline ${contact.temperature === "hot" ? "bg-rose-50 text-rose-600" : contact.temperature === "warm" ? "bg-amber-50 text-amber-600" : "bg-slate-100 text-slate-500"}`}>{tempLabels[String(contact.temperature)] || ""}</span></div>
+              <div className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-[11px] text-slate-400">
+                {contact.phone && <span className="inline-flex items-center gap-1"><Phone className="h-3 w-3" />{contact.phone}</span>}
+                {contact.email && <span className="inline-flex max-w-[240px] items-center gap-1 truncate"><Mail className="h-3 w-3" />{contact.email}</span>}
+                {!contact.phone && !contact.email && <span>Контакты не заполнены</span>}
+              </div>
+            </div>
+            <div className="hidden min-w-0 sm:block"><div className="truncate text-[13px] text-slate-700">{contact.company || "—"}</div><div className="mt-0.5 text-[10px] text-slate-400">компания</div></div>
+            <div className="hidden sm:block"><div className="text-[12px] text-slate-600">{qualificationLabels[String(contact.qualification)] || "Новый"}</div><div className="mt-0.5 text-[10px] text-slate-400">статус</div></div>
+            <div className="hidden sm:block"><div className="text-[12px] text-slate-600">{sourceLabels[String(contact.source)] || String(contact.source || "—")}</div><div className="mt-0.5 text-[10px] text-slate-400">источник</div></div>
+            <div className="flex items-center gap-2 self-center"><span className="text-[11px] text-slate-400 sm:hidden">{qualificationLabels[String(contact.qualification)] || sourceLabels[String(contact.source)] || ""}</span><ChevronRight className="h-4 w-4 text-slate-300 transition-transform group-hover:translate-x-0.5 group-hover:text-slate-500" /></div>
+          </button>
+        ))}
+        {!filtered.length && <div className="px-6 py-14 text-center text-sm text-slate-400">Ничего не найдено. Попробуй изменить поиск или фильтр.</div>}
       </div>
-
-      <p className="text-xs text-muted-foreground text-center">
-        Показано {filtered.length} из {contacts.length}
-      </p>
-    </div>
+      <div className="border-t border-slate-100 px-5 py-3 text-[11px] text-slate-400">Показано {filtered.length} из {contacts.length}</div>
+    </section>
   );
 }
