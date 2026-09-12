@@ -32,17 +32,23 @@ interface TelegramBusinessConnection {
   };
 }
 
+function timestampMs(value: unknown): number {
+  if (value instanceof Date) return value.getTime();
+  if (typeof value === "number") return value;
+  if (typeof value === "string") {
+    const parsed = new Date(value).getTime();
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+  return 0;
+}
+
 function latestBusinessMessageAt(): string | null {
   const rows = db.select().from(activities).all();
   const latest = rows
     .filter((row) => String(row.type || "").startsWith("telegram_business_"))
-    .sort((a, b) => {
-      const right = b.createdAt ? new Date(b.createdAt).getTime() : 0;
-      const left = a.createdAt ? new Date(a.createdAt).getTime() : 0;
-      return right - left;
-    })[0];
-  if (!latest?.createdAt) return null;
-  return new Date(latest.createdAt).toISOString();
+    .sort((a, b) => timestampMs(b.createdAt) - timestampMs(a.createdAt))[0];
+  const value = timestampMs(latest?.createdAt);
+  return value ? new Date(value).toISOString() : null;
 }
 
 export const dynamic = "force-dynamic";
