@@ -241,45 +241,58 @@ export default function EconomicsPage() {
       </tbody></table></div></CardContent>
     </Card>
 
-    <Dialog open={Boolean(viewing)} onOpenChange={(open) => !open && setViewing(null)}><DialogContent className="sm:max-w-2xl"><DialogHeader><DialogTitle>Разбор экономики сделки</DialogTitle><DialogDescription>{viewing ? `${viewing.contactName} · ${viewing.dealTitle} · ${viewing.stageName}` : ""}</DialogDescription></DialogHeader>
-      {viewing && <div className="space-y-5">
-        <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
-          <Mini label="Сумма сделки" value={rubles(viewing.dealValue)} />
-          <Mini label="Получено" value={rubles(viewing.receivedAmount)} good />
-          <Mini label="Осталось получить" value={rubles(viewing.unpaid)} />
-          <Mini label="Маржа компании" value={percent(viewing.margin)} good={viewing.profit >= 0} />
-        </div>
+    <Dialog open={Boolean(viewing)} onOpenChange={(open) => !open && setViewing(null)}>
+      <DialogContent className="flex max-h-[calc(100dvh-1rem)] w-[calc(100%-1rem)] max-w-2xl flex-col overflow-hidden p-0 sm:max-h-[calc(100dvh-3rem)] sm:w-full">
+        <DialogHeader className="shrink-0 border-b px-5 py-4 pr-12 sm:px-6">
+          <DialogTitle>Разбор экономики сделки</DialogTitle>
+          <DialogDescription>{viewing ? `${viewing.contactName} · ${viewing.dealTitle} · ${viewing.stageName}` : ""}</DialogDescription>
+        </DialogHeader>
+        <div className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-4 py-4 sm:px-6 sm:py-5">
+          {viewing && <div className="space-y-5">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              <Mini label="Сумма сделки" value={rubles(viewing.dealValue)} />
+              <Mini label="Получено" value={rubles(viewing.receivedAmount)} good />
+              <Mini label="Осталось получить" value={rubles(viewing.unpaid)} />
+              <Mini label="Маржа компании" value={percent(viewing.margin)} good={viewing.profit >= 0} />
+            </div>
 
-        <div className="overflow-hidden rounded-xl border">
-          <div className="border-b bg-muted/40 px-4 py-3"><div className="font-medium">Из чего сложились расходы</div><div className="mt-0.5 text-xs text-muted-foreground">Только расходы этой сделки. Постоянные расходы бизнеса считаются отдельно.</div></div>
-          <div className="divide-y">
-            <BreakdownRow label="Производство / материалы" value={viewing.productionCost} />
-            <BreakdownRow label={`Эквайринг · ${percent(viewing.paymentCommissionRate)}`} value={viewing.paymentCommission} />
-            <BreakdownRow label="Доставка" value={viewing.deliveryCost} />
-            <BreakdownRow label="Упаковка" value={viewing.packagingCost} />
-            <BreakdownRow label="Подрядчики" value={viewing.contractorCost} />
-            <BreakdownRow label="Налог / сбор по сделке" value={viewing.taxCost} />
-            <BreakdownRow label="Прочее" value={viewing.otherCost} />
-            <BreakdownRow label="Прямые расходы итого" value={viewing.directCost} strong />
+            <div className="overflow-hidden rounded-xl border">
+              <div className="border-b bg-muted/40 px-4 py-3"><div className="font-medium">Из чего сложились расходы</div><div className="mt-0.5 text-xs text-muted-foreground">Только расходы этой сделки. Постоянные расходы бизнеса считаются отдельно.</div></div>
+              <div className="divide-y">
+                <BreakdownRow label="Производство / материалы" value={viewing.productionCost} />
+                <BreakdownRow label={`Эквайринг · ${percent(viewing.paymentCommissionRate)}`} value={viewing.paymentCommission} />
+                <BreakdownRow label="Доставка" value={viewing.deliveryCost} />
+                <BreakdownRow label="Упаковка" value={viewing.packagingCost} />
+                <BreakdownRow label="Подрядчики" value={viewing.contractorCost} />
+                <BreakdownRow label="Налог / сбор по сделке" value={viewing.taxCost} />
+                <BreakdownRow label="Прочее" value={viewing.otherCost} />
+                <BreakdownRow label="Прямые расходы итого" value={viewing.directCost} strong />
+              </div>
+            </div>
+
+            <div className="rounded-xl border bg-slate-50/70 p-4">
+              <div className="mb-3 text-sm font-medium">Как получилась прибыль</div>
+              <div className="space-y-2 text-sm">
+                <FormulaRow label="Получено от клиента" value={viewing.receivedAmount} />
+                <FormulaRow label="− Прямые расходы" value={-viewing.directCost} />
+                <FormulaRow label="= Прибыль до менеджера" value={viewing.profitBeforeManager} strong />
+                <FormulaRow label={`− Менеджер ${viewing.managerCommissionRate || MANAGER_COMMISSION_RATE}%`} value={-viewing.managerCommission} tone="violet" />
+                <div className="my-2 border-t" />
+                <FormulaRow label="= Остаётся компании" value={viewing.profit} strong tone={viewing.profit >= 0 ? "green" : "red"} />
+              </div>
+            </div>
+
+            {viewing.economicsNotes && <div className="rounded-xl border bg-muted/20 p-4"><div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Комментарий</div><div className="mt-2 whitespace-pre-wrap text-sm">{viewing.economicsNotes}</div></div>}
+          </div>}
+        </div>
+        <DialogFooter className="shrink-0 border-t bg-background px-4 py-3 sm:px-6 sm:py-4">
+          <div className="flex w-full flex-col-reverse gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div>{viewing && <Link href={`/contacts/${viewing.contactId}`}><Button variant="ghost" className="w-full sm:w-auto">Открыть клиента</Button></Link>}</div>
+            <div className="flex gap-2"><Button variant="outline" className="flex-1 sm:flex-none" onClick={() => setViewing(null)}>Закрыть</Button>{viewing && <Button className="flex-1 sm:flex-none" onClick={() => { const deal = viewing; setViewing(null); openDeal(deal); }}><Edit3 className="mr-2 h-4 w-4" />Изменить</Button>}</div>
           </div>
-        </div>
-
-        <div className="rounded-xl border bg-slate-50/70 p-4">
-          <div className="mb-3 text-sm font-medium">Как получилась прибыль</div>
-          <div className="space-y-2 text-sm">
-            <FormulaRow label="Получено от клиента" value={viewing.receivedAmount} />
-            <FormulaRow label="− Прямые расходы" value={-viewing.directCost} />
-            <FormulaRow label="= Прибыль до менеджера" value={viewing.profitBeforeManager} strong />
-            <FormulaRow label={`− Менеджер ${viewing.managerCommissionRate || MANAGER_COMMISSION_RATE}%`} value={-viewing.managerCommission} tone="violet" />
-            <div className="my-2 border-t" />
-            <FormulaRow label="= Остаётся компании" value={viewing.profit} strong tone={viewing.profit >= 0 ? "green" : "red"} />
-          </div>
-        </div>
-
-        {viewing.economicsNotes && <div className="rounded-xl border bg-muted/20 p-4"><div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Комментарий</div><div className="mt-2 whitespace-pre-wrap text-sm">{viewing.economicsNotes}</div></div>}
-      </div>}
-      <DialogFooter className="gap-2 sm:justify-between"><div>{viewing && <Link href={`/contacts/${viewing.contactId}`}><Button variant="ghost">Открыть клиента</Button></Link>}</div><div className="flex gap-2"><Button variant="outline" onClick={() => setViewing(null)}>Закрыть</Button>{viewing && <Button onClick={() => { const deal = viewing; setViewing(null); openDeal(deal); }}><Edit3 className="mr-2 h-4 w-4" />Изменить</Button>}</div></DialogFooter>
-    </DialogContent></Dialog>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
 
     <Dialog open={expenseOpen} onOpenChange={(open) => { setExpenseOpen(open); if (!open) resetExpense(); }}><DialogContent className="sm:max-w-xl"><DialogHeader><DialogTitle>Добавить расход</DialogTitle><DialogDescription>Фиксированные зарплаты, реклама, сервер, подписки и налоги. Комиссия менеджера по сделкам считается автоматически отдельно.</DialogDescription></DialogHeader>
       <div className="flex flex-wrap gap-2"><Button type="button" variant="outline" size="sm" onClick={() => preset("salary")}>Зарплаты</Button><Button type="button" variant="outline" size="sm" onClick={() => preset("ads")}>Реклама</Button><Button type="button" variant="outline" size="sm" onClick={() => preset("server")}>Сервер</Button><Button type="button" variant="outline" size="sm" onClick={() => preset("taxes")}>Налог</Button></div>
