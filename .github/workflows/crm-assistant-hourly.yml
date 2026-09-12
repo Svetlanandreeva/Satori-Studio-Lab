@@ -12,7 +12,7 @@ concurrency:
 jobs:
   audit:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10
     steps:
       - uses: webfactory/ssh-agent@v0.9.0
         with:
@@ -21,20 +21,42 @@ jobs:
       - name: Trust production server
         run: ssh-keyscan -H 194.226.97.103 >> ~/.ssh/known_hosts
 
-      - name: Audit CRM clients, messages, projects and economics
+      - name: Sync sources and audit CRM
         run: |
           ssh root@194.226.97.103 'bash -se' <<'REMOTE'
           set -eu
           systemctl is-active --quiet satori-crm-v2
+
+          # Pull new email conversations before deciding who needs a reply.
+          curl --silent --show-error -X POST http://127.0.0.1:3020/api/integrations/email/sync \
+            >/tmp/satori-email-sync.json || true
+
+          # Reconcile the current website order file so site revenue/statuses are fresh.
+          python3 - <<'PY'
+          import json, urllib.request
+          from pathlib import Path
+          path=Path('/var/www/satori/backend/data/orders.json')
+          if path.exists():
+              orders=json.loads(path.read_text())
+              payload=json.dumps({'orders': orders}, ensure_ascii=False).encode('utf-8')
+              req=urllib.request.Request('http://127.0.0.1:3020/api/integrations/store-orders', data=payload, headers={'Content-Type':'application/json'}, method='POST')
+              try:
+                  with urllib.request.urlopen(req, timeout=45) as response:
+                      print('Store sync:', response.read().decode('utf-8')[:300])
+              except Exception as exc:
+                  print('Store sync warning:', exc)
+          PY
+
           curl --fail --silent --show-error \
             -X POST http://127.0.0.1:3020/api/assistant \
             -H 'Content-Type: application/json' \
             --data '{"action":"run","notify":true}' \
             >/tmp/satori-assistant.json
+
           python3 - <<'PY'
           import json
           data=json.load(open('/tmp/satori-assistant.json'))
           run=data.get('latestRun') or {}
-          print('Satori assistant:', 'critical=', run.get('critical_count', 0), 'warning=', run.get('warning_count', 0), 'cleaned=', run.get('cleaned_duplicates', 0))
+          print('Satori assistant:', 'critical=', run.get('critical_count', 0), 'warning=', run.get('warning_count', 0), 'cleaned contacts=', run.get('cleaned_duplicates', 0), 'cleaned events=', run.get('cleaned_activity_duplicates', 0))
           PY
           REMOTE
