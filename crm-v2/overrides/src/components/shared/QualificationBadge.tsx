@@ -10,6 +10,7 @@ const classes: Record<LeadQualification, string> = {
   qualified: "border-emerald-300 text-emerald-700 bg-emerald-50",
   unqualified: "border-orange-300 text-orange-700 bg-orange-50",
   not_target: "border-amber-300 text-amber-700 bg-amber-50",
+  ignore: "border-zinc-300 text-zinc-700 bg-zinc-50",
   spam: "border-red-300 text-red-700 bg-red-50",
   duplicate: "border-violet-300 text-violet-700 bg-violet-50",
 };
