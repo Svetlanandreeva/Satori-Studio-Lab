@@ -1,0 +1,29 @@
+name: Postdeploy Telegram check
+
+on:
+  push:
+    branches: [fix/telegram-business-pipeline]
+    paths:
+      - '.github/workflows/postdeploy-telegram-check.yml'
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.DEPLOY_SSH_KEY }}
+      - name: Trust production server
+        run: ssh-keyscan -H 194.226.97.103 >> ~/.ssh/known_hosts
+      - name: Reconfigure webhook and identify Telegram target
+        run: |
+          ssh root@194.226.97.103 'bash -se' <<'REMOTE'
+          set -eu
+          echo '=== test ==='
+          curl -fsS -X POST http://127.0.0.1:3020/api/integrations/telegram/test
+          echo
+          echo '=== status ==='
+          curl -fsS http://127.0.0.1:3020/api/integrations/settings | python3 -c 'import json,sys; d=json.load(sys.stdin); print(json.dumps({"telegramConfigured":bool(d.get("telegramConfigured")),"telegramInboundConfigured":bool(d.get("telegramInboundConfigured")),"telegramBusinessConfigured":bool(d.get("telegramBusinessConfigured")),"telegramBusinessCanReply":bool(d.get("telegramBusinessCanReply"))}, ensure_ascii=False))'
+          REMOTE
