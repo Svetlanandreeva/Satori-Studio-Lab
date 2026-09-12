@@ -135,8 +135,8 @@ export default function TelegramBusinessSettingsPage() {
               <Send className="mr-2 h-4 w-4" />
               Проверить уведомления
             </Button>
-            <Button variant="outline" asChild>
-              <a href="/settings">Обычные настройки Telegram</a>
+            <Button variant="outline" onClick={() => { window.location.href = "/settings"; }}>
+              Обычные настройки Telegram
             </Button>
           </div>
         </CardContent>
