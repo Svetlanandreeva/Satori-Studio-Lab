@@ -1,0 +1,39 @@
+name: Diagnose CRM v2 production 500
+
+on:
+  push:
+    branches: ['diag/crm-v2-500']
+    paths:
+      - '.github/workflows/diag-crm-v2-500.yml'
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.DEPLOY_SSH_KEY }}
+      - name: Trust production server
+        run: ssh-keyscan -H 194.226.97.103 >> ~/.ssh/known_hosts
+      - name: Inspect CRM v2 runtime
+        run: |
+          ssh root@194.226.97.103 'bash -se' <<'REMOTE'
+          set +e
+          echo '=== service ==='
+          systemctl status satori-crm-v2 --no-pager -l | tail -120
+          echo '=== journal ==='
+          journalctl -u satori-crm-v2 --since '15 minutes ago' --no-pager -n 250
+          echo '=== api pipeline ==='
+          curl -sS -i http://127.0.0.1:3020/api/pipeline | head -120
+          echo '=== inbox ==='
+          curl -sS -i 'http://127.0.0.1:3020/api/inbox?filter=client' | head -120
+          echo '=== settings ==='
+          curl -sS -i http://127.0.0.1:3020/api/integrations/settings | head -120
+          echo '=== node modules proxies ==='
+          find /var/www/satori/crm-v2/node_modules -maxdepth 2 -type f \( -path '*/imapflow/*' -o -path '*/mailparser/*' -o -path '*/nodemailer/*' -o -path '*/satori-mail-runtime/*' \) -print 2>/dev/null
+          echo '=== persistent mail runtime ==='
+          find /var/lib/satori-auto-crm -maxdepth 3 -type f | sort | tail -120
+          echo '=== sqlite integrity ==='
+          if command -v sqlite3 >/dev/null; then sqlite3 /var/lib/satori-auto-crm/crm.db 'PRAGMA integrity_check; .tables' 2>&1; fi
+          REMOTE
