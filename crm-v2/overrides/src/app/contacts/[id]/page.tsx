@@ -3,17 +3,25 @@ import { contacts, deals, activities, pipelineStages } from "@/db/schema";
 import { eq, desc } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import { ContactDetailClient } from "@/components/contacts/ContactDetail";
+import { ContactIntelligencePanel } from "@/components/contacts/ContactIntelligencePanel";
 import { listClientDocuments } from "@/lib/client-documents";
 import { getDealEconomics } from "@/lib/economics";
 import { listProjects } from "@/lib/projects";
 import { getAssistantState } from "@/lib/assistant";
+import { enrichContactFromDialogs } from "@/lib/contact-intelligence";
 
 export const dynamic = "force-dynamic";
 
 export default async function ContactDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
-  const contact = db.select().from(contacts).where(eq(contacts.id, id)).get();
+  let contact = db.select().from(contacts).where(eq(contacts.id, id)).get();
   if (!contact) notFound();
+
+  let intelligence = null;
+  try {
+    intelligence = enrichContactFromDialogs(id).intelligence;
+    contact = db.select().from(contacts).where(eq(contacts.id, id)).get() || contact;
+  } catch {}
 
   const contactDeals = db
     .select({
@@ -53,12 +61,15 @@ export default async function ContactDetailPage({ params }: { params: Promise<{ 
   } catch {}
 
   return (
-    <ContactDetailClient
-      contact={contact as never}
-      deals={enrichedDeals as never}
-      activities={contactActivities as never}
-      documents={listClientDocuments(id) as never}
-      assistantInsights={assistantInsights as never}
-    />
+    <div className="space-y-6">
+      <ContactDetailClient
+        contact={contact as never}
+        deals={enrichedDeals as never}
+        activities={contactActivities as never}
+        documents={listClientDocuments(id) as never}
+        assistantInsights={assistantInsights as never}
+      />
+      <ContactIntelligencePanel intelligence={intelligence} />
+    </div>
   );
 }
