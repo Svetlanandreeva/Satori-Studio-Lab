@@ -1,8 +1,10 @@
 import { isEmailConfigured, syncEmailMailbox } from "@/lib/email-integration";
+import { cleanupLegacyAutoEmailContacts } from "@/lib/email-crm-policy";
 import { INTEGRATION_KEYS, getSetting, setSetting } from "@/lib/satori-integrations";
 
 export async function runIncrementalEmailSync() {
   if (!isEmailConfigured()) {
+    cleanupLegacyAutoEmailContacts();
     return { configured: false, imported: 0, folders: [] as string[] };
   }
 
@@ -12,7 +14,8 @@ export async function runIncrementalEmailSync() {
 
   try {
     const result = await syncEmailMailbox();
-    return { configured: true, ...result };
+    const removedAutoContacts = cleanupLegacyAutoEmailContacts();
+    return { configured: true, ...result, removedAutoContacts };
   } finally {
     if (hasPreviousSync) setSetting(INTEGRATION_KEYS.emailSyncDays, originalDays);
   }

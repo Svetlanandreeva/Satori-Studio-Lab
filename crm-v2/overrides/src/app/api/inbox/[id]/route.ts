@@ -1,5 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { getEmailThread, setThreadService } from "@/lib/email-integration";
+import { getEmailThread } from "@/lib/email-integration";
+import {
+  cleanEmailDisplayBody,
+  cleanupLegacyAutoEmailContacts,
+  getContactPipelineContext,
+  setEmailThreadService,
+} from "@/lib/email-crm-policy";
 
 export const runtime = "nodejs";
 
@@ -7,10 +13,16 @@ export async function GET(
   _request: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
+  cleanupLegacyAutoEmailContacts();
   const { id } = await params;
   const result = getEmailThread(id);
   if (!result) return NextResponse.json({ error: "Диалог не найден" }, { status: 404 });
-  return NextResponse.json(result);
+  const messages = result.messages.map((message) => ({
+    ...message,
+    bodyText: cleanEmailDisplayBody(message.bodyText),
+  }));
+  const deal = getContactPipelineContext(result.contact?.id || result.thread.contactId);
+  return NextResponse.json({ ...result, messages, deal });
 }
 
 export async function PATCH(
@@ -27,7 +39,7 @@ export async function PATCH(
   if (typeof body.isService !== "boolean") {
     return NextResponse.json({ error: "Передайте isService" }, { status: 400 });
   }
-  const thread = setThreadService(id, body.isService);
+  const thread = setEmailThreadService(id, body.isService);
   if (!thread) return NextResponse.json({ error: "Диалог не найден" }, { status: 404 });
   return NextResponse.json(thread);
 }
