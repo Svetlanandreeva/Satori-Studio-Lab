@@ -1,0 +1,80 @@
+name: Allow CRM integration webhooks
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/allow-crm-telegram-webhook.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: crm-public-webhooks
+  cancel-in-progress: false
+
+jobs:
+  configure:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.DEPLOY_SSH_KEY }}
+
+      - name: Trust production server
+        run: ssh-keyscan -H 194.226.97.103 >> ~/.ssh/known_hosts
+
+      - name: Allow Telegram and Need Number webhooks without CRM Basic Auth
+        run: |
+          ssh root@194.226.97.103 'bash -se' <<'REMOTE'
+          set -eu
+
+          cfg_link=$(grep -RIl 'crm\.satorilabural\.online' /etc/nginx/sites-enabled /etc/nginx/conf.d 2>/dev/null | head -1 || true)
+          if [ -z "$cfg_link" ]; then
+            echo 'Could not find Nginx config for crm.satorilabural.online' >&2
+            exit 1
+          fi
+          cfg=$(readlink -f "$cfg_link")
+          stamp=$(date +%Y%m%d-%H%M%S)
+          cp -a "$cfg" "${cfg}.before-public-webhooks-${stamp}"
+
+          CFG="$cfg" python3 - <<'PY'
+          import os
+          from pathlib import Path
+
+          path = Path(os.environ['CFG'])
+          text = path.read_text()
+          domain = 'crm.satorilabural.online'
+          domain_pos = text.find(domain)
+          if domain_pos < 0:
+              raise SystemExit('CRM server_name not found')
+
+          blocks = []
+          if 'location = /api/integrations/telegram/webhook' not in text:
+              blocks.append('''    # Public only for Telegram Bot API. The application validates Telegram's secret token.\n    location = /api/integrations/telegram/webhook {\n        auth_basic off;\n        proxy_pass http://127.0.0.1:3020;\n        proxy_http_version 1.1;\n        proxy_set_header Host $host;\n        proxy_set_header X-Real-IP $remote_addr;\n        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n        proxy_set_header X-Forwarded-Proto $scheme;\n    }\n\n''')
+          if 'location = /api/integrations/need-number' not in text:
+              blocks.append('''    # Public integration endpoint; the application validates its own secret key.\n    location = /api/integrations/need-number {\n        auth_basic off;\n        proxy_pass http://127.0.0.1:3020;\n        proxy_http_version 1.1;\n        proxy_set_header Host $host;\n        proxy_set_header X-Real-IP $remote_addr;\n        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n        proxy_set_header X-Forwarded-Proto $scheme;\n    }\n\n''')
+
+          if blocks:
+              location_pos = text.find('location /', domain_pos)
+              if location_pos < 0:
+                  raise SystemExit('Main CRM location block not found')
+              line_start = text.rfind('\n', 0, location_pos) + 1
+              text = text[:line_start] + ''.join(blocks) + text[line_start:]
+              path.write_text(text)
+          PY
+
+          nginx -t
+          systemctl reload nginx
+
+          root_code=$(curl -sS -o /dev/null -w '%{http_code}' https://crm.satorilabural.online/)
+          test "$root_code" = '401'
+
+          telegram_code=$(curl -sS -o /tmp/telegram-webhook-check.json -w '%{http_code}' https://crm.satorilabural.online/api/integrations/telegram/webhook)
+          test "$telegram_code" = '200'
+          grep -q 'Telegram Bot' /tmp/telegram-webhook-check.json
+
+          need_code=$(curl -sS -o /tmp/need-number-check.json -w '%{http_code}' https://crm.satorilabural.online/api/integrations/need-number)
+          test "$need_code" = '200'
+
+          echo 'CRM remains password-protected; Telegram and Need Number webhook endpoints are public.'
+          REMOTE
