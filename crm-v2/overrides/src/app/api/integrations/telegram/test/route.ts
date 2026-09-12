@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { sendTelegramMessage } from "@/lib/satori-integrations";
+import { configureTelegramWebhook } from "@/lib/telegram-webhook";
 
 function externalOrigin(request: NextRequest): string {
   const forwardedProto = request.headers.get("x-forwarded-proto")?.split(",")[0]?.trim();
@@ -15,8 +16,21 @@ function externalOrigin(request: NextRequest): string {
 }
 
 export async function POST(request: NextRequest) {
+  try {
+    await configureTelegramWebhook();
+  } catch (error) {
+    return NextResponse.json(
+      {
+        error: `Telegram уведомления доступны, но входящие не подключились: ${
+          error instanceof Error ? error.message : "ошибка webhook"
+        }`,
+      },
+      { status: 400 }
+    );
+  }
+
   const result = await sendTelegramMessage({
-    text: "✅ <b>SATORI CRM</b>\nTelegram подключён. Уведомления о новых лидах Need Number будут приходить сюда.",
+    text: "✅ <b>SATORI CRM</b>\nTelegram подключён. Входящие сообщения боту теперь тоже будут попадать в CRM.",
     url: `${externalOrigin(request)}/settings`,
   });
 
@@ -26,5 +40,5 @@ export async function POST(request: NextRequest) {
       { status: 400 }
     );
   }
-  return NextResponse.json({ success: true });
+  return NextResponse.json({ success: true, inbound: true });
 }
