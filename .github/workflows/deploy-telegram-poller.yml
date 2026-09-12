@@ -1,0 +1,94 @@
+name: Deploy Telegram poller
+
+on:
+  workflow_run:
+    workflows: ["Deploy CRM v2 stage"]
+    types: [completed]
+  workflow_dispatch:
+
+concurrency:
+  group: telegram-poller-production
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.DEPLOY_SSH_KEY }}
+
+      - name: Trust production server
+        run: ssh-keyscan -H 194.226.97.103 >> ~/.ssh/known_hosts
+
+      - name: Install Telegram long-polling worker
+        run: |
+          ssh root@194.226.97.103 'mkdir -p /opt/satori-telegram-poller'
+          scp crm-v2/runtime/telegram-poller.cjs root@194.226.97.103:/opt/satori-telegram-poller/telegram-poller.cjs
+          ssh root@194.226.97.103 'bash -se' <<'REMOTE'
+          set -eu
+          chown -R root:root /opt/satori-telegram-poller
+          chmod 755 /opt/satori-telegram-poller/telegram-poller.cjs
+
+          cat >/etc/systemd/system/satori-telegram-poller.service <<'UNIT'
+          [Unit]
+          Description=SATORI Telegram Business long-polling worker
+          Wants=network-online.target
+          After=network-online.target satori-crm-v2.service
+          Requires=satori-crm-v2.service
+
+          [Service]
+          Type=simple
+          User=www-data
+          Group=www-data
+          WorkingDirectory=/var/www/satori/crm-v2
+          Environment=NODE_ENV=production
+          Environment=CRM_DB_PATH=/var/lib/satori-auto-crm/crm.db
+          Environment=CRM_INTERNAL_ORIGIN=http://127.0.0.1:3020
+          Environment=NODE_PATH=/var/www/satori/crm-v2/node_modules
+          ExecStart=/opt/node22/bin/node /opt/satori-telegram-poller/telegram-poller.cjs
+          Restart=always
+          RestartSec=2
+          NoNewPrivileges=true
+          PrivateTmp=true
+
+          [Install]
+          WantedBy=multi-user.target
+          UNIT
+
+          systemctl daemon-reload
+          systemctl enable satori-telegram-poller >/dev/null 2>&1 || true
+          systemctl restart satori-telegram-poller
+          sleep 4
+          systemctl is-active --quiet satori-telegram-poller
+          REMOTE
+
+      - name: Verify Telegram polling heartbeat
+        run: |
+          ssh root@194.226.97.103 'bash -se' <<'REMOTE'
+          set -eu
+          sleep 3
+          systemctl is-active --quiet satori-telegram-poller
+          curl -fsS http://127.0.0.1:3020/api/integrations/telegram/status >/tmp/satori-tg-status.json
+          python3 - <<'PY'
+          import json
+          data=json.load(open('/tmp/satori-tg-status.json'))
+          assert data.get('transport') == 'polling', data
+          assert data.get('pollingEnabled') is True, data
+          assert data.get('pollingHeartbeatAt'), data
+          print('Telegram polling transport:', data.get('transport'))
+          print('Polling healthy:', bool(data.get('pollingHealthy')))
+          print('Business configured:', bool(data.get('businessConfigured')))
+          print('Can reply:', bool(data.get('businessCanReply')))
+          if data.get('pollingLastError'):
+              print('Polling error:', data.get('pollingLastError'))
+          PY
+          echo 'Recent poller log:'
+          journalctl -u satori-telegram-poller --since '3 minutes ago' --no-pager | tail -n 30
+          REMOTE
