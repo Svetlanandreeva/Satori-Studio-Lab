@@ -7,6 +7,10 @@ import { eq } from "drizzle-orm";
 export const INTEGRATION_KEYS = {
   telegramBotToken: "satori_telegram_bot_token",
   telegramChatId: "satori_telegram_chat_id",
+  telegramBusinessConnectionId: "satori_telegram_business_connection_id",
+  telegramBusinessUserId: "satori_telegram_business_user_id",
+  telegramBusinessEnabled: "satori_telegram_business_enabled",
+  telegramBusinessCanReply: "satori_telegram_business_can_reply",
   needNumberSecret: "satori_need_number_secret",
   needNumberProjectId: "satori_need_number_project_id",
   needNumberCreateDeal: "satori_need_number_create_deal",
@@ -97,10 +101,6 @@ export interface TelegramApiResponse<T = unknown> {
 }
 
 const TELEGRAM_API_HOST = "api.telegram.org";
-// The VPS resolver currently returns 149.154.166.110, which is unreachable from
-// the hosting network, while Telegram's 149.154.167.220 endpoint is reachable.
-// Keep SNI/Host as api.telegram.org so TLS remains fully verified. The env var
-// allows the address to be replaced without a code release if Telegram rotates it.
 const TELEGRAM_API_FALLBACK_IP = process.env.TELEGRAM_API_IP || "149.154.167.220";
 
 function telegramApiRequestOnce<T>(
@@ -159,13 +159,6 @@ function telegramApiRequestOnce<T>(
   });
 }
 
-/**
- * Telegram API transport for the CRM VPS.
- *
- * First try the resolver normally. If that route times out or is blocked by the
- * hosting network, retry the same HTTPS request against a known reachable
- * Telegram API address while preserving api.telegram.org as SNI and Host.
- */
 export async function telegramApiRequest<T = unknown>(
   token: string,
   method: string,
@@ -175,8 +168,6 @@ export async function telegramApiRequest<T = unknown>(
   try {
     const result = await telegramApiRequestOnce<T>(token, method, payload);
     if (result.ok || result.error_code) return result;
-    // A valid Telegram HTTP response means networking worked; do not mask a
-    // bot/token/chat error by trying another IP.
     if (result.description) return result;
   } catch (error) {
     firstError = error;
@@ -203,6 +194,7 @@ export async function sendTelegramMessage(input: {
   url?: string | null;
   token?: string | null;
   chatId?: string | null;
+  businessConnectionId?: string | null;
 }): Promise<{ sent: boolean; error?: string }> {
   const token = input.token || getSetting(INTEGRATION_KEYS.telegramBotToken);
   const chatId = input.chatId || getSetting(INTEGRATION_KEYS.telegramChatId);
@@ -221,6 +213,9 @@ export async function sendTelegramMessage(input: {
       parse_mode: "HTML",
       disable_web_page_preview: true,
     };
+    if (input.businessConnectionId) {
+      payload.business_connection_id = input.businessConnectionId;
+    }
     if (input.url && /^https:\/\//i.test(input.url)) {
       payload.reply_markup = {
         inline_keyboard: [[{ text: "Открыть в SATORI CRM", url: input.url }]],

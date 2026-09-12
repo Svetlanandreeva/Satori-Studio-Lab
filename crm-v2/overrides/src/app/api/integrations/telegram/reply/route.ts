@@ -4,9 +4,12 @@ import { db } from "@/db";
 import { activities, contacts } from "@/db/schema";
 import { sendTelegramMessage } from "@/lib/satori-integrations";
 
-function telegramChatId(notes: string | null): string | null {
-  const match = String(notes || "").match(/\[telegram-chat:([^\]]+)\]/);
-  return match?.[1] || null;
+function telegramMeta(notes: string | null) {
+  const raw = String(notes || "");
+  return {
+    chatId: raw.match(/\[telegram-chat:([^\]]+)\]/)?.[1] || null,
+    businessConnectionId: raw.match(/\[telegram-business:([^\]]+)\]/)?.[1] || null,
+  };
 }
 
 export async function POST(request: NextRequest) {
@@ -29,24 +32,31 @@ export async function POST(request: NextRequest) {
   const contact = db.select().from(contacts).where(eq(contacts.id, contactId)).get();
   if (!contact) return NextResponse.json({ error: "Клиент не найден" }, { status: 404 });
 
-  const chatId = telegramChatId(contact.notes);
-  if (!chatId) {
+  const meta = telegramMeta(contact.notes);
+  if (!meta.chatId) {
     return NextResponse.json({ error: "У клиента нет Telegram-чата" }, { status: 400 });
   }
 
-  const sent = await sendTelegramMessage({ text, chatId });
+  const sent = await sendTelegramMessage({
+    text,
+    chatId: meta.chatId,
+    businessConnectionId: meta.businessConnectionId,
+  });
   if (!sent.sent) {
     return NextResponse.json({ error: sent.error || "Telegram не отправил сообщение" }, { status: 400 });
   }
 
   db.insert(activities)
     .values({
-      type: "telegram_outgoing",
-      description: `Telegram · исходящее\n${text}`,
+      type: meta.businessConnectionId ? "telegram_business_outgoing" : "telegram_outgoing",
+      description: `${meta.businessConnectionId ? "Telegram аккаунт" : "Telegram бот"} · исходящее\n${text}`,
       contactId,
       createdAt: new Date(),
     })
     .run();
 
-  return NextResponse.json({ success: true });
+  return NextResponse.json({
+    success: true,
+    channel: meta.businessConnectionId ? "telegram_account" : "telegram_bot",
+  });
 }

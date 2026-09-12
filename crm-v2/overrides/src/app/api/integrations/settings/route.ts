@@ -16,6 +16,16 @@ function snapshot() {
   const telegramChatId = getSetting(INTEGRATION_KEYS.telegramChatId) || "";
   const telegramInboundConfigured = getBooleanSetting(TELEGRAM_WEBHOOK_ENABLED_KEY, false);
   const telegramWebhookUrl = getSetting(TELEGRAM_WEBHOOK_URL_KEY) || "";
+  const telegramBusinessConnectionId =
+    getSetting(INTEGRATION_KEYS.telegramBusinessConnectionId) || "";
+  const telegramBusinessEnabled = getBooleanSetting(
+    INTEGRATION_KEYS.telegramBusinessEnabled,
+    false
+  );
+  const telegramBusinessCanReply = getBooleanSetting(
+    INTEGRATION_KEYS.telegramBusinessCanReply,
+    false
+  );
   const projectId = getSetting(INTEGRATION_KEYS.needNumberProjectId) || "1474";
   const createDeal = getBooleanSetting(INTEGRATION_KEYS.needNumberCreateDeal, true);
 
@@ -41,6 +51,10 @@ function snapshot() {
     telegramChatId,
     telegramInboundConfigured,
     telegramWebhookUrl,
+    telegramBusinessConfigured: Boolean(
+      telegramBusinessConnectionId && telegramBusinessEnabled
+    ),
+    telegramBusinessCanReply,
     needNumberProjectId: projectId,
     needNumberCreateDeal: createDeal,
     needNumberWebhookPath: `/api/integrations/need-number?key=${encodeURIComponent(secret)}`,
@@ -96,6 +110,10 @@ export async function POST(request: NextRequest) {
     if (body.clearTelegram === true) {
       setSetting(INTEGRATION_KEYS.telegramBotToken, "");
       setSetting(INTEGRATION_KEYS.telegramChatId, "");
+      setSetting(INTEGRATION_KEYS.telegramBusinessConnectionId, "");
+      setSetting(INTEGRATION_KEYS.telegramBusinessUserId, "");
+      setSetting(INTEGRATION_KEYS.telegramBusinessEnabled, "0");
+      setSetting(INTEGRATION_KEYS.telegramBusinessCanReply, "0");
       setSetting(TELEGRAM_WEBHOOK_ENABLED_KEY, "0");
       setSetting(TELEGRAM_WEBHOOK_URL_KEY, "");
     } else {

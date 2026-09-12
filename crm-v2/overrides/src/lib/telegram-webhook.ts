@@ -15,8 +15,6 @@ export function ensureTelegramWebhookSecret(): string {
 
 export function telegramWebhookUrl(): string {
   const origin = (process.env.CRM_PUBLIC_URL || "https://crm.satorilabural.online").replace(/\/$/, "");
-  // The Need Number endpoint is already the one public POST route through CRM Basic Auth.
-  // It securely proxies Telegram updates internally after validating Telegram's secret header.
   return `${origin}/api/integrations/need-number?telegram=1`;
 }
 
@@ -29,7 +27,14 @@ export async function configureTelegramWebhook() {
   const result = await telegramApiRequest(token, "setWebhook", {
     url,
     secret_token: secret,
-    allowed_updates: ["message", "edited_message"],
+    allowed_updates: [
+      "message",
+      "edited_message",
+      "business_connection",
+      "business_message",
+      "edited_business_message",
+      "deleted_business_messages",
+    ],
     drop_pending_updates: false,
   });
   if (!result.ok) throw new Error(result.description || "Telegram не принял webhook");

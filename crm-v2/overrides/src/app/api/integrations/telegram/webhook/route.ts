@@ -3,12 +3,15 @@ import { asc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { activities, contacts, deals, pipelineStages } from "@/db/schema";
 import {
+  INTEGRATION_KEYS,
   escapeTelegramHtml,
   getSetting,
   normalizeRussianPhone,
   phoneIdentity,
   safeSecretEqual,
   sendTelegramMessage,
+  setSetting,
+  telegramApiRequest,
 } from "@/lib/satori-integrations";
 
 const WEBHOOK_SECRET_KEY = "satori_telegram_webhook_secret";
@@ -33,6 +36,8 @@ interface TelegramMessage {
   message_id: number;
   date?: number;
   from?: TelegramUser;
+  sender_business_bot?: TelegramUser;
+  business_connection_id?: string;
   chat: TelegramChat;
   text?: string;
   caption?: string;
@@ -46,10 +51,29 @@ interface TelegramMessage {
   location?: unknown;
 }
 
+interface TelegramBusinessConnection {
+  id: string;
+  user: TelegramUser;
+  user_chat_id?: number;
+  is_enabled: boolean;
+  rights?: {
+    can_reply?: boolean;
+    can_read_messages?: boolean;
+  };
+}
+
 interface TelegramUpdate {
   update_id?: number;
   message?: TelegramMessage;
   edited_message?: TelegramMessage;
+  business_connection?: TelegramBusinessConnection;
+  business_message?: TelegramMessage;
+  edited_business_message?: TelegramMessage;
+  deleted_business_messages?: {
+    business_connection_id: string;
+    chat?: TelegramChat;
+    message_ids?: number[];
+  };
 }
 
 function externalOrigin(request: NextRequest): string {
@@ -110,20 +134,35 @@ function bodyOf(message: TelegramMessage): string {
   return "Сообщение Telegram";
 }
 
+function telegramUserFromNotes(notes: string | null): string | null {
+  const match = String(notes || "").match(/\[telegram-user:([^\]]+)\]/i);
+  return match?.[1] || null;
+}
+
 function withTelegramMeta(
   notes: string | null,
-  input: { chatId: string; username: string | null; messageId: number }
+  input: {
+    chatId: string;
+    username: string | null;
+    messageId: number;
+    businessConnectionId?: string | null;
+  }
 ): string {
+  const preservedUser = input.username || telegramUserFromNotes(notes);
   const lines = String(notes || "")
     .split("\n")
     .filter(
       (line) =>
         !line.startsWith("[telegram-chat:") &&
         !line.startsWith("[telegram-user:") &&
-        !line.startsWith("[telegram-last-message:")
+        !line.startsWith("[telegram-last-message:") &&
+        !line.startsWith("[telegram-business:")
     );
   lines.push(`[telegram-chat:${input.chatId}]`);
-  if (input.username) lines.push(`[telegram-user:${input.username.toLowerCase()}]`);
+  if (input.businessConnectionId) {
+    lines.push(`[telegram-business:${input.businessConnectionId}]`);
+  }
+  if (preservedUser) lines.push(`[telegram-user:${preservedUser.toLowerCase()}]`);
   lines.push(`[telegram-last-message:${input.chatId}:${input.messageId}]`);
   return lines.filter(Boolean).join("\n");
 }
@@ -143,6 +182,37 @@ function alreadyProcessed(notes: string | null, chatId: string, messageId: numbe
   return String(notes || "").includes(`[telegram-last-message:${chatId}:${messageId}]`);
 }
 
+function saveBusinessConnection(connection: TelegramBusinessConnection) {
+  setSetting(INTEGRATION_KEYS.telegramBusinessConnectionId, connection.id);
+  setSetting(INTEGRATION_KEYS.telegramBusinessUserId, String(connection.user.id));
+  setSetting(INTEGRATION_KEYS.telegramBusinessEnabled, connection.is_enabled ? "1" : "0");
+  setSetting(
+    INTEGRATION_KEYS.telegramBusinessCanReply,
+    connection.rights?.can_reply ? "1" : "0"
+  );
+}
+
+async function resolveBusinessOwner(connectionId: string): Promise<string> {
+  const storedId = getSetting(INTEGRATION_KEYS.telegramBusinessConnectionId);
+  const storedUserId = getSetting(INTEGRATION_KEYS.telegramBusinessUserId) || "";
+  if (storedId === connectionId && storedUserId) return storedUserId;
+
+  const token = getSetting(INTEGRATION_KEYS.telegramBotToken);
+  if (!token) return storedUserId;
+  try {
+    const response = await telegramApiRequest<TelegramBusinessConnection>(
+      token,
+      "getBusinessConnection",
+      { business_connection_id: connectionId }
+    );
+    if (response.ok && response.result) {
+      saveBusinessConnection(response.result);
+      return String(response.result.user.id);
+    }
+  } catch {}
+  return storedUserId;
+}
+
 export async function POST(request: NextRequest) {
   const expectedSecret = getSetting(WEBHOOK_SECRET_KEY);
   const receivedSecret = request.headers.get("x-telegram-bot-api-secret-token");
@@ -157,19 +227,42 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: true });
   }
 
-  const message = update.message || update.edited_message;
+  if (update.business_connection) {
+    saveBusinessConnection(update.business_connection);
+    return NextResponse.json({
+      ok: true,
+      businessConnection: update.business_connection.is_enabled ? "connected" : "disabled",
+    });
+  }
+
+  if (update.deleted_business_messages) {
+    return NextResponse.json({ ok: true, deletedBusinessMessages: true });
+  }
+
+  const businessMessage = update.business_message || update.edited_business_message;
+  const message = businessMessage || update.message || update.edited_message;
+  const isBusiness = Boolean(businessMessage?.business_connection_id);
+
   if (!message || message.chat?.type !== "private" || message.from?.is_bot) {
     return NextResponse.json({ ok: true, ignored: true });
   }
 
   const chatId = String(message.chat.id);
-  const ownerChatId = getSetting("satori_telegram_chat_id") || "";
-  if (ownerChatId && chatId === ownerChatId) {
+  const ownerChatId = getSetting(INTEGRATION_KEYS.telegramChatId) || "";
+  if (!isBusiness && ownerChatId && chatId === ownerChatId) {
     return NextResponse.json({ ok: true, ignored: "owner-chat" });
   }
 
-  const username = usernameOf(message);
-  const sharedPhone = normalizeRussianPhone(message.contact?.phone_number);
+  const businessConnectionId = isBusiness ? message.business_connection_id || "" : "";
+  const businessOwnerUserId = businessConnectionId
+    ? await resolveBusinessOwner(businessConnectionId)
+    : "";
+  const fromOwner = Boolean(
+    isBusiness && businessOwnerUserId && String(message.from?.id || "") === businessOwnerUserId
+  );
+
+  const username = fromOwner ? null : usernameOf(message);
+  const sharedPhone = fromOwner ? null : normalizeRussianPhone(message.contact?.phone_number);
   const phoneKey = phoneIdentity(sharedPhone);
   const allContacts = db.select().from(contacts).all();
 
@@ -181,6 +274,10 @@ export async function POST(request: NextRequest) {
     contact = allContacts.find((item) => phoneIdentity(item.phone) === phoneKey);
   }
 
+  if (!contact && fromOwner) {
+    return NextResponse.json({ ok: true, ignored: "outgoing-business-without-contact" });
+  }
+
   if (contact && alreadyProcessed(contact.notes, chatId, message.message_id)) {
     return NextResponse.json({ ok: true, duplicate: true, contactId: contact.id });
   }
@@ -190,6 +287,7 @@ export async function POST(request: NextRequest) {
     chatId,
     username,
     messageId: message.message_id,
+    businessConnectionId: businessConnectionId || null,
   });
 
   if (!contact) {
@@ -200,11 +298,13 @@ export async function POST(request: NextRequest) {
         email: null,
         phone: sharedPhone,
         company: null,
-        source: "telegram",
+        source: isBusiness ? "telegram_account" : "telegram",
         temperature: "warm",
         qualification: "new",
         score: 55,
-        notes: ["Источник: Telegram", notes].filter(Boolean).join("\n"),
+        notes: [isBusiness ? "Источник: личный Telegram" : "Источник: Telegram-бот", notes]
+          .filter(Boolean)
+          .join("\n"),
         createdAt: now,
         updatedAt: now,
       })
@@ -221,16 +321,27 @@ export async function POST(request: NextRequest) {
       .run();
   }
 
-  const sender = username || displayName(message);
   const body = bodyOf(message);
+  const channelLabel = isBusiness ? "Telegram аккаунт" : "Telegram бот";
+  const direction = fromOwner ? "исходящее" : "входящее";
+  const sender = fromOwner ? "Satori" : username || displayName(message);
+
   db.insert(activities)
     .values({
-      type: "telegram_incoming",
-      description: `Telegram · ${sender}\n${body}`,
+      type: isBusiness
+        ? fromOwner
+          ? "telegram_business_outgoing"
+          : "telegram_business_incoming"
+        : "telegram_incoming",
+      description: `${channelLabel} · ${direction}${fromOwner ? "" : ` · ${sender}`}\n${body}`,
       contactId: contact.id,
       createdAt: message.date ? new Date(message.date * 1000) : now,
     })
     .run();
+
+  if (fromOwner) {
+    return NextResponse.json({ ok: true, contactId: contact.id, outgoing: true });
+  }
 
   const activeDeals = db
     .select({ deal: deals, stage: pipelineStages })
@@ -254,7 +365,9 @@ export async function POST(request: NextRequest) {
           stageId: firstStage.id,
           contactId: contact.id,
           probability: 20,
-          notes: `Источник: Telegram${username ? `\nПользователь: ${username}` : ""}`,
+          notes: `${isBusiness ? "Источник: личный Telegram" : "Источник: Telegram-бот"}${
+            username ? `\nПользователь: ${username}` : ""
+          }`,
           createdAt: now,
           updatedAt: now,
         })
@@ -265,7 +378,9 @@ export async function POST(request: NextRequest) {
   const contactUrl = `${externalOrigin(request)}/contacts/${contact.id}`;
   await sendTelegramMessage({
     text: [
-      "💬 <b>Новое сообщение Telegram</b>",
+      isBusiness
+        ? "💬 <b>Новое сообщение в личный Telegram</b>"
+        : "💬 <b>Новое сообщение Telegram-боту</b>",
       `От: ${escapeTelegramHtml(displayName(message))}${
         username ? ` (${escapeTelegramHtml(username)})` : ""
       }`,
@@ -274,9 +389,12 @@ export async function POST(request: NextRequest) {
     url: contactUrl,
   });
 
-  return NextResponse.json({ ok: true, contactId: contact.id });
+  return NextResponse.json({ ok: true, contactId: contact.id, business: isBusiness });
 }
 
 export async function GET() {
-  return NextResponse.json({ ok: true, integration: "Telegram → SATORI CRM" });
+  return NextResponse.json({
+    ok: true,
+    integration: "Telegram Bot + Telegram Business → SATORI CRM",
+  });
 }
