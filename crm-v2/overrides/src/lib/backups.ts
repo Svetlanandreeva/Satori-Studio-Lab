@@ -4,6 +4,7 @@ import path from "path";
 import { DB_PATH } from "@/db";
 
 const BACKUP_DIR = process.env.CRM_BACKUP_PATH || path.join(path.dirname(DB_PATH), "backups");
+const CLIENT_FILES_DIR = process.env.CRM_CLIENT_FILES_PATH || path.join(path.dirname(DB_PATH), "client-files");
 const RESTORE_MARKER = `${DB_PATH}.restore-pending`;
 const KEEP_DAYS = Math.max(7, Number(process.env.CRM_BACKUP_KEEP_DAYS || 30));
 
@@ -19,6 +20,23 @@ function safeName(value: string) {
   return name;
 }
 
+function directoryStats(dir: string): { size: number; files: number } {
+  if (!fs.existsSync(dir)) return { size: 0, files: 0 };
+  let size = 0;
+  let files = 0;
+  const walk = (current: string) => {
+    for (const entry of fs.readdirSync(current, { withFileTypes: true })) {
+      const full = path.join(current, entry.name);
+      if (entry.isDirectory()) walk(full);
+      else if (entry.isFile()) {
+        try { size += fs.statSync(full).size; files += 1; } catch {}
+      }
+    }
+  };
+  walk(dir);
+  return { size, files };
+}
+
 function pruneBackups() {
   ensureDir();
   const cutoff = Date.now() - KEEP_DAYS * 24 * 60 * 60 * 1000;
@@ -27,7 +45,10 @@ function pruneBackups() {
     const full = path.join(BACKUP_DIR, item);
     try {
       const stat = fs.statSync(full);
-      if (stat.mtimeMs < cutoff) fs.rmSync(full, { force: true });
+      if (stat.mtimeMs < cutoff) {
+        fs.rmSync(full, { force: true });
+        fs.rmSync(`${full}.files`, { recursive: true, force: true });
+      }
     } catch {}
   }
 }
@@ -44,6 +65,7 @@ export async function createBackup(label = "auto") {
   } finally {
     source.close();
   }
+
   const verify = new Database(target, { readonly: true, fileMustExist: true });
   try {
     const check = verify.pragma("quick_check", { simple: true });
@@ -51,6 +73,13 @@ export async function createBackup(label = "auto") {
   } finally {
     verify.close();
   }
+
+  const filesTarget = `${target}.files`;
+  fs.rmSync(filesTarget, { recursive: true, force: true });
+  if (fs.existsSync(CLIENT_FILES_DIR)) {
+    fs.cpSync(CLIENT_FILES_DIR, filesTarget, { recursive: true, force: true });
+  }
+
   pruneBackups();
   return backupInfo(name);
 }
@@ -58,9 +87,13 @@ export async function createBackup(label = "auto") {
 function backupInfo(name: string) {
   const full = path.join(BACKUP_DIR, name);
   const stat = fs.statSync(full);
+  const documents = directoryStats(`${full}.files`);
   return {
     name,
-    size: stat.size,
+    size: stat.size + documents.size,
+    databaseSize: stat.size,
+    documentsSize: documents.size,
+    documentsCount: documents.files,
     createdAt: stat.mtimeMs,
     path: full,
   };
@@ -94,6 +127,6 @@ export function requestRestore(name: string) {
   } finally {
     check.close();
   }
-  fs.writeFileSync(RESTORE_MARKER, full, "utf8");
-  return { scheduled: true, name: path.basename(full) };
+  fs.writeFileSync(RESTORE_MARKER, JSON.stringify({ database: full, files: `${full}.files` }), "utf8");
+  return { scheduled: true, name: path.basename(full), includesDocuments: fs.existsSync(`${full}.files`) };
 }
