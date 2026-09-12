@@ -60,8 +60,11 @@ export async function PUT(request: NextRequest) {
         );
       }
 
+      // Сохранение из окна отправления — это явное действие пользователя.
+      // Поэтому тот же трек можно отправить повторно, если предыдущее уведомление
+      // не дошло. Email при наличии адреса является основным каналом.
       const shipment = await startShipment(dealId, body.trackingCode, {
-        forceNotification: Boolean(body.forceNotification),
+        forceNotification: body.forceNotification !== false,
       });
       runCrmConsistencyRepair();
       const updated = decoratedProjects().find((item) => item.dealId === dealId) || null;
