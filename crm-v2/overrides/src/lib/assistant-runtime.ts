@@ -13,6 +13,10 @@ const sqlite = new Database(DB_PATH, { timeout: 15000 });
 try { sqlite.pragma("journal_mode = WAL"); } catch {}
 try { sqlite.pragma("busy_timeout = 15000"); } catch {}
 
+function tableExists(name: string): boolean {
+  return Boolean(sqlite.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?").get(name));
+}
+
 function epochMs(value: unknown): number {
   if (value instanceof Date) return value.getTime();
   if (typeof value === "number") return value > 0 && value < 10_000_000_000 ? value * 1000 : value;
@@ -51,6 +55,59 @@ function activeDealsFor(contactId: string) {
   `).all(contactId) as Array<{ id: string; createdAt: unknown; updatedAt: unknown; stageName: string }>;
 }
 
+function rejectedStage(stageName: unknown, isLost: unknown): boolean {
+  if (Number(isLost || 0) === 1) return true;
+  const name = String(stageName || "").trim().toLowerCase().replace(/ё/g, "е");
+  return name.includes("отказ") || name.includes("спам") || name.includes("песочниц");
+}
+
+function rejectedConversationState(contactId: string): { rejected: boolean; rejectedAt: number } {
+  if (!contactId || !tableExists("deals") || !tableExists("pipeline_stages")) {
+    return { rejected: false, rejectedAt: 0 };
+  }
+
+  const rows = sqlite.prepare(`
+    SELECT d.id, d.updated_at AS updatedAt, d.created_at AS createdAt,
+      ps.name AS stageName, ps.is_lost AS isLost, ps.is_won AS isWon
+    FROM deals d
+    JOIN pipeline_stages ps ON ps.id=d.stage_id
+    WHERE d.contact_id=?
+    ORDER BY d.updated_at DESC, d.created_at DESC
+  `).all(contactId) as Array<{
+    id: string;
+    updatedAt: unknown;
+    createdAt: unknown;
+    stageName: string;
+    isLost: unknown;
+    isWon: unknown;
+  }>;
+
+  if (!rows.length) return { rejected: false, rejectedAt: 0 };
+  const hasActive = rows.some((row) => !Number(row.isWon || 0) && !rejectedStage(row.stageName, row.isLost));
+  if (hasActive) return { rejected: false, rejectedAt: 0 };
+
+  const latest = rows[0];
+  if (!rejectedStage(latest.stageName, latest.isLost)) return { rejected: false, rejectedAt: 0 };
+
+  let rejectedAt = 0;
+  if (tableExists("deal_stage_history")) {
+    const history = sqlite.prepare(`
+      SELECT MAX(h.created_at) AS rejectedAt
+      FROM deal_stage_history h
+      JOIN pipeline_stages ps ON ps.id=h.to_stage_id
+      WHERE h.deal_id=? AND (
+        COALESCE(ps.is_lost,0)=1 OR
+        lower(COALESCE(ps.name,'')) LIKE '%отказ%' OR
+        lower(COALESCE(ps.name,'')) LIKE '%спам%' OR
+        lower(COALESCE(ps.name,'')) LIKE '%песочниц%'
+      )
+    `).get(latest.id) as { rejectedAt?: unknown } | undefined;
+    rejectedAt = epochMs(history?.rejectedAt);
+  }
+  if (!rejectedAt) rejectedAt = epochMs(latest.updatedAt) || epochMs(latest.createdAt);
+  return { rejected: true, rejectedAt };
+}
+
 function isPostSaleStage(stageName: string): boolean {
   return /согласовано|в производстве|готово|отправлен клиенту|доставка|завершено/i.test(String(stageName || ""));
 }
@@ -86,11 +143,25 @@ function sanitizeMessageInsight(insight: Record<string, unknown>) {
   const fingerprint = String(insight.fingerprint || "");
   const activityId = fingerprint.split(":").pop() || "";
   if (!id || !activityId) return;
-  const activity = sqlite.prepare("SELECT created_at AS createdAt FROM activities WHERE id=?").get(activityId) as Record<string, unknown> | undefined;
+  const activity = sqlite.prepare("SELECT contact_id AS contactId, created_at AS createdAt FROM activities WHERE id=?").get(activityId) as Record<string, unknown> | undefined;
   if (!activity) {
     resolve(id);
     return;
   }
+
+  const contactId = String(insight.entityId || insight.entity_id || activity.contactId || "");
+  const rejected = rejectedConversationState(contactId);
+  if (rejected.rejected) {
+    const messageAt = epochMs(activity.createdAt);
+    // Всё, что было до перевода последней заявки в «Отказ»/спам, считается закрытой
+    // перепиской и больше не должно превращаться в текущий follow-up.
+    // Если клиент написал уже ПОСЛЕ отказа, это новое обращение и его не скрываем.
+    if (!rejected.rejectedAt || !messageAt || messageAt <= rejected.rejectedAt) {
+      resolve(id);
+      return;
+    }
+  }
+
   const age = hoursSince(activity.createdAt);
   if (fingerprint.startsWith("unanswered:")) {
     if (age < 6) return resolve(id);
@@ -106,8 +177,13 @@ function sanitizeOverdueActivity(insight: Record<string, unknown>) {
   const fingerprint = String(insight.fingerprint || "");
   const activityId = fingerprint.replace(/^overdue-activity:/, "");
   if (!id || !activityId) return;
-  const activity = sqlite.prepare("SELECT scheduled_at AS scheduledAt, completed_at AS completedAt FROM activities WHERE id=?").get(activityId) as Record<string, unknown> | undefined;
-  if (!activity || activity.completedAt || !epochMs(activity.scheduledAt) || epochMs(activity.scheduledAt) >= Date.now()) resolve(id);
+  const activity = sqlite.prepare("SELECT contact_id AS contactId, scheduled_at AS scheduledAt, completed_at AS completedAt FROM activities WHERE id=?").get(activityId) as Record<string, unknown> | undefined;
+  if (!activity || activity.completedAt || !epochMs(activity.scheduledAt) || epochMs(activity.scheduledAt) >= Date.now()) {
+    resolve(id);
+    return;
+  }
+  const rejected = rejectedConversationState(String(activity.contactId || ""));
+  if (rejected.rejected) resolve(id);
 }
 
 export function sanitizeAssistantInsights() {
