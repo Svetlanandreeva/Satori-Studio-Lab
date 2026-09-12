@@ -4,6 +4,7 @@ import path from "path";
 import { randomUUID } from "node:crypto";
 import nodemailer from "nodemailer";
 import { sendTelegramMessage, getSetting, getBooleanSetting, INTEGRATION_KEYS } from "@/lib/satori-integrations";
+import { replyToEmailThread } from "@/lib/email-integration";
 
 const DB_PATH = process.env.CRM_DB_PATH || path.join(process.cwd(), "data", "crm.db");
 const dataDir = path.dirname(DB_PATH);
@@ -61,7 +62,7 @@ function emailConfig() {
   return { address, username, password, host, port: Number.isFinite(port) ? port : 465, secure, fromName };
 }
 
-async function sendEmail(to: string, subject: string, text: string): Promise<{ sent: boolean; error?: string }> {
+async function sendStandaloneEmail(to: string, subject: string, text: string): Promise<{ sent: boolean; error?: string }> {
   const config = emailConfig();
   if (!config.address || !config.username || !config.password || !config.host) {
     return { sent: false, error: "Почта не настроена" };
@@ -102,12 +103,14 @@ function shipmentMessage(name: string, title: string, trackingCode: string): str
 
 function recordActivity(input: { contactId: string; dealId: string; description: string; type?: string }) {
   if (!tableExists("activities")) return;
+  // activities.created_at/completed_at — drizzle timestamp в секундах, не миллисекундах.
+  const now = Math.floor(Date.now() / 1000);
   sqlite.prepare(`
     INSERT INTO activities(id,type,description,contact_id,deal_id,scheduled_at,completed_at,created_at)
     VALUES(?,?,?,?,?,NULL,?,?)
   `).run(
     randomUUID(), input.type || "note", input.description,
-    input.contactId, input.dealId, Date.now(), Date.now()
+    input.contactId, input.dealId, now, now
   );
 }
 
@@ -153,7 +156,7 @@ export function saveTrackingCode(dealId: string, value: unknown) {
   const trackingCode = String(value || "").trim();
   if (!trackingCode) throw new Error("Укажите трек-номер / код отправления");
   if (trackingCode.length > 120) throw new Error("Трек-номер слишком длинный");
-  const deal = sqlite.prepare("SELECT id FROM deals WHERE id=?").get(dealId);
+  const deal = sqlite.prepare("SELECT id,contact_id AS contactId FROM deals WHERE id=?").get(dealId) as { id: string; contactId: string } | undefined;
   if (!deal) throw new Error("Сделка не найдена");
   const now = Date.now();
   const previous = getShipmentState(dealId);
@@ -169,7 +172,16 @@ export function saveTrackingCode(dealId: string, value: unknown) {
       updated_at=excluded.updated_at
   `).run(dealId, trackingCode, now, now, now);
   mirrorProjectShipment(dealId, now);
-  return { trackingCode, changed: previous?.trackingCode !== trackingCode };
+  const changed = previous?.trackingCode !== trackingCode;
+  if (changed) {
+    recordActivity({
+      contactId: deal.contactId,
+      dealId,
+      type: "note",
+      description: `Отправление передано в доставку. Трек-номер: ${trackingCode}`,
+    });
+  }
+  return { trackingCode, changed };
 }
 
 export async function notifyShipment(dealId: string, trackingCode: string) {
@@ -209,7 +221,26 @@ export async function notifyShipment(dealId: string, trackingCode: string) {
 
   let emailError = "";
   if (row.email) {
-    const mail = await sendEmail(row.email, `Ваш заказ отправлен · трек ${trackingCode}`, text);
+    // Если с клиентом уже есть почтовый диалог, отвечаем именно в него — тогда
+    // отправка видна в «Сообщениях». Без истории используем обычное SMTP-письмо.
+    const thread = tableExists("email_threads")
+      ? sqlite.prepare(`SELECT id FROM email_threads WHERE contact_id=? AND lower(remote_email)=lower(?) ORDER BY last_message_at DESC LIMIT 1`)
+          .get(row.contactId, row.email) as { id: string } | undefined
+      : undefined;
+    if (thread?.id) {
+      try {
+        await replyToEmailThread(thread.id, text);
+        const now = Date.now();
+        sqlite.prepare(`UPDATE shipment_state SET notified_at=?,notification_channel='email',notification_error=NULL,updated_at=? WHERE deal_id=?`)
+          .run(now, now, dealId);
+        recordActivity({ contactId: row.contactId, dealId, type: "email_outgoing", description: `[shipment:${trackingCode}] Трек-номер отправлен в почтовый диалог` });
+        return { sent: true, channel: "email" };
+      } catch (error) {
+        emailError = error instanceof Error ? error.message : "Не удалось ответить в почтовый диалог";
+      }
+    }
+
+    const mail = await sendStandaloneEmail(row.email, `Ваш заказ отправлен · трек ${trackingCode}`, text);
     if (mail.sent) {
       const now = Date.now();
       sqlite.prepare(`UPDATE shipment_state SET notified_at=?,notification_channel='email',notification_error=NULL,updated_at=? WHERE deal_id=?`)
@@ -217,7 +248,7 @@ export async function notifyShipment(dealId: string, trackingCode: string) {
       recordActivity({ contactId: row.contactId, dealId, type: "email_outgoing", description: `[shipment:${trackingCode}] Трек-номер отправлен на ${row.email}` });
       return { sent: true, channel: "email" };
     }
-    emailError = mail.error || "Email не отправлен";
+    emailError = [emailError, mail.error || "Email не отправлен"].filter(Boolean).join("; ");
   }
 
   const error = [telegramError, emailError, !meta.chatId && !row.email ? "У клиента нет Telegram-диалога и email" : ""]
