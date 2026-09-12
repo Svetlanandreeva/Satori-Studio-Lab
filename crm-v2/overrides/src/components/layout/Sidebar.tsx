@@ -3,12 +3,16 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  BarChart3,
   Banknote,
+  CalendarClock,
+  Factory,
   FolderKanban,
   Kanban,
   LayoutDashboard,
   MessageCircle,
   Settings,
+  ShieldCheck,
   Sparkles,
   Users,
 } from "lucide-react";
@@ -27,14 +31,18 @@ type NavItem = {
 const workItems: NavItem[] = [
   { href: "/", label: "Сегодня", icon: LayoutDashboard, iconBg: "bg-blue-50", iconText: "text-blue-600", dot: "bg-blue-500" },
   { href: "/inbox", label: "Сообщения", icon: MessageCircle, iconBg: "bg-sky-50", iconText: "text-sky-600", dot: "bg-sky-500" },
+  { href: "/tasks", label: "Задачи", icon: CalendarClock, iconBg: "bg-blue-50", iconText: "text-blue-700", dot: "bg-blue-600" },
   { href: "/pipeline", label: "Воронка", icon: Kanban, iconBg: "bg-violet-50", iconText: "text-violet-600", dot: "bg-violet-500" },
   { href: "/projects", label: "Проекты", icon: FolderKanban, iconBg: "bg-amber-50", iconText: "text-amber-600", dot: "bg-amber-500" },
+  { href: "/production", label: "Производство", icon: Factory, iconBg: "bg-orange-50", iconText: "text-orange-600", dot: "bg-orange-500" },
   { href: "/contacts", label: "Клиенты", icon: Users, iconBg: "bg-teal-50", iconText: "text-teal-600", dot: "bg-teal-500" },
 ];
 
 const managementItems: NavItem[] = [
   { href: "/economics", label: "Деньги", icon: Banknote, iconBg: "bg-emerald-50", iconText: "text-emerald-600", dot: "bg-emerald-500" },
+  { href: "/analytics", label: "Аналитика", icon: BarChart3, iconBg: "bg-fuchsia-50", iconText: "text-fuchsia-600", dot: "bg-fuchsia-500" },
   { href: "/assistant", label: "Помощник", icon: Sparkles, iconBg: "bg-indigo-50", iconText: "text-indigo-600", dot: "bg-indigo-500" },
+  { href: "/control", label: "Контроль", icon: ShieldCheck, iconBg: "bg-slate-100", iconText: "text-slate-700", dot: "bg-slate-600" },
 ];
 
 const settingsItem: NavItem = {

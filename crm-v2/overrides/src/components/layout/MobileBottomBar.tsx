@@ -2,16 +2,16 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { FolderKanban, LayoutDashboard, MessageCircle, Sparkles, Users } from "lucide-react";
+import { CalendarClock, FolderKanban, LayoutDashboard, MessageCircle, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useUnreadMessages } from "@/lib/use-unread-messages";
 
 const items = [
   { href: "/", label: "Сегодня", icon: LayoutDashboard, activeBg: "bg-blue-50", activeText: "text-blue-600" },
   { href: "/inbox", label: "Сообщения", icon: MessageCircle, activeBg: "bg-sky-50", activeText: "text-sky-600" },
+  { href: "/tasks", label: "Задачи", icon: CalendarClock, activeBg: "bg-blue-50", activeText: "text-blue-700" },
   { href: "/projects", label: "Проекты", icon: FolderKanban, activeBg: "bg-amber-50", activeText: "text-amber-600" },
   { href: "/contacts", label: "Клиенты", icon: Users, activeBg: "bg-teal-50", activeText: "text-teal-600" },
-  { href: "/assistant", label: "Помощник", icon: Sparkles, activeBg: "bg-indigo-50", activeText: "text-indigo-600" },
 ];
 
 function unreadLabel(value: number) {

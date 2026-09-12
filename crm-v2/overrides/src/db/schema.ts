@@ -21,6 +21,23 @@ export const contacts = sqliteTable("contacts", {
     .$defaultFn(() => new Date()),
 });
 
+export const teamMembers = sqliteTable("team_members", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  name: text("name").notNull(),
+  login: text("login").unique(),
+  passwordHash: text("password_hash"),
+  role: text("role").notNull().default("manager"),
+  active: integer("active", { mode: "boolean" }).notNull().default(true),
+  createdAt: integer("created_at", { mode: "timestamp" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+  updatedAt: integer("updated_at", { mode: "timestamp" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+});
+
 export const pipelineStages = sqliteTable("pipeline_stages", {
   id: text("id")
     .primaryKey()
@@ -44,6 +61,8 @@ export const deals = sqliteTable("deals", {
   contactId: text("contact_id")
     .notNull()
     .references(() => contacts.id),
+  ownerId: text("owner_id").references(() => teamMembers.id),
+  lossReason: text("loss_reason"),
   expectedClose: integer("expected_close", { mode: "timestamp" }),
   probability: integer("probability").notNull().default(0),
   notes: text("notes"),
@@ -51,6 +70,24 @@ export const deals = sqliteTable("deals", {
     .notNull()
     .$defaultFn(() => new Date()),
   updatedAt: integer("updated_at", { mode: "timestamp" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+});
+
+export const dealStageHistory = sqliteTable("deal_stage_history", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  dealId: text("deal_id")
+    .notNull()
+    .references(() => deals.id, { onDelete: "cascade" }),
+  fromStageId: text("from_stage_id").references(() => pipelineStages.id),
+  toStageId: text("to_stage_id")
+    .notNull()
+    .references(() => pipelineStages.id),
+  reason: text("reason"),
+  changedBy: text("changed_by").references(() => teamMembers.id),
+  createdAt: integer("created_at", { mode: "timestamp" })
     .notNull()
     .$defaultFn(() => new Date()),
 });
@@ -100,8 +137,57 @@ export const activities = sqliteTable("activities", {
     .notNull()
     .references(() => contacts.id),
   dealId: text("deal_id").references(() => deals.id),
+  ownerId: text("owner_id").references(() => teamMembers.id),
+  priority: text("priority").notNull().default("normal"),
   scheduledAt: integer("scheduled_at", { mode: "timestamp" }),
   completedAt: integer("completed_at", { mode: "timestamp" }),
+  createdAt: integer("created_at", { mode: "timestamp" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+});
+
+export const messageTemplates = sqliteTable("message_templates", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  title: text("title").notNull(),
+  channel: text("channel").notNull().default("all"),
+  body: text("body").notNull(),
+  sortOrder: integer("sort_order").notNull().default(0),
+  createdAt: integer("created_at", { mode: "timestamp" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+  updatedAt: integer("updated_at", { mode: "timestamp" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+});
+
+export const projectChecklist = sqliteTable("project_checklist", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  dealId: text("deal_id")
+    .notNull()
+    .references(() => deals.id, { onDelete: "cascade" }),
+  key: text("key").notNull(),
+  title: text("title").notNull(),
+  done: integer("done", { mode: "boolean" }).notNull().default(false),
+  sortOrder: integer("sort_order").notNull().default(0),
+  updatedAt: integer("updated_at", { mode: "timestamp" })
+    .notNull()
+    .$defaultFn(() => new Date()),
+});
+
+export const auditLog = sqliteTable("audit_log", {
+  id: text("id")
+    .primaryKey()
+    .$defaultFn(() => crypto.randomUUID()),
+  actorId: text("actor_id"),
+  actorName: text("actor_name"),
+  action: text("action").notNull(),
+  entityType: text("entity_type").notNull(),
+  entityId: text("entity_id"),
+  details: text("details"),
   createdAt: integer("created_at", { mode: "timestamp" })
     .notNull()
     .$defaultFn(() => new Date()),

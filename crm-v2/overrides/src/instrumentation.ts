@@ -4,4 +4,6 @@ export async function register() {
   runCrmConsistencyRepair();
   const { startEmailSyncScheduler } = await import("@/lib/email-sync-runner");
   startEmailSyncScheduler();
+  const { startOperationsScheduler } = await import("@/lib/operations-scheduler");
+  startOperationsScheduler();
 }

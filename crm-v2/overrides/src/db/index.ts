@@ -5,7 +5,56 @@ import path from "path";
 import fs from "fs";
 import { SPAM_STAGE_NAME } from "@/lib/lead-qualification";
 
-const DB_PATH = process.env.CRM_DB_PATH || path.join(process.cwd(), "data", "crm.db");
+export const DB_PATH = process.env.CRM_DB_PATH || path.join(process.cwd(), "data", "crm.db");
+const CLIENT_FILES_DIR = process.env.CRM_CLIENT_FILES_PATH || path.join(path.dirname(DB_PATH), "client-files");
+const RESTORE_MARKER = `${DB_PATH}.restore-pending`;
+
+function applyPendingRestore(): void {
+  try {
+    if (!fs.existsSync(RESTORE_MARKER)) return;
+    const raw = fs.readFileSync(RESTORE_MARKER, "utf8").trim();
+    let backupPath = raw;
+    let filesPath: string | null = null;
+    try {
+      const parsed = JSON.parse(raw) as { database?: string; files?: string };
+      backupPath = String(parsed.database || "").trim();
+      filesPath = parsed.files ? String(parsed.files) : null;
+    } catch {}
+
+    if (!backupPath || !fs.existsSync(backupPath)) {
+      fs.rmSync(RESTORE_MARKER, { force: true });
+      console.error("CRM restore marker referenced a missing backup", backupPath);
+      return;
+    }
+    const check = new Database(backupPath, { readonly: true });
+    const integrity = check.pragma("quick_check", { simple: true });
+    check.close();
+    if (String(integrity).toLowerCase() !== "ok") {
+      fs.rmSync(RESTORE_MARKER, { force: true });
+      throw new Error(`Backup integrity check failed: ${integrity}`);
+    }
+    fs.mkdirSync(path.dirname(DB_PATH), { recursive: true });
+    fs.copyFileSync(backupPath, `${DB_PATH}.restore-tmp`);
+    fs.rmSync(`${DB_PATH}-wal`, { force: true });
+    fs.rmSync(`${DB_PATH}-shm`, { force: true });
+    fs.renameSync(`${DB_PATH}.restore-tmp`, DB_PATH);
+
+    if (filesPath && fs.existsSync(filesPath)) {
+      const filesTmp = `${CLIENT_FILES_DIR}.restore-tmp`;
+      fs.rmSync(filesTmp, { recursive: true, force: true });
+      fs.cpSync(filesPath, filesTmp, { recursive: true, force: true });
+      fs.rmSync(CLIENT_FILES_DIR, { recursive: true, force: true });
+      fs.renameSync(filesTmp, CLIENT_FILES_DIR);
+    }
+
+    fs.rmSync(RESTORE_MARKER, { force: true });
+    console.log(`CRM database restored from ${path.basename(backupPath)}${filesPath ? " with client files" : ""}`);
+  } catch (error) {
+    console.error("CRM pending restore failed", error);
+  }
+}
+
+applyPendingRestore();
 
 const dataDir = path.dirname(DB_PATH);
 if (!fs.existsSync(dataDir)) {
@@ -13,14 +62,23 @@ if (!fs.existsSync(dataDir)) {
 }
 
 function createDatabase(): Database.Database {
-  const db = new Database(DB_PATH, { timeout: 15000 });
-  try { db.pragma("journal_mode = WAL"); } catch {}
-  try { db.pragma("busy_timeout = 15000"); } catch {}
-  try { db.pragma("foreign_keys = ON"); } catch {}
-  return db;
+  const database = new Database(DB_PATH, { timeout: 15000 });
+  try { database.pragma("journal_mode = WAL"); } catch {}
+  try { database.pragma("busy_timeout = 15000"); } catch {}
+  try { database.pragma("foreign_keys = ON"); } catch {}
+  return database;
 }
 
-function initTables(db: Database.Database): void {
+function addColumn(database: Database.Database, table: string, ddl: string, column: string): void {
+  try {
+    const columns = database.prepare(`PRAGMA table_info(${table})`).all() as Array<{ name: string }>;
+    if (!columns.some((item) => item.name === column)) database.exec(ddl);
+  } catch (error) {
+    console.error(`CRM migration failed: ${table}.${column}`, error);
+  }
+}
+
+function initTables(database: Database.Database): void {
   const tables = [
     `CREATE TABLE IF NOT EXISTS contacts (
       id TEXT PRIMARY KEY,
@@ -33,6 +91,16 @@ function initTables(db: Database.Database): void {
       qualification TEXT NOT NULL DEFAULT 'new',
       score INTEGER NOT NULL DEFAULT 0,
       notes TEXT,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    )`,
+    `CREATE TABLE IF NOT EXISTS team_members (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      login TEXT UNIQUE,
+      password_hash TEXT,
+      role TEXT NOT NULL DEFAULT 'manager',
+      active INTEGER NOT NULL DEFAULT 1,
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL
     )`,
@@ -50,11 +118,22 @@ function initTables(db: Database.Database): void {
       value INTEGER NOT NULL DEFAULT 0,
       stage_id TEXT NOT NULL REFERENCES pipeline_stages(id),
       contact_id TEXT NOT NULL REFERENCES contacts(id),
+      owner_id TEXT,
+      loss_reason TEXT,
       expected_close INTEGER,
       probability INTEGER NOT NULL DEFAULT 0,
       notes TEXT,
       created_at INTEGER NOT NULL,
       updated_at INTEGER NOT NULL
+    )`,
+    `CREATE TABLE IF NOT EXISTS deal_stage_history (
+      id TEXT PRIMARY KEY,
+      deal_id TEXT NOT NULL REFERENCES deals(id) ON DELETE CASCADE,
+      from_stage_id TEXT,
+      to_stage_id TEXT NOT NULL,
+      reason TEXT,
+      changed_by TEXT,
+      created_at INTEGER NOT NULL
     )`,
     `CREATE TABLE IF NOT EXISTS activities (
       id TEXT PRIMARY KEY,
@@ -62,8 +141,39 @@ function initTables(db: Database.Database): void {
       description TEXT NOT NULL,
       contact_id TEXT NOT NULL REFERENCES contacts(id),
       deal_id TEXT REFERENCES deals(id),
+      owner_id TEXT,
+      priority TEXT NOT NULL DEFAULT 'normal',
       scheduled_at INTEGER,
       completed_at INTEGER,
+      created_at INTEGER NOT NULL
+    )`,
+    `CREATE TABLE IF NOT EXISTS project_checklist (
+      id TEXT PRIMARY KEY,
+      deal_id TEXT NOT NULL REFERENCES deals(id) ON DELETE CASCADE,
+      key TEXT NOT NULL,
+      title TEXT NOT NULL,
+      done INTEGER NOT NULL DEFAULT 0,
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      updated_at INTEGER NOT NULL,
+      UNIQUE(deal_id,key)
+    )`,
+    `CREATE TABLE IF NOT EXISTS message_templates (
+      id TEXT PRIMARY KEY,
+      title TEXT NOT NULL,
+      channel TEXT NOT NULL DEFAULT 'all',
+      body TEXT NOT NULL,
+      sort_order INTEGER NOT NULL DEFAULT 0,
+      created_at INTEGER NOT NULL,
+      updated_at INTEGER NOT NULL
+    )`,
+    `CREATE TABLE IF NOT EXISTS audit_log (
+      id TEXT PRIMARY KEY,
+      actor_id TEXT,
+      actor_name TEXT,
+      action TEXT NOT NULL,
+      entity_type TEXT NOT NULL,
+      entity_id TEXT,
+      details TEXT,
       created_at INTEGER NOT NULL
     )`,
     `CREATE TABLE IF NOT EXISTS crm_settings (
@@ -107,25 +217,34 @@ function initTables(db: Database.Database): void {
     `CREATE INDEX IF NOT EXISTS idx_email_threads_last_message ON email_threads(last_message_at DESC)`,
     `CREATE INDEX IF NOT EXISTS idx_email_threads_contact ON email_threads(contact_id)`,
     `CREATE INDEX IF NOT EXISTS idx_email_messages_thread_time ON email_messages(thread_id, received_at ASC)`,
+    `CREATE INDEX IF NOT EXISTS idx_deals_owner ON deals(owner_id)`,
+    `CREATE INDEX IF NOT EXISTS idx_stage_history_deal ON deal_stage_history(deal_id, created_at DESC)`,
+    `CREATE INDEX IF NOT EXISTS idx_activities_owner_due ON activities(owner_id, completed_at, scheduled_at)`,
+    `CREATE INDEX IF NOT EXISTS idx_project_checklist_deal ON project_checklist(deal_id, sort_order)`,
+    `CREATE INDEX IF NOT EXISTS idx_audit_created ON audit_log(created_at DESC)`,
+    `CREATE TRIGGER IF NOT EXISTS trg_deals_stage_history
+      AFTER UPDATE OF stage_id ON deals
+      WHEN OLD.stage_id IS NOT NEW.stage_id
+      BEGIN
+        INSERT INTO deal_stage_history(id,deal_id,from_stage_id,to_stage_id,reason,changed_by,created_at)
+        VALUES(lower(hex(randomblob(16))),NEW.id,OLD.stage_id,NEW.stage_id,NULL,NULL,(unixepoch('now') * 1000));
+      END`,
   ];
 
   for (const sql of tables) {
-    try { db.exec(sql); } catch {}
+    try { database.exec(sql); } catch {}
   }
 
-  try {
-    const columns = db.prepare("PRAGMA table_info(contacts)").all() as Array<{ name: string }>;
-    if (!columns.some((column) => column.name === "qualification")) {
-      db.exec("ALTER TABLE contacts ADD COLUMN qualification TEXT NOT NULL DEFAULT 'new'");
-    }
-  } catch (error) {
-    console.error("CRM qualification migration failed", error);
-  }
+  addColumn(database, "contacts", "ALTER TABLE contacts ADD COLUMN qualification TEXT NOT NULL DEFAULT 'new'", "qualification");
+  addColumn(database, "deals", "ALTER TABLE deals ADD COLUMN owner_id TEXT", "owner_id");
+  addColumn(database, "deals", "ALTER TABLE deals ADD COLUMN loss_reason TEXT", "loss_reason");
+  addColumn(database, "activities", "ALTER TABLE activities ADD COLUMN owner_id TEXT", "owner_id");
+  addColumn(database, "activities", "ALTER TABLE activities ADD COLUMN priority TEXT NOT NULL DEFAULT 'normal'", "priority");
 }
 
-function seedDefaultStages(db: Database.Database): void {
+function seedDefaultStages(database: Database.Database): void {
   try {
-    const result = db.prepare("SELECT COUNT(*) as count FROM pipeline_stages").get() as
+    const result = database.prepare("SELECT COUNT(*) as count FROM pipeline_stages").get() as
       | { count: number }
       | undefined;
     if (!result || result.count > 0) return;
@@ -141,10 +260,10 @@ function seedDefaultStages(db: Database.Database): void {
       { name: "Отказ", order: 8, color: "#dc2626", isWon: 0, isLost: 1 },
     ];
 
-    const insert = db.prepare(
+    const insert = database.prepare(
       `INSERT OR IGNORE INTO pipeline_stages (id, name, "order", color, is_won, is_lost) VALUES (?, ?, ?, ?, ?, ?)`
     );
-    const seedAll = db.transaction(() => {
+    const seedAll = database.transaction(() => {
       for (const stage of defaultStages) {
         insert.run(
           crypto.randomUUID(),
@@ -160,13 +279,13 @@ function seedDefaultStages(db: Database.Database): void {
   } catch {}
 }
 
-function ensureSpamStage(db: Database.Database): void {
+function ensureSpamStage(database: Database.Database): void {
   try {
-    const existing = db
+    const existing = database
       .prepare("SELECT id FROM pipeline_stages WHERE name = ? LIMIT 1")
       .get(SPAM_STAGE_NAME) as { id: string } | undefined;
     if (existing) return;
-    db.prepare(
+    database.prepare(
       `INSERT INTO pipeline_stages (id, name, "order", color, is_won, is_lost)
        VALUES (?, ?, ?, ?, 0, 0)`
     ).run(crypto.randomUUID(), SPAM_STAGE_NAME, 999, "#7f1d1d");
@@ -188,9 +307,9 @@ function emailIdentity(value: string | null): string | null {
   return email || null;
 }
 
-function mergeDuplicateContacts(db: Database.Database): number {
+function mergeDuplicateContacts(database: Database.Database): number {
   try {
-    const rows = db
+    const rows = database
       .prepare(
         `SELECT id, name, email, phone, company, notes, qualification, created_at
          FROM contacts
@@ -211,7 +330,7 @@ function mergeDuplicateContacts(db: Database.Database): number {
     const emailMap = new Map<string, string>();
     let merged = 0;
 
-    const transaction = db.transaction(() => {
+    const transaction = database.transaction(() => {
       for (const row of rows) {
         const phone = phoneIdentity(row.phone);
         const email = emailIdentity(row.email);
@@ -223,7 +342,7 @@ function mergeDuplicateContacts(db: Database.Database): number {
           continue;
         }
 
-        const canonical = db.prepare(
+        const canonical = database.prepare(
           "SELECT email, phone, company, notes, qualification FROM contacts WHERE id = ?"
         ).get(canonicalId) as
           | {
@@ -244,7 +363,7 @@ function mergeDuplicateContacts(db: Database.Database): number {
             ? canonical.qualification
             : row.qualification || "new";
 
-        db.prepare(
+        database.prepare(
           `UPDATE contacts
            SET email = COALESCE(NULLIF(email, ''), ?),
                phone = COALESCE(NULLIF(phone, ''), ?),
@@ -263,10 +382,10 @@ function mergeDuplicateContacts(db: Database.Database): number {
           canonicalId
         );
 
-        db.prepare("UPDATE deals SET contact_id = ? WHERE contact_id = ?").run(canonicalId, row.id);
-        db.prepare("UPDATE activities SET contact_id = ? WHERE contact_id = ?").run(canonicalId, row.id);
-        db.prepare("UPDATE email_threads SET contact_id = ? WHERE contact_id = ?").run(canonicalId, row.id);
-        db.prepare("DELETE FROM contacts WHERE id = ?").run(row.id);
+        database.prepare("UPDATE deals SET contact_id = ? WHERE contact_id = ?").run(canonicalId, row.id);
+        database.prepare("UPDATE activities SET contact_id = ? WHERE contact_id = ?").run(canonicalId, row.id);
+        database.prepare("UPDATE email_threads SET contact_id = ? WHERE contact_id = ?").run(canonicalId, row.id);
+        database.prepare("DELETE FROM contacts WHERE id = ?").run(row.id);
         merged += 1;
 
         if (phone) phoneMap.set(phone, canonicalId);
@@ -282,9 +401,9 @@ function mergeDuplicateContacts(db: Database.Database): number {
   }
 }
 
-function removeExactDuplicateDeals(db: Database.Database): number {
+function removeExactDuplicateDeals(database: Database.Database): number {
   try {
-    const rows = db
+    const rows = database
       .prepare(
         `SELECT id, contact_id, title, value, stage_id, expected_close, probability, notes, created_at
          FROM deals
@@ -304,7 +423,7 @@ function removeExactDuplicateDeals(db: Database.Database): number {
 
     const seen = new Map<string, string>();
     let removed = 0;
-    const transaction = db.transaction(() => {
+    const transaction = database.transaction(() => {
       for (const row of rows) {
         const legacyMarker = (row.notes || "").toLowerCase().includes("legacy");
         const identityTimestamp = legacyMarker ? "legacy-import" : row.created_at;
@@ -323,8 +442,8 @@ function removeExactDuplicateDeals(db: Database.Database): number {
           seen.set(key, row.id);
           continue;
         }
-        db.prepare("UPDATE activities SET deal_id = ? WHERE deal_id = ?").run(canonicalId, row.id);
-        db.prepare("DELETE FROM deals WHERE id = ?").run(row.id);
+        database.prepare("UPDATE activities SET deal_id = ? WHERE deal_id = ?").run(canonicalId, row.id);
+        database.prepare("DELETE FROM deals WHERE id = ?").run(row.id);
         removed += 1;
       }
     });
@@ -347,4 +466,5 @@ if (mergedContacts || removedDeals) {
   console.log(`CRM dedupe: merged ${mergedContacts} contacts, removed ${removedDeals} duplicate deals`);
 }
 
+export { sqlite };
 export const db = drizzle(sqlite, { schema });
