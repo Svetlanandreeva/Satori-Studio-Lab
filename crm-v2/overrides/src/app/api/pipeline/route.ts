@@ -2,26 +2,29 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { pipelineStages, deals, contacts } from "@/db/schema";
 import { eq, asc } from "drizzle-orm";
-import { SPAM_STAGE_NAME } from "@/lib/lead-qualification";
+import { SANDBOX_QUALIFICATIONS, SPAM_STAGE_NAME, type LeadQualification } from "@/lib/lead-qualification";
+import { markDealReachedCalculation } from "@/lib/deal-flow";
 
-function migrateExistingSpam() {
+function migrateExistingSandboxContacts() {
   const stages = db.select().from(pipelineStages).all();
   const sandbox = stages.find((stage) => stage.name === SPAM_STAGE_NAME);
   if (!sandbox) return;
 
-  const spamContactIds = new Set(
+  const sandboxContactIds = new Set(
     db
       .select()
       .from(contacts)
       .all()
-      .filter((contact) => contact.qualification === "spam")
+      .filter((contact) =>
+        SANDBOX_QUALIFICATIONS.has((contact.qualification || "new") as LeadQualification)
+      )
       .map((contact) => contact.id)
   );
-  if (spamContactIds.size === 0) return;
+  if (sandboxContactIds.size === 0) return;
 
   const currentDeals = db.select().from(deals).all();
   for (const deal of currentDeals) {
-    if (!spamContactIds.has(deal.contactId)) continue;
+    if (!sandboxContactIds.has(deal.contactId)) continue;
     const currentStage = stages.find((stage) => stage.id === deal.stageId);
     if (currentStage?.isWon || deal.stageId === sandbox.id) continue;
     db.update(deals)
@@ -32,7 +35,7 @@ function migrateExistingSpam() {
 }
 
 export async function GET() {
-  migrateExistingSpam();
+  migrateExistingSandboxContacts();
 
   const stages = db
     .select()
@@ -106,6 +109,7 @@ export async function PUT(request: NextRequest) {
       .returning()
       .get();
 
+    markDealReachedCalculation(existing.id, targetStage.id);
     return NextResponse.json(result);
   }
 
