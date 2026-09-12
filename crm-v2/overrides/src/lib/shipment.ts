@@ -65,7 +65,7 @@ function emailConfig() {
 async function sendStandaloneEmail(to: string, subject: string, text: string): Promise<{ sent: boolean; error?: string }> {
   const config = emailConfig();
   if (!config.address || !config.username || !config.password || !config.host) {
-    return { sent: false, error: "Почта не настроена" };
+    return { sent: false, error: "Почта не настроена для исходящей отправки" };
   }
   try {
     const transporter = nodemailer.createTransport({
@@ -80,7 +80,7 @@ async function sendStandaloneEmail(to: string, subject: string, text: string): P
     });
     await transporter.sendMail({
       from: { name: config.fromName, address: config.address },
-      to,
+      to: to.trim(),
       subject,
       text,
     });
@@ -103,7 +103,6 @@ function shipmentMessage(name: string, title: string, trackingCode: string): str
 
 function recordActivity(input: { contactId: string; dealId: string; description: string; type?: string }) {
   if (!tableExists("activities")) return;
-  // activities.created_at/completed_at — drizzle timestamp в секундах, не миллисекундах.
   const now = Math.floor(Date.now() / 1000);
   sqlite.prepare(`
     INSERT INTO activities(id,type,description,contact_id,deal_id,scheduled_at,completed_at,created_at)
@@ -184,7 +183,11 @@ export function saveTrackingCode(dealId: string, value: unknown) {
   return { trackingCode, changed };
 }
 
-export async function notifyShipment(dealId: string, trackingCode: string) {
+type ShipmentNotifyOptions = {
+  force?: boolean;
+};
+
+export async function notifyShipment(dealId: string, trackingCode: string, options: ShipmentNotifyOptions = {}) {
   const row = sqlite.prepare(`
     SELECT d.id AS dealId,d.title AS title,c.id AS contactId,c.name AS contactName,
       c.email AS email,c.notes AS contactNotes
@@ -195,11 +198,78 @@ export async function notifyShipment(dealId: string, trackingCode: string) {
   if (!row) throw new Error("Сделка не найдена");
 
   const state = getShipmentState(dealId);
-  if (state?.notifiedAt && state.trackingCode === trackingCode) {
-    return { sent: true, channel: state.notificationChannel || "already-sent", alreadySent: true };
+  const sameCode = Boolean(state?.notifiedAt && state.trackingCode === trackingCode);
+  const email = String(row.email || "").trim();
+
+  // Email is the reliable primary channel when the client has an address.
+  // A previous Telegram API success must not prevent an explicit email resend:
+  // Telegram can accept a Business API call even when the user does not see it
+  // in the expected conversation. Only a previous email delivery is considered
+  // final unless the user explicitly requests a resend.
+  if (sameCode && state?.notificationChannel === "email" && !options.force) {
+    return { sent: true, channel: "email", alreadySent: true };
   }
 
   const text = shipmentMessage(row.contactName || "", row.title || "заказ", trackingCode);
+  let emailError = "";
+
+  if (email) {
+    const thread = tableExists("email_threads")
+      ? sqlite.prepare(`SELECT id FROM email_threads WHERE contact_id=? AND lower(remote_email)=lower(?) ORDER BY last_message_at DESC LIMIT 1`)
+          .get(row.contactId, email) as { id: string } | undefined
+      : undefined;
+
+    if (thread?.id) {
+      try {
+        await replyToEmailThread(thread.id, text);
+        const now = Date.now();
+        sqlite.prepare(`UPDATE shipment_state SET notified_at=?,notification_channel='email',notification_error=NULL,updated_at=? WHERE deal_id=?`)
+          .run(now, now, dealId);
+        recordActivity({
+          contactId: row.contactId,
+          dealId,
+          type: "email_outgoing",
+          description: `[shipment:${trackingCode}] Трек-номер отправлен на ${email} в существующем почтовом диалоге`,
+        });
+        return { sent: true, channel: "email", recipient: email };
+      } catch (error) {
+        emailError = error instanceof Error ? error.message : "Не удалось ответить в почтовый диалог";
+      }
+    }
+
+    const mail = await sendStandaloneEmail(email, `Ваш заказ отправлен · трек ${trackingCode}`, text);
+    if (mail.sent) {
+      const now = Date.now();
+      sqlite.prepare(`UPDATE shipment_state SET notified_at=?,notification_channel='email',notification_error=NULL,updated_at=? WHERE deal_id=?`)
+        .run(now, now, dealId);
+      recordActivity({
+        contactId: row.contactId,
+        dealId,
+        type: "email_outgoing",
+        description: `[shipment:${trackingCode}] Трек-номер отправлен на ${email}`,
+      });
+      return { sent: true, channel: "email", recipient: email };
+    }
+    emailError = [emailError, mail.error || "Email не отправлен"].filter(Boolean).join("; ");
+  }
+
+  // If the same code was already accepted by Telegram, do not duplicate it in
+  // Telegram while retrying email. Return that Telegram status only after the
+  // email attempt above has had a chance to succeed.
+  if (sameCode && state?.notificationChannel === "telegram" && !options.force) {
+    if (emailError) {
+      sqlite.prepare(`UPDATE shipment_state SET notification_error=?,updated_at=? WHERE deal_id=?`)
+        .run(`Email: ${emailError}`, Date.now(), dealId);
+    }
+    return {
+      sent: true,
+      channel: "telegram",
+      alreadySent: true,
+      emailFailed: Boolean(emailError),
+      error: emailError || undefined,
+    };
+  }
+
   const meta = telegramMeta(row.contactNotes);
   let telegramError = "";
   if (meta.chatId) {
@@ -211,57 +281,39 @@ export async function notifyShipment(dealId: string, trackingCode: string) {
     });
     if (tg.sent) {
       const now = Date.now();
-      sqlite.prepare(`UPDATE shipment_state SET notified_at=?,notification_channel='telegram',notification_error=NULL,updated_at=? WHERE deal_id=?`)
-        .run(now, now, dealId);
-      recordActivity({ contactId: row.contactId, dealId, type: "telegram_business_outgoing", description: `[shipment:${trackingCode}] ${text}` });
-      return { sent: true, channel: "telegram" };
+      sqlite.prepare(`UPDATE shipment_state SET notified_at=?,notification_channel='telegram',notification_error=?,updated_at=? WHERE deal_id=?`)
+        .run(emailError ? `Email: ${emailError}` : null, now, now, dealId);
+      recordActivity({
+        contactId: row.contactId,
+        dealId,
+        type: "telegram_business_outgoing",
+        description: `[shipment:${trackingCode}] ${text}`,
+      });
+      return { sent: true, channel: "telegram", emailFailed: Boolean(emailError), error: emailError || undefined };
     }
     telegramError = tg.error || "Telegram не отправил сообщение";
   }
 
-  let emailError = "";
-  if (row.email) {
-    // Если с клиентом уже есть почтовый диалог, отвечаем именно в него — тогда
-    // отправка видна в «Сообщениях». Без истории используем обычное SMTP-письмо.
-    const thread = tableExists("email_threads")
-      ? sqlite.prepare(`SELECT id FROM email_threads WHERE contact_id=? AND lower(remote_email)=lower(?) ORDER BY last_message_at DESC LIMIT 1`)
-          .get(row.contactId, row.email) as { id: string } | undefined
-      : undefined;
-    if (thread?.id) {
-      try {
-        await replyToEmailThread(thread.id, text);
-        const now = Date.now();
-        sqlite.prepare(`UPDATE shipment_state SET notified_at=?,notification_channel='email',notification_error=NULL,updated_at=? WHERE deal_id=?`)
-          .run(now, now, dealId);
-        recordActivity({ contactId: row.contactId, dealId, type: "email_outgoing", description: `[shipment:${trackingCode}] Трек-номер отправлен в почтовый диалог` });
-        return { sent: true, channel: "email" };
-      } catch (error) {
-        emailError = error instanceof Error ? error.message : "Не удалось ответить в почтовый диалог";
-      }
-    }
+  const error = [
+    emailError ? `Email: ${emailError}` : "",
+    telegramError ? `Telegram: ${telegramError}` : "",
+    !meta.chatId && !email ? "У клиента нет Telegram-диалога и email" : "",
+  ].filter(Boolean).join("; ");
 
-    const mail = await sendStandaloneEmail(row.email, `Ваш заказ отправлен · трек ${trackingCode}`, text);
-    if (mail.sent) {
-      const now = Date.now();
-      sqlite.prepare(`UPDATE shipment_state SET notified_at=?,notification_channel='email',notification_error=NULL,updated_at=? WHERE deal_id=?`)
-        .run(now, now, dealId);
-      recordActivity({ contactId: row.contactId, dealId, type: "email_outgoing", description: `[shipment:${trackingCode}] Трек-номер отправлен на ${row.email}` });
-      return { sent: true, channel: "email" };
-    }
-    emailError = [emailError, mail.error || "Email не отправлен"].filter(Boolean).join("; ");
-  }
-
-  const error = [telegramError, emailError, !meta.chatId && !row.email ? "У клиента нет Telegram-диалога и email" : ""]
-    .filter(Boolean).join("; ");
-  sqlite.prepare(`UPDATE shipment_state SET notification_error=?,updated_at=? WHERE deal_id=?`).run(error || "Не удалось отправить уведомление", Date.now(), dealId);
+  sqlite.prepare(`UPDATE shipment_state SET notification_error=?,updated_at=? WHERE deal_id=?`)
+    .run(error || "Не удалось отправить уведомление", Date.now(), dealId);
   return { sent: false, channel: null, needsManual: true, error: error || "Не удалось отправить уведомление" };
 }
 
-export async function startShipment(dealId: string, trackingCodeInput: unknown) {
+export async function startShipment(
+  dealId: string,
+  trackingCodeInput: unknown,
+  options: { forceNotification?: boolean } = {}
+) {
   const { trackingCode } = saveTrackingCode(dealId, trackingCodeInput);
   let notification: Awaited<ReturnType<typeof notifyShipment>>;
   try {
-    notification = await notifyShipment(dealId, trackingCode);
+    notification = await notifyShipment(dealId, trackingCode, { force: Boolean(options.forceNotification) });
   } catch (error) {
     notification = {
       sent: false,
