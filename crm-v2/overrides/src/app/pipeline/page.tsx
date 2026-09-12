@@ -3,11 +3,17 @@ import { pipelineStages, deals, contacts } from "@/db/schema";
 import { eq, asc } from "drizzle-orm";
 import { KanbanBoard } from "@/components/pipeline/KanbanBoard";
 import { SPAM_STAGE_NAME } from "@/lib/lead-qualification";
+import { ensureContactsHavePipelineDeals } from "@/lib/email-crm-policy";
 import type { PipelineColumn } from "@/types";
 
 export const dynamic = "force-dynamic";
 
 export default function PipelinePage() {
+  // Контакт и воронка больше не живут отдельно: любой реальный клиент без сделки
+  // получает стартовую карточку «Новый запрос». Автоконтакты старого почтового
+  // импорта перед этим безопасно удаляются, если у них нет сделок/активностей.
+  ensureContactsHavePipelineDeals();
+
   const stages = db
     .select()
     .from(pipelineStages)
@@ -55,7 +61,7 @@ export default function PipelinePage() {
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Воронка</h1>
         <p className="text-muted-foreground">
-          Перетаскивайте сделки между этапами. Спам хранится отдельно в «Песочнице».
+          Все клиенты связаны со сделкой и могут перемещаться между этапами. Спам хранится отдельно в «Песочнице».
         </p>
       </div>
       <KanbanBoard initialColumns={columns} />
