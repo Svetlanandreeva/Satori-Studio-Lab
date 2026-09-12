@@ -117,7 +117,7 @@ function displayName(message: TelegramMessage, preferChat = false): string {
     .join(" ")
     .trim();
   if (parts) return parts;
-  const username = (preferChat ? message.chat.username : user?.username || message.chat.username);
+  const username = preferChat ? message.chat.username : user?.username || message.chat.username;
   if (username) return `@${username}`;
   return `Telegram ${message.chat.id}`;
 }
@@ -375,6 +375,7 @@ export async function POST(request: NextRequest) {
     .all()
     .filter((row) => row.deal.contactId === contact.id && !row.stage.isWon && !row.stage.isLost);
 
+  let newDealId: string | null = null;
   if (!activeDeals.length && !body.startsWith("/")) {
     const firstStage = db
       .select()
@@ -383,7 +384,8 @@ export async function POST(request: NextRequest) {
       .all()
       .find((stage) => !stage.isWon && !stage.isLost && !/песоч/i.test(stage.name));
     if (firstStage) {
-      db.insert(deals)
+      const createdDeal = db
+        .insert(deals)
         .values({
           title: `Telegram · ${displayName(message)}`,
           value: 0,
@@ -396,25 +398,37 @@ export async function POST(request: NextRequest) {
           createdAt: now,
           updatedAt: now,
         })
-        .run();
+        .returning()
+        .get();
+      newDealId = createdDeal.id;
     }
   }
 
-  const contactUrl = `${externalOrigin(request)}/contacts/${contact.id}`;
-  await sendTelegramMessage({
-    text: [
-      isBusiness
-        ? "💬 <b>Новое сообщение в личный Telegram</b>"
-        : "💬 <b>Новое сообщение Telegram-боту</b>",
-      `От: ${escapeTelegramHtml(displayName(message))}${
-        username ? ` (${escapeTelegramHtml(username)})` : ""
-      }`,
-      `Сообщение: ${escapeTelegramHtml(body.slice(0, 1200))}`,
-    ].join("\n"),
-    url: contactUrl,
-  });
+  // The admin bot is an alert channel, not a copy of every conversation.
+  // Notify only when this inbound message actually creates a new CRM application/deal.
+  if (newDealId) {
+    const contactUrl = `${externalOrigin(request)}/contacts/${contact.id}`;
+    await sendTelegramMessage({
+      text: [
+        isBusiness
+          ? "🟢 <b>Новая заявка из личного Telegram</b>"
+          : "🟢 <b>Новая заявка из Telegram-бота</b>",
+        `От: ${escapeTelegramHtml(displayName(message))}${
+          username ? ` (${escapeTelegramHtml(username)})` : ""
+        }`,
+        `Первое сообщение: ${escapeTelegramHtml(body.slice(0, 1200))}`,
+      ].join("\n"),
+      url: contactUrl,
+    });
+  }
 
-  return NextResponse.json({ ok: true, contactId: contact.id, business: isBusiness });
+  return NextResponse.json({
+    ok: true,
+    contactId: contact.id,
+    business: isBusiness,
+    dealId: newDealId,
+    adminNotified: Boolean(newDealId),
+  });
 }
 
 export async function GET() {
