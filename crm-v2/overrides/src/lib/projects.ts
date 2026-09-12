@@ -12,12 +12,15 @@ try { sqlite.pragma("journal_mode = WAL"); } catch {}
 try { sqlite.pragma("busy_timeout = 15000"); } catch {}
 try { sqlite.pragma("foreign_keys = ON"); } catch {}
 
+const STORE_PRODUCTION_TERM_DAYS = 7;
+
 sqlite.exec(`
   CREATE TABLE IF NOT EXISTS project_details (
     deal_id TEXT PRIMARY KEY REFERENCES deals(id) ON DELETE CASCADE,
     ordered_at TEXT,
     contract_deadline TEXT,
     shipped_at TEXT,
+    delivered_at TEXT,
     production_term_days INTEGER,
     payment_terms TEXT,
     notes TEXT,
@@ -39,6 +42,9 @@ if (!projectColumns.has("production_term_days")) {
 if (!projectColumns.has("payment_terms")) {
   sqlite.exec("ALTER TABLE project_details ADD COLUMN payment_terms TEXT");
 }
+if (!projectColumns.has("delivered_at")) {
+  sqlite.exec("ALTER TABLE project_details ADD COLUMN delivered_at TEXT");
+}
 
 export interface ProjectDetailsInput {
   dealId: string;
@@ -46,6 +52,7 @@ export interface ProjectDetailsInput {
   productionTermDays?: number | null;
   contractDeadline?: string | null;
   shippedAt?: string | null;
+  deliveredAt?: string | null;
   paymentTerms?: string | null;
   notes?: string | null;
 }
@@ -102,6 +109,20 @@ function daysBetween(from: string, to: string): number {
   return Math.round((end - start) / 86_400_000);
 }
 
+function storeOrderIdFromNotes(notes: unknown): string | null {
+  const text = String(notes || "");
+  const patterns = [
+    /\[store-order:([^\]]+)\]/i,
+    /\[legacy-deal:(?:web|order):([^\]]+)\]/i,
+    /^Source ID:\s*([^\s]+)\s*$/im,
+  ];
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    if (match?.[1]) return match[1].trim();
+  }
+  return null;
+}
+
 function deadlineMetrics(deadline: string | null, shippedAt: string | null) {
   if (!deadline) return { deadlineStatus: "no_deadline", daysRemaining: null, overdueDays: 0 };
   if (shippedAt) {
@@ -120,48 +141,91 @@ function deadlineMetrics(deadline: string | null, shippedAt: string | null) {
 }
 
 export function seedStoreOrderPaymentDate(dealId: string, paymentTimestamp: unknown) {
-  const orderedAt = dateOnlyFromTimestamp(paymentTimestamp);
-  if (!orderedAt) return null;
+  const paidAt = dateOnlyFromTimestamp(paymentTimestamp);
+  if (!paidAt) return null;
   const now = Date.now();
   const existing = sqlite.prepare(`
-    SELECT ordered_at AS orderedAt, production_term_days AS productionTermDays,
-      contract_deadline AS contractDeadline
+    SELECT ordered_at AS orderedAt
     FROM project_details WHERE deal_id = ?
-  `).get(dealId) as { orderedAt: string | null; productionTermDays: number | null; contractDeadline: string | null } | undefined;
+  `).get(dealId) as { orderedAt: string | null } | undefined;
+
+  const orderedAt = existing?.orderedAt || paidAt;
+  const deadline = addCalendarDays(orderedAt, STORE_PRODUCTION_TERM_DAYS);
 
   if (!existing) {
     sqlite.prepare(`
       INSERT INTO project_details (
-        deal_id, ordered_at, contract_deadline, shipped_at, production_term_days, notes, created_at, updated_at
-      ) VALUES (?, ?, NULL, NULL, NULL, NULL, ?, ?)
-    `).run(dealId, orderedAt, now, now);
+        deal_id, ordered_at, contract_deadline, shipped_at, delivered_at,
+        production_term_days, payment_terms, notes, created_at, updated_at
+      ) VALUES (?, ?, ?, NULL, NULL, ?, NULL, NULL, ?, ?)
+    `).run(dealId, orderedAt, deadline, STORE_PRODUCTION_TERM_DAYS, now, now);
     return orderedAt;
   }
 
-  const finalOrderedAt = existing.orderedAt || orderedAt;
-  const deadline = existing.productionTermDays && existing.productionTermDays > 0
-    ? addCalendarDays(finalOrderedAt, existing.productionTermDays)
-    : existing.contractDeadline;
   sqlite.prepare(`
     UPDATE project_details
-    SET ordered_at = ?, contract_deadline = ?, updated_at = ?
+    SET ordered_at = ?, production_term_days = ?, contract_deadline = ?, updated_at = ?
     WHERE deal_id = ?
-  `).run(finalOrderedAt, deadline, now, dealId);
-  return finalOrderedAt;
+  `).run(orderedAt, STORE_PRODUCTION_TERM_DAYS, deadline, now, dealId);
+  return orderedAt;
+}
+
+export function markStoreOrderShipped(dealId: string, shippedTimestamp: unknown = new Date()) {
+  const shippedAt = dateOnlyFromTimestamp(shippedTimestamp) || moscowDate();
+  const now = Date.now();
+  sqlite.prepare(`
+    INSERT INTO project_details (
+      deal_id, ordered_at, contract_deadline, shipped_at, delivered_at,
+      production_term_days, payment_terms, notes, created_at, updated_at
+    ) VALUES (?, NULL, NULL, ?, NULL, ?, NULL, NULL, ?, ?)
+    ON CONFLICT(deal_id) DO UPDATE SET
+      shipped_at = COALESCE(project_details.shipped_at, excluded.shipped_at),
+      production_term_days = COALESCE(project_details.production_term_days, excluded.production_term_days),
+      updated_at = excluded.updated_at
+  `).run(dealId, shippedAt, STORE_PRODUCTION_TERM_DAYS, now, now);
+  return shippedAt;
+}
+
+export function markStoreOrderDelivered(dealId: string, deliveredTimestamp: unknown = new Date()) {
+  const deliveredAt = dateOnlyFromTimestamp(deliveredTimestamp) || moscowDate();
+  const now = Date.now();
+  sqlite.prepare(`
+    INSERT INTO project_details (
+      deal_id, ordered_at, contract_deadline, shipped_at, delivered_at,
+      production_term_days, payment_terms, notes, created_at, updated_at
+    ) VALUES (?, NULL, NULL, NULL, ?, ?, NULL, NULL, ?, ?)
+    ON CONFLICT(deal_id) DO UPDATE SET
+      delivered_at = COALESCE(project_details.delivered_at, excluded.delivered_at),
+      production_term_days = COALESCE(project_details.production_term_days, excluded.production_term_days),
+      updated_at = excluded.updated_at
+  `).run(dealId, deliveredAt, STORE_PRODUCTION_TERM_DAYS, now, now);
+  return deliveredAt;
 }
 
 export function saveProjectDetails(input: ProjectDetailsInput) {
   syncCalculationMilestones();
   const deal = sqlite.prepare(`
-    SELECT d.id
+    SELECT d.id, d.notes,
+      pd.ordered_at AS existingOrderedAt,
+      pd.shipped_at AS existingShippedAt,
+      pd.delivered_at AS existingDeliveredAt
     FROM deals d
     JOIN deal_flow_state f ON f.deal_id = d.id AND f.calculation_entered_at IS NOT NULL
+    LEFT JOIN project_details pd ON pd.deal_id = d.id
     WHERE d.id = ?
-  `).get(input.dealId) as { id: string } | undefined;
+  `).get(input.dealId) as {
+    id: string;
+    notes: string | null;
+    existingOrderedAt: string | null;
+    existingShippedAt: string | null;
+    existingDeliveredAt: string | null;
+  } | undefined;
   if (!deal) throw new Error("Проект появится после этапа «Расчёт»");
 
-  const orderedAt = optionalDate(input.orderedAt);
-  const termDays = productionTerm(input.productionTermDays);
+  const isStoreOrder = Boolean(storeOrderIdFromNotes(deal.notes));
+  const inputOrderedAt = optionalDate(input.orderedAt);
+  const orderedAt = isStoreOrder ? (deal.existingOrderedAt || inputOrderedAt) : inputOrderedAt;
+  const termDays = isStoreOrder ? STORE_PRODUCTION_TERM_DAYS : productionTerm(input.productionTermDays);
   if (termDays && !orderedAt) throw new Error("Для расчёта дедлайна укажите дату оплаты/старта");
   const manualDeadline = optionalDate(input.contractDeadline);
   const contractDeadline = orderedAt && termDays ? addCalendarDays(orderedAt, termDays) : manualDeadline;
@@ -171,7 +235,8 @@ export function saveProjectDetails(input: ProjectDetailsInput) {
     orderedAt,
     productionTermDays: termDays,
     contractDeadline,
-    shippedAt: optionalDate(input.shippedAt),
+    shippedAt: optionalDate(input.shippedAt) || (isStoreOrder ? deal.existingShippedAt : null),
+    deliveredAt: optionalDate(input.deliveredAt) || (isStoreOrder ? deal.existingDeliveredAt : null),
     paymentTerms: input.paymentTerms ? String(input.paymentTerms).trim() : null,
     notes: input.notes ? String(input.notes).trim() : null,
     createdAt: now,
@@ -180,14 +245,17 @@ export function saveProjectDetails(input: ProjectDetailsInput) {
 
   sqlite.prepare(`
     INSERT INTO project_details (
-      deal_id, ordered_at, contract_deadline, shipped_at, production_term_days, payment_terms, notes, created_at, updated_at
+      deal_id, ordered_at, contract_deadline, shipped_at, delivered_at,
+      production_term_days, payment_terms, notes, created_at, updated_at
     ) VALUES (
-      @dealId, @orderedAt, @contractDeadline, @shippedAt, @productionTermDays, @paymentTerms, @notes, @createdAt, @updatedAt
+      @dealId, @orderedAt, @contractDeadline, @shippedAt, @deliveredAt,
+      @productionTermDays, @paymentTerms, @notes, @createdAt, @updatedAt
     )
     ON CONFLICT(deal_id) DO UPDATE SET
       ordered_at = excluded.ordered_at,
       contract_deadline = excluded.contract_deadline,
       shipped_at = excluded.shipped_at,
+      delivered_at = excluded.delivered_at,
       production_term_days = excluded.production_term_days,
       payment_terms = excluded.payment_terms,
       notes = excluded.notes,
@@ -201,7 +269,7 @@ export function listProjects() {
   syncCalculationMilestones();
   const rows = sqlite.prepare(`
     SELECT
-      d.id AS dealId, d.title AS title, d.value AS dealValue,
+      d.id AS dealId, d.title AS title, d.value AS dealValue, d.notes AS dealNotes,
       d.created_at AS dealCreatedAt, d.updated_at AS dealUpdatedAt,
       c.id AS contactId, c.name AS contactName, c.company AS company,
       c.phone AS phone, c.email AS email, c.qualification AS qualification,
@@ -210,6 +278,7 @@ export function listProjects() {
       pd.ordered_at AS orderedAt,
       pd.contract_deadline AS contractDeadline,
       pd.shipped_at AS shippedAt,
+      pd.delivered_at AS deliveredAt,
       pd.production_term_days AS productionTermDays,
       pd.payment_terms AS paymentTerms,
       pd.notes AS projectNotes,
@@ -241,28 +310,43 @@ export function listProjects() {
     const received = Number(row.receivedAmount || 0);
     const profit = received - costs;
     const margin = received > 0 ? (profit / received) * 100 : 0;
+    const dealNotes = String(row.dealNotes || "");
+    const isStoreOrder = Boolean(storeOrderIdFromNotes(dealNotes));
     const orderedAt = row.orderedAt ? String(row.orderedAt) : null;
-    const contractDeadline = row.contractDeadline ? String(row.contractDeadline) : null;
+    const productionTermDays = isStoreOrder
+      ? STORE_PRODUCTION_TERM_DAYS
+      : (row.productionTermDays ? Number(row.productionTermDays) : null);
+    const storedDeadline = row.contractDeadline ? String(row.contractDeadline) : null;
+    const contractDeadline = isStoreOrder && orderedAt
+      ? addCalendarDays(orderedAt, STORE_PRODUCTION_TERM_DAYS)
+      : storedDeadline;
     const shippedAt = row.shippedAt ? String(row.shippedAt) : null;
+    const deliveredAt = row.deliveredAt ? String(row.deliveredAt) : null;
     const paymentTerms = row.paymentTerms ? String(row.paymentTerms) : null;
     const deadline = deadlineMetrics(contractDeadline, shippedAt);
     const elapsedProductionDays = orderedAt
       ? Math.max(0, daysBetween(orderedAt, shippedAt || moscowDate()))
       : null;
+    const deliveryDays = shippedAt
+      ? Math.max(0, daysBetween(shippedAt, deliveredAt || moscowDate()))
+      : null;
 
     return {
       ...row,
       dealId: String(row.dealId || ""),
+      isStoreOrder,
       orderedAt,
       contractDeadline,
       shippedAt,
+      deliveredAt,
       paymentTerms,
-      productionTermDays: row.productionTermDays ? Number(row.productionTermDays) : null,
+      productionTermDays,
       totalCost: costs,
       profit,
       margin,
       unpaid: Math.max(0, Number(row.dealValue || 0) - received),
       productionDays: elapsedProductionDays,
+      deliveryDays,
       ...deadline,
     };
   });
