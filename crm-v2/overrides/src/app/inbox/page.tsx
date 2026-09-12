@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { emitUnreadMessagesChanged, useUnreadMessages } from "@/lib/use-unread-messages";
 
 type Channel = "email" | "telegram";
 type Filter = "all" | "telegram" | "email" | "service";
@@ -55,6 +56,10 @@ function dateLabel(value: string) {
   ).format(date);
 }
 
+function unreadLabel(value: number) {
+  return value > 99 ? "99+" : String(value);
+}
+
 const filters: Array<{ value: Filter; label: string }> = [
   { value: "all", label: "Все" },
   { value: "telegram", label: "Telegram" },
@@ -74,6 +79,21 @@ export default function InboxPage() {
   const [sending, setSending] = useState(false);
   const [promoting, setPromoting] = useState(false);
   const [draft, setDraft] = useState("");
+  const { summary: unread } = useUnreadMessages();
+
+  function unreadForFilter(value: Filter) {
+    if (value === "telegram") return unread.telegram;
+    if (value === "email") return unread.email;
+    if (value === "service") return unread.service;
+    return unread.all;
+  }
+
+  function markThreadReadLocally(key: string) {
+    setThreads((current) => current.map((thread) =>
+      thread.key === key ? { ...thread, unreadCount: 0 } : thread
+    ));
+    emitUnreadMessagesChanged();
+  }
 
   async function loadThreads(preferredKey?: string | null) {
     setLoading(true);
@@ -126,7 +146,11 @@ export default function InboxPage() {
       }
 
       const list = (await Promise.all(tasks)).flat()
-        .sort((a, b) => new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime());
+        .sort((a, b) => {
+          const unreadOrder = Number(b.unreadCount > 0) - Number(a.unreadCount > 0);
+          if (unreadOrder !== 0) return unreadOrder;
+          return new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime();
+        });
       setThreads(list);
       const wanted = preferredKey || selectedKey;
       const nextKey = wanted && list.some((item) => item.key === wanted) ? wanted : list[0]?.key || null;
@@ -184,6 +208,7 @@ export default function InboxPage() {
           })),
         });
       }
+      markThreadReadLocally(key);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Ошибка диалога");
     } finally {
@@ -217,6 +242,7 @@ export default function InboxPage() {
       toast.success(payload.configured === false ? "Почта ещё не подключена в Настройках" : payload.imported ? `Добавлено писем: ${payload.imported}` : "Сообщения обновлены");
       await loadThreads(selectedKey);
       if (selectedKey) await loadDetail(selectedKey);
+      emitUnreadMessagesChanged();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Ошибка синхронизации");
     } finally {
@@ -242,6 +268,7 @@ export default function InboxPage() {
       setDraft("");
       if (selectedKey) await loadDetail(selectedKey);
       await loadThreads(selectedKey);
+      emitUnreadMessagesChanged();
       toast.success("Отправлено");
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Ошибка отправки");
@@ -261,6 +288,7 @@ export default function InboxPage() {
       if (!response.ok) throw new Error(payload.error || "Не удалось изменить тип переписки");
       await loadThreads(selectedKey);
       if (selectedKey) await loadDetail(selectedKey);
+      emitUnreadMessagesChanged();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Ошибка классификации");
     }
@@ -287,7 +315,11 @@ export default function InboxPage() {
     <div className="space-y-5">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <div className="flex items-center gap-2"><MessageCircle className="h-6 w-6" /><h1 className="text-2xl font-bold tracking-tight">Сообщения</h1></div>
+          <div className="flex items-center gap-2">
+            <MessageCircle className="h-6 w-6" />
+            <h1 className="text-2xl font-bold tracking-tight">Сообщения</h1>
+            {unread.all > 0 && <Badge className="bg-sky-500 text-white hover:bg-sky-500">{unreadLabel(unread.all)} новых</Badge>}
+          </div>
           <p className="mt-1 text-sm text-muted-foreground">Письма сами не создают клиентов. Нужный диалог добавляется в CRM вручную кнопкой «Добавить в CRM».</p>
         </div>
         <Button variant="outline" onClick={sync} disabled={syncing}>
@@ -300,25 +332,45 @@ export default function InboxPage() {
           <div className="space-y-3 border-b p-3">
             <div className="relative"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" /><Input className="pl-9" placeholder="Имя, email, Telegram..." value={search} onChange={(event) => setSearch(event.target.value)} /></div>
             <div className="grid grid-cols-4 gap-1 rounded-lg bg-muted p-1">
-              {filters.map((item) => <button key={item.value} type="button" onClick={() => setFilter(item.value)} className={`rounded-md px-1 py-1.5 text-[11px] font-medium ${filter === item.value ? "bg-background shadow-sm" : "text-muted-foreground"}`}>{item.label}</button>)}
+              {filters.map((item) => {
+                const tabUnread = unreadForFilter(item.value);
+                return (
+                  <button key={item.value} type="button" onClick={() => setFilter(item.value)} className={`flex items-center justify-center gap-1 rounded-md px-1 py-1.5 text-[11px] font-medium ${filter === item.value ? "bg-background text-slate-950 shadow-sm" : "text-muted-foreground"}`}>
+                    <span>{item.label}</span>
+                    {tabUnread > 0 && (
+                      <span className={`inline-flex min-w-[18px] items-center justify-center rounded-full px-1 py-0.5 text-[9px] font-bold leading-none text-white ${item.value === "telegram" ? "bg-sky-500" : item.value === "email" ? "bg-violet-500" : item.value === "service" ? "bg-slate-500" : "bg-slate-900"}`}>
+                        {unreadLabel(tabUnread)}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
             </div>
           </div>
           <div className="max-h-[62vh] overflow-y-auto xl:max-h-[calc(100vh-280px)]">
-            {loading && !threads.length ? <div className="flex justify-center p-8 text-sm text-muted-foreground"><Loader2 className="mr-2 h-4 w-4 animate-spin" />Загрузка...</div> : !threads.length ? <div className="p-8 text-center text-sm text-muted-foreground"><MessageCircle className="mx-auto mb-2 h-8 w-8 opacity-40" />Сообщений пока нет.</div> : threads.map((thread) => (
-              <button key={thread.key} type="button" onClick={() => setSelectedKey(thread.key)} className={`w-full border-b p-4 text-left hover:bg-muted/50 ${selectedKey === thread.key ? "bg-muted" : ""}`}>
-                <div className="flex gap-3">
-                  <div className={`mt-0.5 rounded-full p-2 ${thread.channel === "telegram" ? "bg-sky-50" : thread.isService ? "bg-slate-100" : "bg-blue-50"}`}>
-                    {thread.channel === "telegram" ? <MessageCircle className="h-4 w-4" /> : thread.isService ? <Bot className="h-4 w-4" /> : <Mail className="h-4 w-4" />}
+            {loading && !threads.length ? <div className="flex justify-center p-8 text-sm text-muted-foreground"><Loader2 className="mr-2 h-4 w-4 animate-spin" />Загрузка...</div> : !threads.length ? <div className="p-8 text-center text-sm text-muted-foreground"><MessageCircle className="mx-auto mb-2 h-8 w-8 opacity-40" />Сообщений пока нет.</div> : threads.map((thread) => {
+              const isUnread = thread.unreadCount > 0;
+              return (
+                <button key={thread.key} type="button" onClick={() => setSelectedKey(thread.key)} className={`relative w-full border-b p-4 text-left transition-colors hover:bg-muted/50 ${selectedKey === thread.key ? "bg-muted" : isUnread ? "bg-sky-50/45" : ""}`}>
+                  {isUnread && <span className="absolute bottom-0 left-0 top-0 w-0.5 bg-sky-500" />}
+                  <div className="flex gap-3">
+                    <div className={`relative mt-0.5 rounded-full p-2 ${thread.channel === "telegram" ? "bg-sky-50" : thread.isService ? "bg-slate-100" : "bg-blue-50"}`}>
+                      {thread.channel === "telegram" ? <MessageCircle className="h-4 w-4" /> : thread.isService ? <Bot className="h-4 w-4" /> : <Mail className="h-4 w-4" />}
+                      {isUnread && <span className="absolute -right-0.5 -top-0.5 h-2.5 w-2.5 rounded-full bg-sky-500 ring-2 ring-white" />}
+                    </div>
+                    <div className="min-w-0 flex-1">
+                      <div className="flex items-center gap-2">
+                        <span className={`truncate text-sm ${isUnread ? "font-bold text-slate-950" : "font-semibold"}`}>{thread.title}</span>
+                        {isUnread && <Badge className="ml-auto h-5 bg-sky-500 px-1.5 text-[10px] text-white hover:bg-sky-500">{unreadLabel(thread.unreadCount)}</Badge>}
+                      </div>
+                      <div className={`truncate text-xs ${isUnread ? "font-medium text-slate-600" : "text-muted-foreground"}`}>{thread.subtitle}</div>
+                      <div className={`mt-1 line-clamp-2 text-xs ${isUnread ? "text-slate-700" : "text-muted-foreground"}`}>{thread.lastDirection === "outgoing" ? "Вы: " : ""}{thread.lastSnippet || "—"}</div>
+                      <div className="mt-2 flex items-center justify-between text-[10px] text-muted-foreground"><span>{thread.channel === "telegram" ? (thread.telegramKind === "telegram_account" ? "Telegram аккаунт" : "Telegram-бот") : thread.isService ? "Сервисное письмо" : thread.contactId ? "Клиент CRM" : "Почта · не в CRM"}</span><span>{dateLabel(thread.lastMessageAt)}</span></div>
+                    </div>
                   </div>
-                  <div className="min-w-0 flex-1">
-                    <div className="flex items-center gap-2"><span className="truncate text-sm font-semibold">{thread.title}</span>{thread.unreadCount > 0 && <Badge className="ml-auto h-5 px-1.5 text-[10px]">{thread.unreadCount}</Badge>}</div>
-                    <div className="truncate text-xs text-muted-foreground">{thread.subtitle}</div>
-                    <div className="mt-1 line-clamp-2 text-xs text-muted-foreground">{thread.lastDirection === "outgoing" ? "Вы: " : ""}{thread.lastSnippet || "—"}</div>
-                    <div className="mt-2 flex items-center justify-between text-[10px] text-muted-foreground"><span>{thread.channel === "telegram" ? (thread.telegramKind === "telegram_account" ? "Telegram аккаунт" : "Telegram-бот") : thread.isService ? "Сервисное письмо" : thread.contactId ? "Клиент CRM" : "Почта · не в CRM"}</span><span>{dateLabel(thread.lastMessageAt)}</span></div>
-                  </div>
-                </div>
-              </button>
-            ))}
+                </button>
+              );
+            })}
           </div>
         </aside>
 
