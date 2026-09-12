@@ -9,6 +9,19 @@ import { getSetting, setSetting } from "@/lib/satori-integrations";
 
 const BACKFILL_KEY = "satori_email_attachment_backfill_done";
 
+type MailAttachment = {
+  filename?: string | null;
+  contentType?: string | null;
+  contentDisposition?: string | null;
+  content: Buffer;
+  size?: number;
+  cid?: string | null;
+};
+
+type ParsedMailWithAttachments = Awaited<ReturnType<typeof simpleParser>> & {
+  attachments?: MailAttachment[];
+};
+
 function addressValues(value: AddressObject | AddressObject[] | undefined): Array<{ address: string; name: string }> {
   const objects = Array.isArray(value) ? value : value ? [value] : [];
   return objects.flatMap((object) =>
@@ -30,7 +43,7 @@ function findContactId(remoteEmail: string, messageId: string): string | null {
   return contact?.id || null;
 }
 
-function usefulAttachment(attachment: { filename?: string | null; contentDisposition?: string | null; content?: Buffer; size?: number }): boolean {
+function usefulAttachment(attachment: MailAttachment): boolean {
   const size = Number(attachment.size || attachment.content?.byteLength || 0);
   if (!size) return false;
   if (String(attachment.contentDisposition || "").toLowerCase() === "inline" && size < 128 * 1024) return false;
@@ -44,8 +57,9 @@ async function importMessageAttachments(input: {
   accountEmail: string;
   internalDate?: Date | null;
 }): Promise<number> {
-  const mail = await simpleParser(input.source);
-  if (!mail.attachments?.length) return 0;
+  const mail = (await simpleParser(input.source)) as ParsedMailWithAttachments;
+  const attachments = mail.attachments || [];
+  if (!attachments.length) return 0;
 
   const from = addressValues(mail.from)[0];
   const to = addressValues(mail.to);
@@ -62,8 +76,8 @@ async function importMessageAttachments(input: {
   const receivedAt = mail.date || input.internalDate || new Date();
   let imported = 0;
 
-  for (let index = 0; index < mail.attachments.length; index += 1) {
-    const attachment = mail.attachments[index];
+  for (let index = 0; index < attachments.length; index += 1) {
+    const attachment = attachments[index];
     if (!usefulAttachment(attachment)) continue;
     const rawName = String(attachment.filename || `Вложение ${index + 1}`).trim();
     const attachmentId = String(attachment.cid || `${index}:${rawName}`).slice(0, 240);
