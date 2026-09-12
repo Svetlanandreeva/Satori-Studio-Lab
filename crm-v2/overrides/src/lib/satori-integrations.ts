@@ -195,6 +195,7 @@ export async function sendTelegramMessage(input: {
   token?: string | null;
   chatId?: string | null;
   businessConnectionId?: string | null;
+  parseMode?: "HTML" | null;
 }): Promise<{ sent: boolean; error?: string }> {
   const token = input.token || getSetting(INTEGRATION_KEYS.telegramBotToken);
   const chatId = input.chatId || getSetting(INTEGRATION_KEYS.telegramChatId);
@@ -210,9 +211,11 @@ export async function sendTelegramMessage(input: {
     const payload: Record<string, unknown> = {
       chat_id: chatId,
       text: input.text,
-      parse_mode: "HTML",
       disable_web_page_preview: true,
     };
+    if (input.parseMode !== null) {
+      payload.parse_mode = input.parseMode || "HTML";
+    }
     if (input.businessConnectionId) {
       payload.business_connection_id = input.businessConnectionId;
     }
