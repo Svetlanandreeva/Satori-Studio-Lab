@@ -19,6 +19,7 @@ sqlite.exec(`
     contract_deadline TEXT,
     shipped_at TEXT,
     production_term_days INTEGER,
+    payment_terms TEXT,
     notes TEXT,
     created_at INTEGER NOT NULL,
     updated_at INTEGER NOT NULL
@@ -31,8 +32,12 @@ function tableColumns(table: string): Set<string> {
   );
 }
 
-if (!tableColumns("project_details").has("production_term_days")) {
+const projectColumns = tableColumns("project_details");
+if (!projectColumns.has("production_term_days")) {
   sqlite.exec("ALTER TABLE project_details ADD COLUMN production_term_days INTEGER");
+}
+if (!projectColumns.has("payment_terms")) {
+  sqlite.exec("ALTER TABLE project_details ADD COLUMN payment_terms TEXT");
 }
 
 export interface ProjectDetailsInput {
@@ -41,6 +46,7 @@ export interface ProjectDetailsInput {
   productionTermDays?: number | null;
   contractDeadline?: string | null;
   shippedAt?: string | null;
+  paymentTerms?: string | null;
   notes?: string | null;
 }
 
@@ -166,6 +172,7 @@ export function saveProjectDetails(input: ProjectDetailsInput) {
     productionTermDays: termDays,
     contractDeadline,
     shippedAt: optionalDate(input.shippedAt),
+    paymentTerms: input.paymentTerms ? String(input.paymentTerms).trim() : null,
     notes: input.notes ? String(input.notes).trim() : null,
     createdAt: now,
     updatedAt: now,
@@ -173,15 +180,16 @@ export function saveProjectDetails(input: ProjectDetailsInput) {
 
   sqlite.prepare(`
     INSERT INTO project_details (
-      deal_id, ordered_at, contract_deadline, shipped_at, production_term_days, notes, created_at, updated_at
+      deal_id, ordered_at, contract_deadline, shipped_at, production_term_days, payment_terms, notes, created_at, updated_at
     ) VALUES (
-      @dealId, @orderedAt, @contractDeadline, @shippedAt, @productionTermDays, @notes, @createdAt, @updatedAt
+      @dealId, @orderedAt, @contractDeadline, @shippedAt, @productionTermDays, @paymentTerms, @notes, @createdAt, @updatedAt
     )
     ON CONFLICT(deal_id) DO UPDATE SET
       ordered_at = excluded.ordered_at,
       contract_deadline = excluded.contract_deadline,
       shipped_at = excluded.shipped_at,
       production_term_days = excluded.production_term_days,
+      payment_terms = excluded.payment_terms,
       notes = excluded.notes,
       updated_at = excluded.updated_at
   `).run(values);
@@ -203,6 +211,7 @@ export function listProjects() {
       pd.contract_deadline AS contractDeadline,
       pd.shipped_at AS shippedAt,
       pd.production_term_days AS productionTermDays,
+      pd.payment_terms AS paymentTerms,
       pd.notes AS projectNotes,
       pd.updated_at AS projectUpdatedAt,
       COALESCE(e.received_amount, 0) AS receivedAmount,
@@ -235,6 +244,7 @@ export function listProjects() {
     const orderedAt = row.orderedAt ? String(row.orderedAt) : null;
     const contractDeadline = row.contractDeadline ? String(row.contractDeadline) : null;
     const shippedAt = row.shippedAt ? String(row.shippedAt) : null;
+    const paymentTerms = row.paymentTerms ? String(row.paymentTerms) : null;
     const deadline = deadlineMetrics(contractDeadline, shippedAt);
     const elapsedProductionDays = orderedAt
       ? Math.max(0, daysBetween(orderedAt, shippedAt || moscowDate()))
@@ -246,6 +256,7 @@ export function listProjects() {
       orderedAt,
       contractDeadline,
       shippedAt,
+      paymentTerms,
       productionTermDays: row.productionTermDays ? Number(row.productionTermDays) : null,
       totalCost: costs,
       profit,
