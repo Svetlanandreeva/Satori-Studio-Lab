@@ -23,17 +23,17 @@ sqlite.exec(`
   CREATE INDEX IF NOT EXISTS idx_client_documents_contact ON client_documents(contact_id, created_at DESC);
 `);
 
-function columnExists(name: string): boolean {
-  return (sqlite.prepare("PRAGMA table_info(client_documents)").all() as Array<{ name: string }>).some((row) => row.name === name);
-}
-
-for (const [name, ddl] of [
-  ["source_channel", "ALTER TABLE client_documents ADD COLUMN source_channel TEXT"],
-  ["source_message_id", "ALTER TABLE client_documents ADD COLUMN source_message_id TEXT"],
-  ["source_attachment_id", "ALTER TABLE client_documents ADD COLUMN source_attachment_id TEXT"],
-  ["source_direction", "ALTER TABLE client_documents ADD COLUMN source_direction TEXT"],
+for (const ddl of [
+  "ALTER TABLE client_documents ADD COLUMN source_channel TEXT",
+  "ALTER TABLE client_documents ADD COLUMN source_message_id TEXT",
+  "ALTER TABLE client_documents ADD COLUMN source_attachment_id TEXT",
+  "ALTER TABLE client_documents ADD COLUMN source_direction TEXT",
 ] as const) {
-  if (!columnExists(name)) sqlite.exec(ddl);
+  try {
+    sqlite.exec(ddl);
+  } catch (error) {
+    if (!/duplicate column name/i.test(error instanceof Error ? error.message : String(error))) throw error;
+  }
 }
 
 sqlite.exec(`
