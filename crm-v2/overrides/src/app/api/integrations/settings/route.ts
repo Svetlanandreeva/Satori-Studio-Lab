@@ -6,9 +6,11 @@ import {
   getSetting,
   setSetting,
 } from "@/lib/satori-integrations";
+import { configureTelegramWebhook } from "@/lib/telegram-webhook";
 
 const TELEGRAM_WEBHOOK_ENABLED_KEY = "satori_telegram_webhook_enabled";
 const TELEGRAM_WEBHOOK_URL_KEY = "satori_telegram_webhook_url";
+const TELEGRAM_WEBHOOK_ERROR_KEY = "satori_telegram_webhook_last_error";
 
 function snapshot() {
   const secret = ensureNeedNumberSecret();
@@ -16,16 +18,10 @@ function snapshot() {
   const telegramChatId = getSetting(INTEGRATION_KEYS.telegramChatId) || "";
   const telegramInboundConfigured = getBooleanSetting(TELEGRAM_WEBHOOK_ENABLED_KEY, false);
   const telegramWebhookUrl = getSetting(TELEGRAM_WEBHOOK_URL_KEY) || "";
-  const telegramBusinessConnectionId =
-    getSetting(INTEGRATION_KEYS.telegramBusinessConnectionId) || "";
-  const telegramBusinessEnabled = getBooleanSetting(
-    INTEGRATION_KEYS.telegramBusinessEnabled,
-    false
-  );
-  const telegramBusinessCanReply = getBooleanSetting(
-    INTEGRATION_KEYS.telegramBusinessCanReply,
-    false
-  );
+  const telegramWebhookLastError = getSetting(TELEGRAM_WEBHOOK_ERROR_KEY) || "";
+  const telegramBusinessConnectionId = getSetting(INTEGRATION_KEYS.telegramBusinessConnectionId) || "";
+  const telegramBusinessEnabled = getBooleanSetting(INTEGRATION_KEYS.telegramBusinessEnabled, false);
+  const telegramBusinessCanReply = getBooleanSetting(INTEGRATION_KEYS.telegramBusinessCanReply, false);
   const projectId = getSetting(INTEGRATION_KEYS.needNumberProjectId) || "1474";
   const createDeal = getBooleanSetting(INTEGRATION_KEYS.needNumberCreateDeal, true);
 
@@ -51,16 +47,13 @@ function snapshot() {
     telegramChatId,
     telegramInboundConfigured,
     telegramWebhookUrl,
-    telegramBusinessConfigured: Boolean(
-      telegramBusinessConnectionId && telegramBusinessEnabled
-    ),
+    telegramWebhookLastError,
+    telegramBusinessConfigured: Boolean(telegramBusinessConnectionId && telegramBusinessEnabled),
     telegramBusinessCanReply,
     needNumberProjectId: projectId,
     needNumberCreateDeal: createDeal,
     needNumberWebhookPath: `/api/integrations/need-number?key=${encodeURIComponent(secret)}`,
-    emailConfigured: Boolean(
-      emailAddress && emailUsername && emailPassword && emailImapHost && emailSmtpHost
-    ),
+    emailConfigured: Boolean(emailAddress && emailUsername && emailPassword && emailImapHost && emailSmtpHost),
     emailPasswordConfigured: Boolean(emailPassword),
     emailAddress,
     emailUsername,
@@ -80,17 +73,13 @@ function snapshot() {
 }
 
 function saveString(body: Record<string, unknown>, field: string, key: string) {
-  if (typeof body[field] === "string") {
-    setSetting(key, String(body[field]).trim());
-  }
+  if (typeof body[field] === "string") setSetting(key, String(body[field]).trim());
 }
 
 function savePort(body: Record<string, unknown>, field: string, key: string) {
   if (body[field] === undefined) return;
   const value = Number(body[field]);
-  if (!Number.isInteger(value) || value < 1 || value > 65535) {
-    throw new Error(`Некорректный порт: ${field}`);
-  }
+  if (!Number.isInteger(value) || value < 1 || value > 65535) throw new Error(`Некорректный порт: ${field}`);
   setSetting(key, String(value));
 }
 
@@ -107,6 +96,9 @@ export async function POST(request: NextRequest) {
   }
 
   try {
+    const telegramTouched = body.clearTelegram === true ||
+      typeof body.telegramBotToken === "string" || typeof body.telegramChatId === "string";
+
     if (body.clearTelegram === true) {
       setSetting(INTEGRATION_KEYS.telegramBotToken, "");
       setSetting(INTEGRATION_KEYS.telegramChatId, "");
@@ -116,43 +108,39 @@ export async function POST(request: NextRequest) {
       setSetting(INTEGRATION_KEYS.telegramBusinessCanReply, "0");
       setSetting(TELEGRAM_WEBHOOK_ENABLED_KEY, "0");
       setSetting(TELEGRAM_WEBHOOK_URL_KEY, "");
+      setSetting(TELEGRAM_WEBHOOK_ERROR_KEY, "");
     } else {
       if (typeof body.telegramBotToken === "string" && body.telegramBotToken.trim()) {
         const token = body.telegramBotToken.trim();
         if (!/^\d+:[A-Za-z0-9_-]+$/.test(token)) {
-          return NextResponse.json(
-            { error: "Токен Telegram-бота выглядит некорректно" },
-            { status: 400 }
-          );
+          return NextResponse.json({ error: "Токен Telegram-бота выглядит некорректно" }, { status: 400 });
         }
         setSetting(INTEGRATION_KEYS.telegramBotToken, token);
       }
-      if (typeof body.telegramChatId === "string") {
-        setSetting(INTEGRATION_KEYS.telegramChatId, body.telegramChatId.trim());
+      if (typeof body.telegramChatId === "string") setSetting(INTEGRATION_KEYS.telegramChatId, body.telegramChatId.trim());
+    }
+
+    if (telegramTouched && body.clearTelegram !== true && getSetting(INTEGRATION_KEYS.telegramBotToken)) {
+      try {
+        await configureTelegramWebhook();
+        setSetting(TELEGRAM_WEBHOOK_ERROR_KEY, "");
+      } catch (error) {
+        const message = error instanceof Error ? error.message : "Не удалось включить входящие Telegram";
+        setSetting(TELEGRAM_WEBHOOK_ENABLED_KEY, "0");
+        setSetting(TELEGRAM_WEBHOOK_ERROR_KEY, message);
+        return NextResponse.json({ error: `Telegram сохранён, но входящие сообщения не подключились: ${message}`, ...snapshot() }, { status: 400 });
       }
     }
 
     if (typeof body.needNumberProjectId === "string") {
-      setSetting(
-        INTEGRATION_KEYS.needNumberProjectId,
-        body.needNumberProjectId.trim() || "1474"
-      );
+      setSetting(INTEGRATION_KEYS.needNumberProjectId, body.needNumberProjectId.trim() || "1474");
     }
     if (typeof body.needNumberCreateDeal === "boolean") {
-      setSetting(
-        INTEGRATION_KEYS.needNumberCreateDeal,
-        body.needNumberCreateDeal ? "1" : "0"
-      );
+      setSetting(INTEGRATION_KEYS.needNumberCreateDeal, body.needNumberCreateDeal ? "1" : "0");
     }
 
     if (body.clearEmail === true) {
-      for (const key of [
-        INTEGRATION_KEYS.emailAddress,
-        INTEGRATION_KEYS.emailUsername,
-        INTEGRATION_KEYS.emailPassword,
-        INTEGRATION_KEYS.emailImapHost,
-        INTEGRATION_KEYS.emailSmtpHost,
-      ]) {
+      for (const key of [INTEGRATION_KEYS.emailAddress, INTEGRATION_KEYS.emailUsername, INTEGRATION_KEYS.emailPassword, INTEGRATION_KEYS.emailImapHost, INTEGRATION_KEYS.emailSmtpHost]) {
         setSetting(key, "");
       }
     } else {
@@ -164,19 +152,13 @@ export async function POST(request: NextRequest) {
         setSetting(INTEGRATION_KEYS.emailAddress, address);
       }
       saveString(body, "emailUsername", INTEGRATION_KEYS.emailUsername);
-      if (typeof body.emailPassword === "string" && body.emailPassword.trim()) {
-        setSetting(INTEGRATION_KEYS.emailPassword, body.emailPassword.trim());
-      }
+      if (typeof body.emailPassword === "string" && body.emailPassword.trim()) setSetting(INTEGRATION_KEYS.emailPassword, body.emailPassword.trim());
       saveString(body, "emailImapHost", INTEGRATION_KEYS.emailImapHost);
       savePort(body, "emailImapPort", INTEGRATION_KEYS.emailImapPort);
-      if (typeof body.emailImapSecure === "boolean") {
-        setSetting(INTEGRATION_KEYS.emailImapSecure, body.emailImapSecure ? "1" : "0");
-      }
+      if (typeof body.emailImapSecure === "boolean") setSetting(INTEGRATION_KEYS.emailImapSecure, body.emailImapSecure ? "1" : "0");
       saveString(body, "emailSmtpHost", INTEGRATION_KEYS.emailSmtpHost);
       savePort(body, "emailSmtpPort", INTEGRATION_KEYS.emailSmtpPort);
-      if (typeof body.emailSmtpSecure === "boolean") {
-        setSetting(INTEGRATION_KEYS.emailSmtpSecure, body.emailSmtpSecure ? "1" : "0");
-      }
+      if (typeof body.emailSmtpSecure === "boolean") setSetting(INTEGRATION_KEYS.emailSmtpSecure, body.emailSmtpSecure ? "1" : "0");
       saveString(body, "emailFromName", INTEGRATION_KEYS.emailFromName);
       saveString(body, "emailIgnoreSenders", INTEGRATION_KEYS.emailIgnoreSenders);
       saveString(body, "emailIgnoreSubjects", INTEGRATION_KEYS.emailIgnoreSubjects);
@@ -188,9 +170,6 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({ success: true, ...snapshot() });
   } catch (error) {
-    return NextResponse.json(
-      { error: error instanceof Error ? error.message : "Не удалось сохранить настройки" },
-      { status: 400 }
-    );
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Не удалось сохранить настройки" }, { status: 400 });
   }
 }
