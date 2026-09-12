@@ -2,6 +2,7 @@ import { db } from "@/db";
 import { pipelineStages, deals, contacts } from "@/db/schema";
 import { eq, asc } from "drizzle-orm";
 import { KanbanBoard } from "@/components/pipeline/KanbanBoard";
+import { SPAM_STAGE_NAME } from "@/lib/lead-qualification";
 import type { PipelineColumn } from "@/types";
 
 export const dynamic = "force-dynamic";
@@ -11,7 +12,10 @@ export default function PipelinePage() {
     .select()
     .from(pipelineStages)
     .orderBy(asc(pipelineStages.order))
-    .all();
+    .all()
+    .filter((stage) => stage.name !== SPAM_STAGE_NAME);
+
+  const visibleStageIds = new Set(stages.map((stage) => stage.id));
 
   const allDeals = db
     .select({
@@ -31,7 +35,8 @@ export default function PipelinePage() {
     })
     .from(deals)
     .leftJoin(contacts, eq(deals.contactId, contacts.id))
-    .all();
+    .all()
+    .filter((deal) => visibleStageIds.has(deal.stageId));
 
   const columns: PipelineColumn[] = stages.map((stage) => ({
     ...stage,
@@ -50,7 +55,7 @@ export default function PipelinePage() {
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Воронка</h1>
         <p className="text-muted-foreground">
-          Перетаскивайте сделки между этапами. Квалификацию лида можно менять прямо в карточке.
+          Перетаскивайте сделки между этапами. Спам хранится отдельно в «Песочнице».
         </p>
       </div>
       <KanbanBoard initialColumns={columns} />
