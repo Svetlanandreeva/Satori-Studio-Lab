@@ -6,17 +6,17 @@ import {
   getSetting,
   setSetting,
 } from "@/lib/satori-integrations";
-import { configureTelegramWebhook, readTelegramWebhookInfo } from "@/lib/telegram-webhook";
-
-const TELEGRAM_WEBHOOK_ENABLED_KEY = "satori_telegram_webhook_enabled";
-const TELEGRAM_WEBHOOK_URL_KEY = "satori_telegram_webhook_url";
-const TELEGRAM_WEBHOOK_ERROR_KEY = "satori_telegram_webhook_last_error";
-const REQUIRED_TELEGRAM_BUSINESS_UPDATES = [
-  "business_connection",
-  "business_message",
-  "edited_business_message",
-  "deleted_business_messages",
-];
+import {
+  enableTelegramPolling,
+  telegramPollingHealth,
+  telegramTransport,
+  TELEGRAM_POLL_ERROR_KEY,
+  TELEGRAM_POLL_HEARTBEAT_KEY,
+  TELEGRAM_TRANSPORT_KEY,
+  TELEGRAM_WEBHOOK_ENABLED_KEY,
+  TELEGRAM_WEBHOOK_ERROR_KEY,
+  TELEGRAM_WEBHOOK_URL_KEY,
+} from "@/lib/telegram-webhook";
 
 const DEFAULT_EMAIL_ADDRESS = "hello@satori.ru";
 const YANDEX_IMAP_HOST = "imap.yandex.ru";
@@ -31,7 +31,9 @@ function snapshot() {
   const secret = ensureNeedNumberSecret();
   const telegramToken = getSetting(INTEGRATION_KEYS.telegramBotToken);
   const telegramChatId = getSetting(INTEGRATION_KEYS.telegramChatId) || "";
-  const telegramInboundConfigured = getBooleanSetting(TELEGRAM_WEBHOOK_ENABLED_KEY, false);
+  const transport = telegramTransport();
+  const polling = telegramPollingHealth();
+  const telegramInboundConfigured = Boolean(telegramToken && transport === "polling" && polling.healthy);
   const telegramWebhookUrl = getSetting(TELEGRAM_WEBHOOK_URL_KEY) || "";
   const telegramWebhookLastError = getSetting(TELEGRAM_WEBHOOK_ERROR_KEY) || "";
   const telegramBusinessConnectionId = getSetting(INTEGRATION_KEYS.telegramBusinessConnectionId) || "";
@@ -63,7 +65,10 @@ function snapshot() {
     telegramConfigured: Boolean(telegramToken && telegramChatId),
     telegramTokenConfigured: Boolean(telegramToken),
     telegramChatId,
+    telegramTransport: transport,
     telegramInboundConfigured,
+    telegramPollHeartbeatAt: polling.heartbeatAt,
+    telegramPollLastError: polling.lastError,
     telegramWebhookUrl,
     telegramWebhookLastError,
     telegramBusinessConfigured: Boolean(telegramBusinessConnectionId && telegramBusinessEnabled),
@@ -106,17 +111,12 @@ function savePort(body: Record<string, unknown>, field: string, key: string) {
 async function ensureTelegramInbound() {
   const token = getSetting(INTEGRATION_KEYS.telegramBotToken);
   if (!token) return;
+  if (telegramTransport() === "polling") return;
   try {
-    const webhook = await readTelegramWebhookInfo();
-    const allowed = new Set(webhook.allowedUpdates || []);
-    const businessUpdatesReady = REQUIRED_TELEGRAM_BUSINESS_UPDATES.every((item) => allowed.has(item));
-    if (!webhook.configured || !webhook.healthy || !businessUpdatesReady) {
-      await configureTelegramWebhook();
-    }
+    await enableTelegramPolling();
     setSetting(TELEGRAM_WEBHOOK_ERROR_KEY, "");
   } catch (error) {
-    setSetting(TELEGRAM_WEBHOOK_ENABLED_KEY, "0");
-    setSetting(TELEGRAM_WEBHOOK_ERROR_KEY, error instanceof Error ? error.message : "Не удалось включить входящие Telegram");
+    setSetting(TELEGRAM_POLL_ERROR_KEY, error instanceof Error ? error.message : "Не удалось включить Telegram long polling");
   }
 }
 
@@ -143,9 +143,12 @@ export async function POST(request: NextRequest) {
       setSetting(INTEGRATION_KEYS.telegramBusinessUserId, "");
       setSetting(INTEGRATION_KEYS.telegramBusinessEnabled, "0");
       setSetting(INTEGRATION_KEYS.telegramBusinessCanReply, "0");
+      setSetting(TELEGRAM_TRANSPORT_KEY, "polling");
       setSetting(TELEGRAM_WEBHOOK_ENABLED_KEY, "0");
       setSetting(TELEGRAM_WEBHOOK_URL_KEY, "");
       setSetting(TELEGRAM_WEBHOOK_ERROR_KEY, "");
+      setSetting(TELEGRAM_POLL_HEARTBEAT_KEY, "");
+      setSetting(TELEGRAM_POLL_ERROR_KEY, "");
     } else {
       if (typeof body.telegramBotToken === "string" && body.telegramBotToken.trim()) {
         const token = body.telegramBotToken.trim();
@@ -159,12 +162,11 @@ export async function POST(request: NextRequest) {
 
     if (telegramTouched && body.clearTelegram !== true && getSetting(INTEGRATION_KEYS.telegramBotToken)) {
       try {
-        await configureTelegramWebhook();
-        setSetting(TELEGRAM_WEBHOOK_ERROR_KEY, "");
+        await enableTelegramPolling();
+        setSetting(TELEGRAM_POLL_ERROR_KEY, "");
       } catch (error) {
         const message = error instanceof Error ? error.message : "Не удалось включить входящие Telegram";
-        setSetting(TELEGRAM_WEBHOOK_ENABLED_KEY, "0");
-        setSetting(TELEGRAM_WEBHOOK_ERROR_KEY, message);
+        setSetting(TELEGRAM_POLL_ERROR_KEY, message);
         return NextResponse.json({ error: `Telegram сохранён, но входящие сообщения не подключились: ${message}`, ...snapshot() }, { status: 400 });
       }
     }
