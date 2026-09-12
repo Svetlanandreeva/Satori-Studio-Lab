@@ -45,7 +45,8 @@ export default function DashboardPage() {
   const today = new Intl.DateTimeFormat("ru-RU", { timeZone: "Europe/Moscow", weekday: "long", day: "numeric", month: "long" }).format(new Date());
 
   return (
-    <div className="mx-auto max-w-[1480px] space-y-6 pb-10">
+    <div className="mx-auto max-w-[1480px] space-y-6 pb-10" aria-label="Главная">
+      <span className="sr-only">Главная</span>
       <section className="rounded-[28px] border border-slate-200/80 bg-white p-5 shadow-sm sm:p-7">
         <div className="flex flex-col gap-6 xl:flex-row xl:items-end xl:justify-between">
           <div className="max-w-2xl">
