@@ -1,0 +1,26 @@
+name: Public endpoint diagnostics
+
+on:
+  push:
+    branches:
+      - debug/telegram-live-diagnostics
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Resolve and request CRM webhook externally
+        run: |
+          set +e
+          echo '=== DNS from runner ==='
+          getent ahosts crm.satorilabural.online || true
+          echo '=== HTTPS from runner ==='
+          curl -4 -v --connect-timeout 10 --max-time 20 \
+            -o /tmp/body.txt \
+            https://crm.satorilabural.online/api/integrations/need-number 2>/tmp/curl.txt
+          rc=$?
+          echo "curl_rc=$rc"
+          grep -E 'Trying|Connected to|SSL connection|issuer:|subject:|HTTP/' /tmp/curl.txt || true
+          echo 'body:'
+          head -c 500 /tmp/body.txt || true
+          echo
