@@ -8,11 +8,12 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
   const { id, documentId } = await params;
   const document = getClientDocument(documentId, id);
   if (!document) return NextResponse.json({ error: "Документ не найден" }, { status: 404 });
-  const bytes = fs.readFileSync(String(document.filePath));
-  const safeName = encodeURIComponent(String(document.name || "document"));
-  return new NextResponse(bytes, {
+  const fileBuffer = fs.readFileSync(document.filePath);
+  const body = new Uint8Array(fileBuffer);
+  const safeName = encodeURIComponent(document.name || "document");
+  return new NextResponse(body, {
     headers: {
-      "content-type": String(document.mimeType || "application/octet-stream"),
+      "content-type": document.mimeType || "application/octet-stream",
       "content-disposition": `attachment; filename*=UTF-8''${safeName}`,
       "cache-control": "private, no-store",
     },
