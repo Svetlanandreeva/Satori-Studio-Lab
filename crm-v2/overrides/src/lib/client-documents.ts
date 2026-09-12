@@ -26,13 +26,29 @@ sqlite.exec(`
 const allowedKinds = new Set(["contract", "invoice", "brief", "specification", "other"]);
 const allowedExt = new Set([".pdf", ".doc", ".docx", ".xls", ".xlsx", ".jpg", ".jpeg", ".png", ".webp", ".zip"]);
 
+export interface ClientDocumentRecord {
+  id: string;
+  contactId: string;
+  kind: string;
+  name: string;
+  storedName?: string;
+  mimeType: string | null;
+  sizeBytes: number;
+  createdAt: number;
+}
+
+export interface ClientDocumentFile extends ClientDocumentRecord {
+  storedName: string;
+  filePath: string;
+}
+
 function safeName(value: string): string {
   return path.basename(value || "document").replace(/[\x00-\x1f<>:"/\\|?*]+/g, "_").slice(0, 160) || "document";
 }
 
-export function listClientDocuments(contactId: string) {
+export function listClientDocuments(contactId: string): ClientDocumentRecord[] {
   return sqlite.prepare(`SELECT id,contact_id AS contactId,kind,name,mime_type AS mimeType,size_bytes AS sizeBytes,created_at AS createdAt
-    FROM client_documents WHERE contact_id=? ORDER BY created_at DESC`).all(contactId) as Array<Record<string, unknown>>;
+    FROM client_documents WHERE contact_id=? ORDER BY created_at DESC`).all(contactId) as ClientDocumentRecord[];
 }
 
 export function saveClientDocument(input: { contactId: string; kind: string; name: string; mimeType?: string | null; bytes: Uint8Array }) {
@@ -52,11 +68,11 @@ export function saveClientDocument(input: { contactId: string; kind: string; nam
   return listClientDocuments(input.contactId).find(x => x.id === id) || null;
 }
 
-export function getClientDocument(documentId: string, contactId?: string) {
+export function getClientDocument(documentId: string, contactId?: string): ClientDocumentFile | null {
   const row = sqlite.prepare(`SELECT id,contact_id AS contactId,kind,name,stored_name AS storedName,mime_type AS mimeType,size_bytes AS sizeBytes,created_at AS createdAt
-    FROM client_documents WHERE id=?`).get(documentId) as Record<string, unknown> | undefined;
-  if (!row || (contactId && String(row.contactId) !== contactId)) return null;
-  const filePath = path.join(baseDir, String(row.storedName));
+    FROM client_documents WHERE id=?`).get(documentId) as Omit<ClientDocumentFile, "filePath"> | undefined;
+  if (!row || (contactId && row.contactId !== contactId)) return null;
+  const filePath = path.join(baseDir, row.storedName);
   if (!fs.existsSync(filePath)) return null;
   return { ...row, filePath };
 }
@@ -64,7 +80,7 @@ export function getClientDocument(documentId: string, contactId?: string) {
 export function deleteClientDocument(documentId: string, contactId: string) {
   const row = getClientDocument(documentId, contactId);
   if (!row) return false;
-  try { fs.unlinkSync(String(row.filePath)); } catch {}
+  try { fs.unlinkSync(row.filePath); } catch {}
   sqlite.prepare("DELETE FROM client_documents WHERE id=? AND contact_id=?").run(documentId, contactId);
   return true;
 }
