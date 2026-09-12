@@ -1,0 +1,38 @@
+name: Telegram network diagnostics
+
+on:
+  push:
+    branches:
+      - debug/telegram-live-diagnostics
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.DEPLOY_SSH_KEY }}
+      - run: ssh-keyscan -H 194.226.97.103 >> ~/.ssh/known_hosts
+      - name: Inspect public HTTPS path
+        run: |
+          ssh root@194.226.97.103 'bash -se' <<'REMOTE'
+          set +e
+          echo '=== DNS ==='
+          getent ahosts crm.satorilabural.online || true
+          if command -v dig >/dev/null 2>&1; then
+            echo 'A:'; dig +short A crm.satorilabural.online
+            echo 'AAAA:'; dig +short AAAA crm.satorilabural.online
+          fi
+          echo '=== HTTPS IPv4 ==='
+          curl -4 -sS -o /dev/null -w 'ipv4_http=%{http_code} remote=%{remote_ip}\n' --connect-timeout 8 https://crm.satorilabural.online/api/integrations/need-number || true
+          echo '=== HTTPS IPv6 ==='
+          curl -6 -sS -o /dev/null -w 'ipv6_http=%{http_code} remote=%{remote_ip}\n' --connect-timeout 8 https://crm.satorilabural.online/api/integrations/need-number || true
+          echo '=== listeners ==='
+          ss -ltnp | grep -E ':(80|443)[[:space:]]' || true
+          echo '=== nginx listen/server ==='
+          nginx -T 2>/dev/null | grep -E 'listen .*443|server_name .*crm|server_name .*satorilabural' | head -n 80 || true
+          echo '=== ufw ==='
+          ufw status verbose 2>/dev/null || true
+          echo '=== nft input summary ==='
+          nft list ruleset 2>/dev/null | grep -E 'hook input|tcp dport (80|443)|drop|reject' | head -n 120 || true
+          REMOTE
