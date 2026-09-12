@@ -40,10 +40,12 @@ interface ProjectRow {
   email: string | null;
   stageName: string;
   calculationEnteredAt: number;
+  isStoreOrder: boolean;
   orderedAt: string | null;
   productionTermDays: number | null;
   contractDeadline: string | null;
   shippedAt: string | null;
+  deliveredAt: string | null;
   paymentTerms: string | null;
   projectNotes: string | null;
   receivedAmount: number;
@@ -52,6 +54,7 @@ interface ProjectRow {
   margin: number;
   unpaid: number;
   productionDays: number | null;
+  deliveryDays: number | null;
   deadlineStatus: "no_deadline" | "overdue" | "due_today" | "due_soon" | "on_track" | "shipped_late" | "shipped";
   daysRemaining: number | null;
   overdueDays: number;
@@ -210,7 +213,7 @@ export default function ProjectsPage() {
       <div className="flex flex-col gap-4 xl:flex-row xl:items-end xl:justify-between">
         <div>
           <div className="flex items-center gap-2"><FolderKanban className="h-6 w-6" /><h1 className="text-2xl font-bold tracking-tight">Проекты</h1></div>
-          <p className="mt-1 text-sm text-muted-foreground">После «Расчёта»: заказчик, фактическая оплата, экономика и срок отправки.</p>
+          <p className="mt-1 text-sm text-muted-foreground">Срок изготовления считается до отгрузки. После «Отправлен» доставка идёт отдельным счётчиком.</p>
         </div>
         <div className="relative w-full xl:w-96">
           <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
@@ -234,6 +237,7 @@ export default function ProjectsPage() {
                   <div className="flex flex-wrap items-center gap-2">
                     <CardTitle className="text-base">{project.title}</CardTitle>
                     <Badge variant="outline">{project.stageName}</Badge>
+                    {project.isStoreOrder && <Badge variant="outline">Сайт · 7 дней</Badge>}
                     <Badge variant="outline" className={deadlineClass(project)}>{deadlineLabel(project)}</Badge>
                   </div>
                   <div className="mt-1 text-sm text-muted-foreground">
@@ -250,11 +254,29 @@ export default function ProjectsPage() {
                 <Info label="Срок производства" value={project.productionTermDays ? `${project.productionTermDays} дн.` : "—"} />
                 <Info label="Отправить до" value={formatDate(project.contractDeadline)} />
                 <Info label="Отправлено" value={formatDate(project.shippedAt)} />
-                <Info label="Дней в работе" value={project.productionDays === null ? "—" : String(project.productionDays)} />
+                <Info label="Дней производства" value={project.productionDays === null ? "—" : String(project.productionDays)} />
                 <Info label="Осталось" value={project.daysRemaining === null ? "—" : `${project.daysRemaining} дн.`} />
                 <Info label="Просрочка" value={project.overdueDays ? `${project.overdueDays} дн.` : "0 дн."} danger={project.overdueDays > 0} />
                 <Info label="Сумма проекта" value={rubles(project.dealValue)} />
               </div>
+
+              {project.isStoreOrder && (
+                <div className="rounded-lg border bg-muted/20 px-3 py-2 text-sm">
+                  <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                    <Truck className="h-4 w-4 text-muted-foreground" />
+                    {project.shippedAt ? (
+                      <>
+                        <span className="font-medium">Производство закрыто {formatDate(project.shippedAt)}.</span>
+                        <span className="text-muted-foreground">
+                          Доставка: {project.deliveryDays ?? 0} дн.{project.deliveredAt ? ` · завершена ${formatDate(project.deliveredAt)}` : " · в пути"}
+                        </span>
+                      </>
+                    ) : (
+                      <span><b>Заказ с сайта:</b> 7 календарных дней от оплаты до отгрузки. Доставка в эти 7 дней не входит.</span>
+                    )}
+                  </div>
+                </div>
+              )}
 
               {project.paymentTerms && (
                 <div className="rounded-lg border bg-muted/20 px-3 py-2 text-sm">
@@ -288,7 +310,10 @@ export default function ProjectsPage() {
           <DialogHeader>
             <DialogTitle>Условия проекта</DialogTitle>
             <DialogDescription>
-              {editing ? `${editing.contactName} · ${editing.title}` : ""}. Для заказа с сайта дата оплаты и полученная сумма заполняются автоматически. Для договора укажи условия, дату платежа и срок производства — дедлайн посчитается сам.
+              {editing ? `${editing.contactName} · ${editing.title}. ` : ""}
+              {editing?.isStoreOrder
+                ? "Заказ с сайта: дата оплаты приходит автоматически, срок изготовления фиксирован — 7 календарных дней. При статусе «Отправлен» производство останавливается, дальше считается доставка."
+                : "Для договора укажи условия, дату платежа и срок производства — дедлайн посчитается сам."}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-2">
@@ -296,10 +321,10 @@ export default function ProjectsPage() {
             <textarea id="payment-terms" value={form.paymentTerms} onChange={(event) => setForm((current) => ({ ...current, paymentTerms: event.target.value }))} className="min-h-20 w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring" placeholder="Например: 100% предоплата или 50% перед запуском + 50% перед отгрузкой" />
           </div>
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
-            <DateField label="Дата платежа" value={form.orderedAt} onChange={(value) => setForm((current) => ({ ...current, orderedAt: value }))} />
+            <DateField label="Дата платежа" value={form.orderedAt} onChange={(value) => setForm((current) => ({ ...current, orderedAt: value }))} disabled={Boolean(editing?.isStoreOrder)} />
             <div className="space-y-2">
               <Label>Срок производства, дней</Label>
-              <Input type="number" min={1} max={3650} value={form.productionTermDays} onChange={(event) => setForm((current) => ({ ...current, productionTermDays: event.target.value }))} placeholder="Например, 14" />
+              <Input type="number" min={1} max={3650} value={form.productionTermDays} onChange={(event) => setForm((current) => ({ ...current, productionTermDays: event.target.value }))} placeholder="Например, 14" disabled={Boolean(editing?.isStoreOrder)} />
             </div>
             <div className="space-y-2">
               <Label>Рассчитанный дедлайн</Label>
@@ -307,6 +332,11 @@ export default function ProjectsPage() {
             </div>
             <DateField label="Фактически отправлено" value={form.shippedAt} onChange={(value) => setForm((current) => ({ ...current, shippedAt: value }))} />
           </div>
+          {editing?.isStoreOrder && (
+            <div className="rounded-lg border bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+              Для заказа с сайта дата отправки фиксируется автоматически при смене статуса на «Отправлен клиенту». Поле можно скорректировать вручную только при необходимости.
+            </div>
+          )}
           <div className="space-y-2">
             <Label htmlFor="project-notes">Информация по проекту</Label>
             <textarea id="project-notes" value={form.notes} onChange={(event) => setForm((current) => ({ ...current, notes: event.target.value }))} className="min-h-28 w-full rounded-md border bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring" placeholder="Материалы, подрядчик, доставка, номер договора и другие детали..." />
@@ -329,6 +359,6 @@ function Info({ label, value, danger = false }: { label: string; value: string; 
   return <div className="min-w-0"><div className="text-xs text-muted-foreground">{label}</div><div className={`mt-1 truncate text-sm font-medium ${danger ? "text-red-700" : ""}`}>{value}</div></div>;
 }
 
-function DateField({ label, value, onChange }: { label: string; value: string; onChange: (value: string) => void }) {
-  return <div className="space-y-2"><Label>{label}</Label><Input type="date" value={value} onChange={(event) => onChange(event.target.value)} /></div>;
+function DateField({ label, value, onChange, disabled = false }: { label: string; value: string; onChange: (value: string) => void; disabled?: boolean }) {
+  return <div className="space-y-2"><Label>{label}</Label><Input type="date" value={value} onChange={(event) => onChange(event.target.value)} disabled={disabled} /></div>;
 }

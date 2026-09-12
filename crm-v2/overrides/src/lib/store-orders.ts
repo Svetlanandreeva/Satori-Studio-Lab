@@ -3,7 +3,11 @@ import { activities, contacts, deals, pipelineStages } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { SPAM_STAGE_NAME } from "@/lib/lead-qualification";
 import { markDealReachedCalculation } from "@/lib/deal-flow";
-import { seedStoreOrderPaymentDate } from "@/lib/projects";
+import {
+  markStoreOrderDelivered,
+  markStoreOrderShipped,
+  seedStoreOrderPaymentDate,
+} from "@/lib/projects";
 import { getDealEconomics, saveDealEconomics } from "@/lib/economics";
 
 export interface StoreOrder {
@@ -19,6 +23,8 @@ export interface StoreOrder {
   trackingCode?: string | null;
   createdAt?: string;
   paidAt?: string;
+  shippedAt?: string;
+  deliveredAt?: string;
 }
 
 const STORE_STAGE_NAME = "Отправлен клиенту";
@@ -120,6 +126,24 @@ function notesForOrder(existing: string | null | undefined, order: StoreOrder): 
   if (order.discount) notes = appendUniqueNote(notes, `Скидка: ${order.discount} ₽`);
   if (order.trackingCode) notes = appendUniqueNote(notes, `Трек-номер: ${order.trackingCode}`);
   return notes;
+}
+
+function syncStoreTimeline(dealId: string, order: StoreOrder) {
+  const fulfillment = String(order.fulfillmentStatus || "");
+  const shipped = fulfillment === "Отправлен" || fulfillment === STORE_STAGE_NAME || fulfillment === "Выполнен";
+  if (order.shippedAt) {
+    markStoreOrderShipped(dealId, order.shippedAt);
+  } else if (shipped) {
+    // Старые заказы могли не хранить момент отгрузки. При первой синхронизации
+    // фиксируем его сейчас, чтобы производственный счётчик больше не рос.
+    markStoreOrderShipped(dealId, new Date());
+  }
+
+  if (order.deliveredAt) {
+    markStoreOrderDelivered(dealId, order.deliveredAt);
+  } else if (fulfillment === "Выполнен") {
+    markStoreOrderDelivered(dealId, new Date());
+  }
 }
 
 function markStoreOrderFullyPaid(dealId: string, value: number) {
@@ -242,6 +266,7 @@ export function syncStoreOrder(order: StoreOrder) {
     if (!targetStage.isLost) markDealReachedCalculation(created.id, targetStage.id);
     if (isPaid) {
       seedStoreOrderPaymentDate(created.id, order.paidAt || order.createdAt || now.toISOString());
+      syncStoreTimeline(created.id, order);
       markStoreOrderFullyPaid(created.id, value);
     }
     return { orderId, contactId: contact.id, dealId: created.id, created: true, stage: targetStageName };
@@ -263,6 +288,7 @@ export function syncStoreOrder(order: StoreOrder) {
   if (!nextStage.isLost) markDealReachedCalculation(existingDeal.id, nextStage.id);
   if (isPaid) {
     seedStoreOrderPaymentDate(existingDeal.id, order.paidAt || order.createdAt || now.toISOString());
+    syncStoreTimeline(existingDeal.id, order);
     markStoreOrderFullyPaid(existingDeal.id, value);
   }
 
@@ -310,5 +336,14 @@ export async function pushDealStageToStorefront(dealId: string, stageName: strin
     const detail = await response.text().catch(() => "");
     throw new Error(`Не удалось обновить статус заказа на сайте: HTTP ${response.status} ${detail.slice(0, 160)}`);
   }
+
+  // Производство заканчивается при отгрузке. С этого момента дни идут уже в доставку.
+  if (stageName === STORE_STAGE_NAME) {
+    markStoreOrderShipped(dealId, new Date());
+  } else if (stageName === "Завершено") {
+    markStoreOrderShipped(dealId, new Date());
+    markStoreOrderDelivered(dealId, new Date());
+  }
+
   return { synced: true, orderId, fulfillmentStatus };
 }
