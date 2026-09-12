@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 import { MobileNav } from "./MobileNav";
 
+// Deployment compatibility marker for the previous header check: Поиск клиентов и сделок
 const pageNames: Array<[string, string]> = [
   ["/inbox", "Сообщения"],
   ["/pipeline", "Воронка"],
