@@ -60,42 +60,41 @@ jobs:
           p = Path(os.environ['CFG'])
           s = p.read_text()
 
-          starts = list(re.finditer(r'(?m)^(?P<indent>\s*)location\s+[^\n{]+\{', s))
-          candidates = []
-          for match in starts:
+          def block_end(text: str, start: int):
               depth = 0
-              end = None
-              for index in range(match.start(), len(s)):
-                  if s[index] == '{': depth += 1
-                  elif s[index] == '}':
+              for index in range(start, len(text)):
+                  if text[index] == '{':
+                      depth += 1
+                  elif text[index] == '}':
                       depth -= 1
                       if depth == 0:
-                          end = index + 1
-                          break
+                          return index + 1
+              return None
+
+          candidates = []
+          for match in re.finditer(r'(?m)^(?P<indent>\s*)server\s*\{', s):
+              end = block_end(s, match.start())
               if not end:
                   continue
               block = s[match.start():end]
+              if not re.search(r'(?m)^\s*server_name\s+[^;]*crm\.satorilabural\.online[^;]*;', block):
+                  continue
               if 'proxy_pass http://127.0.0.1:3020;' not in block:
                   continue
-              if 'SATORI NEED NUMBER WEBHOOK' in block:
-                  continue
-              header = s[match.start():s.find('\n', match.start())]
-              candidates.append((0 if re.search(r'location\s+/\s*\{', header) else 1, match, end, block))
+              candidates.append((match, end, block))
 
           if not candidates:
-              raise SystemExit('Main CRM nginx location for port 3020 not found')
+              raise SystemExit('HTTPS CRM virtual host was not found in nginx config')
 
-          _, match, end, block = sorted(candidates, key=lambda item: item[0])[0]
+          match, end, block = candidates[0]
           lines = block.splitlines()
-          if not lines:
-              raise SystemExit('CRM location block is empty')
           indent = match.group('indent') + '  '
-          cleaned = [lines[0]]
-          cleaned.append(f'{indent}auth_basic off;')
+          cleaned = [lines[0], f'{indent}auth_basic off;']
           for line in lines[1:]:
               if re.match(r'^\s*auth_basic(?:_user_file)?\s+', line):
                   continue
               cleaned.append(line)
+
           replacement = '\n'.join(cleaned)
           s = s[:match.start()] + replacement + s[end:]
           p.write_text(s)
