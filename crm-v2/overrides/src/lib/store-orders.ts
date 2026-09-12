@@ -4,6 +4,7 @@ import { eq } from "drizzle-orm";
 import { SPAM_STAGE_NAME } from "@/lib/lead-qualification";
 import { markDealReachedCalculation } from "@/lib/deal-flow";
 import { seedStoreOrderPaymentDate } from "@/lib/projects";
+import { getDealEconomics, saveDealEconomics } from "@/lib/economics";
 
 export interface StoreOrder {
   id: string;
@@ -121,6 +122,39 @@ function notesForOrder(existing: string | null | undefined, order: StoreOrder): 
   return notes;
 }
 
+function markStoreOrderFullyPaid(dealId: string, value: number) {
+  const current = getDealEconomics(dealId) as {
+    productionCost?: number;
+    paymentCommission?: number;
+    deliveryCost?: number;
+    packagingCost?: number;
+    contractorCost?: number;
+    taxCost?: number;
+    otherCost?: number;
+    notes?: string | null;
+  } | null;
+
+  saveDealEconomics({
+    dealId,
+    receivedAmount: value,
+    productionCost: Number(current?.productionCost || 0),
+    paymentCommission: Number(current?.paymentCommission || 0),
+    deliveryCost: Number(current?.deliveryCost || 0),
+    packagingCost: Number(current?.packagingCost || 0),
+    contractorCost: Number(current?.contractorCost || 0),
+    taxCost: Number(current?.taxCost || 0),
+    otherCost: Number(current?.otherCost || 0),
+    notes: current?.notes || null,
+  });
+}
+
+function mergeDuplicateStoreDeals(primaryDeal: typeof deals.$inferSelect, duplicates: Array<typeof deals.$inferSelect>) {
+  for (const duplicate of duplicates) {
+    db.update(activities).set({ dealId: primaryDeal.id }).where(eq(activities.dealId, duplicate.id)).run();
+    db.delete(deals).where(eq(deals.id, duplicate.id)).run();
+  }
+}
+
 function recordFailedPaymentAttempt(order: StoreOrder, contactId: string) {
   const marker = `[store-payment-failed:${order.id}]`;
   const exists = db.select().from(activities).all().some((activity) =>
@@ -154,7 +188,9 @@ export function syncStoreOrder(order: StoreOrder) {
   if (!orderId) throw new Error("У заказа нет id");
 
   const allDeals = db.select().from(deals).all();
-  const existingDeal = allDeals.find((deal) => storeOrderIdFromDealNotes(deal.notes) === orderId) || null;
+  const matchingDeals = allDeals.filter((deal) => storeOrderIdFromDealNotes(deal.notes) === orderId);
+  const existingDeal = matchingDeals[0] || null;
+  if (existingDeal && matchingDeals.length > 1) mergeDuplicateStoreDeals(existingDeal, matchingDeals.slice(1));
   const paymentStatus = String(order.status || "").toLowerCase();
 
   // Неудачная попытка оплаты — это событие клиента, а не сделка.
@@ -204,7 +240,10 @@ export function syncStoreOrder(order: StoreOrder) {
       updatedAt: now,
     }).returning().get();
     if (!targetStage.isLost) markDealReachedCalculation(created.id, targetStage.id);
-    if (isPaid) seedStoreOrderPaymentDate(created.id, order.paidAt || order.createdAt || now.toISOString());
+    if (isPaid) {
+      seedStoreOrderPaymentDate(created.id, order.paidAt || order.createdAt || now.toISOString());
+      markStoreOrderFullyPaid(created.id, value);
+    }
     return { orderId, contactId: contact.id, dealId: created.id, created: true, stage: targetStageName };
   }
 
@@ -216,11 +255,16 @@ export function syncStoreOrder(order: StoreOrder) {
   db.update(deals).set({
     title: existingDeal.title || titleForOrder(order), value, stageId: nextStage.id,
     probability: nextStage.isLost ? 0 : (isPaid ? 100 : probabilityForStage(nextStage.name)),
-    notes: notesForOrder(existingDeal.notes, order), updatedAt: now,
+    notes: notesForOrder(existingDeal.notes, order),
+    createdAt: isPaid && order.paidAt ? new Date(order.paidAt) : existingDeal.createdAt,
+    updatedAt: now,
   }).where(eq(deals.id, existingDeal.id)).run();
 
   if (!nextStage.isLost) markDealReachedCalculation(existingDeal.id, nextStage.id);
-  if (isPaid) seedStoreOrderPaymentDate(existingDeal.id, order.paidAt || order.createdAt || now.toISOString());
+  if (isPaid) {
+    seedStoreOrderPaymentDate(existingDeal.id, order.paidAt || order.createdAt || now.toISOString());
+    markStoreOrderFullyPaid(existingDeal.id, value);
+  }
 
   return { orderId, contactId: contact.id, dealId: existingDeal.id, created: false, stage: nextStage.name };
 }
