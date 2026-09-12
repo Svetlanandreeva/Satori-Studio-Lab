@@ -1,6 +1,7 @@
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { activities, contacts } from "@/db/schema";
+import { getMessageIndicatorsStartedAt } from "@/lib/message-indicator-state";
 
 const TELEGRAM_TYPES = new Set([
   "telegram_incoming",
@@ -32,17 +33,15 @@ function direction(type: string): "incoming" | "outgoing" {
 
 function unreadCountFor(
   messages: Array<{ type: string; createdAt: Date }>,
-  readAt: Date | null
+  readAt: Date | null,
+  indicatorsStartedAt: Date
 ): number {
-  if (!messages.length) return 0;
-  if (!readAt) {
-    // Do not turn years of historic Telegram into unread noise on first rollout.
-    // Until a thread has an explicit read marker, only flag the conversation
-    // when its newest message is incoming.
-    return direction(messages[0].type) === "incoming" ? 1 : 0;
-  }
+  const cutoff = Math.max(
+    indicatorsStartedAt.getTime(),
+    readAt?.getTime() || 0
+  );
   return messages.filter(
-    (item) => direction(item.type) === "incoming" && item.createdAt.getTime() > readAt.getTime()
+    (item) => direction(item.type) === "incoming" && item.createdAt.getTime() > cutoff
   ).length;
 }
 
@@ -66,6 +65,7 @@ export function markTelegramThreadRead(contactId: string) {
 
 export function listTelegramThreads(search = "") {
   const q = search.trim().toLowerCase();
+  const indicatorsStartedAt = getMessageIndicatorsStartedAt();
   const allActivities = db.select().from(activities).all()
     .filter((item) => TELEGRAM_TYPES.has(item.type) && item.contactId)
     .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime());
@@ -99,7 +99,11 @@ export function listTelegramThreads(search = "") {
       lastMessageAt: item.createdAt.toISOString(),
       lastSnippet: bodyFromDescription(item.description),
       lastDirection: direction(item.type),
-      unreadCount: unreadCountFor(activitiesByContact.get(item.contactId) || [], meta.readAt),
+      unreadCount: unreadCountFor(
+        activitiesByContact.get(item.contactId) || [],
+        meta.readAt,
+        indicatorsStartedAt
+      ),
     });
   }
   return result;

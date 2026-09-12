@@ -3,16 +3,40 @@ import { pipelineStages, deals, contacts } from "@/db/schema";
 import { eq, asc } from "drizzle-orm";
 import { KanbanBoard } from "@/components/pipeline/KanbanBoard";
 import { SPAM_STAGE_NAME } from "@/lib/lead-qualification";
-import { ensureContactsHavePipelineDeals } from "@/lib/email-crm-policy";
 import type { PipelineColumn } from "@/types";
 
 export const dynamic = "force-dynamic";
 
+const SYNTHETIC_LINK_NOTE = "Автоматически создано для связи клиента с воронкой";
+
+function cleanupUntouchedSyntheticDeals() {
+  const initialStage = db
+    .select()
+    .from(pipelineStages)
+    .orderBy(asc(pipelineStages.order))
+    .all()
+    .find((stage) => stage.name === "Новый запрос") || null;
+  if (!initialStage) return;
+
+  for (const deal of db.select().from(deals).all()) {
+    const untouched = deal.createdAt.getTime() === deal.updatedAt.getTime();
+    if (
+      deal.notes === SYNTHETIC_LINK_NOTE &&
+      deal.stageId === initialStage.id &&
+      Number(deal.value || 0) === 0 &&
+      Number(deal.probability || 0) === 10 &&
+      untouched
+    ) {
+      db.delete(deals).where(eq(deals.id, deal.id)).run();
+    }
+  }
+}
+
 export default function PipelinePage() {
-  // Контакт и воронка больше не живут отдельно: любой реальный клиент без сделки
-  // получает стартовую карточку «Новый запрос». Автоконтакты старого почтового
-  // импорта перед этим безопасно удаляются, если у них нет сделок/активностей.
-  ensureContactsHavePipelineDeals();
+  // Воронка должна содержать реальные заявки/сделки, а не техническую карточку
+  // для каждого контакта. Удаляем только старые нетронутые автокарточки;
+  // сделки, которые уже двигали или редактировали вручную, сохраняем.
+  cleanupUntouchedSyntheticDeals();
 
   const stages = db
     .select()
@@ -61,7 +85,7 @@ export default function PipelinePage() {
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Воронка</h1>
         <p className="text-muted-foreground">
-          Все клиенты связаны со сделкой и могут перемещаться между этапами. Спам хранится отдельно в «Песочнице».
+          Только реальные заявки и сделки. Перетаскивайте их между этапами; спам хранится отдельно в «Песочнице».
         </p>
       </div>
       <KanbanBoard initialColumns={columns} />
