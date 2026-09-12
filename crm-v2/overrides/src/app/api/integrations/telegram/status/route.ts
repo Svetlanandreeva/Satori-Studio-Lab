@@ -10,6 +10,8 @@ import {
 import {
   configureTelegramWebhook,
   readTelegramWebhookInfo,
+  telegramPollingHealth,
+  telegramTransport,
   telegramWebhookUrl,
 } from "@/lib/telegram-webhook";
 
@@ -68,18 +70,26 @@ export const dynamic = "force-dynamic";
 export async function GET() {
   try {
     const token = getSetting(INTEGRATION_KEYS.telegramBotToken) || "";
+    const transport = telegramTransport();
+    const polling = telegramPollingHealth();
+
     if (!token) {
       return NextResponse.json({
         tokenConfigured: false,
+        transport,
+        pollingEnabled: transport === "polling",
+        pollingHealthy: false,
+        pollingHeartbeatAt: polling.heartbeatAt,
+        pollingLastError: polling.lastError || "Telegram-бот не настроен",
         webhookConfigured: false,
         webhookHealthy: false,
         expectedWebhookUrl: telegramWebhookUrl(),
         webhookUrl: "",
         pendingUpdates: 0,
-        webhookLastError: "Telegram-бот не настроен",
+        webhookLastError: "",
         webhookLastErrorAt: null,
         allowedUpdates: [],
-        businessUpdatesSubscribed: false,
+        businessUpdatesSubscribed: transport === "polling",
         businessConfigured: false,
         businessEnabled: false,
         businessCanReply: false,
@@ -91,17 +101,33 @@ export async function GET() {
       });
     }
 
-    let webhook = await readTelegramWebhookInfo();
-    const needsRepair = !webhook.configured || !webhook.healthy || !hasRequiredBusinessUpdates(webhook.allowedUpdates);
-    if (needsRepair) {
+    let webhook = {
+      configured: false,
+      healthy: false,
+      expectedUrl: telegramWebhookUrl(),
+      webhookUrl: "",
+      pendingUpdates: 0,
+      lastError: "",
+      lastErrorAt: null as string | null,
+      allowedUpdates: [] as string[],
+    };
+
+    // Webhook mode is kept only as a compatibility fallback. Production uses
+    // outbound long polling because Telegram's webhook delivery to this VPS can
+    // time out before the request reaches nginx.
+    if (transport === "webhook") {
       try {
-        await configureTelegramWebhook();
         webhook = await readTelegramWebhookInfo();
+        const needsRepair = !webhook.configured || !webhook.healthy || !hasRequiredBusinessUpdates(webhook.allowedUpdates);
+        if (needsRepair) {
+          await configureTelegramWebhook();
+          webhook = await readTelegramWebhookInfo();
+        }
       } catch (error) {
         webhook = {
           ...webhook,
           healthy: false,
-          lastError: error instanceof Error ? error.message : "Не удалось переподключить webhook",
+          lastError: error instanceof Error ? error.message : "Не удалось проверить webhook",
         };
       }
     }
@@ -134,9 +160,15 @@ export async function GET() {
     const businessEnabled = business?.is_enabled ?? (getSetting(INTEGRATION_KEYS.telegramBusinessEnabled) === "1");
     const businessCanReply = business?.rights?.can_reply ?? (getSetting(INTEGRATION_KEYS.telegramBusinessCanReply) === "1");
     const businessCanReadMessages = business?.rights?.can_read_messages ?? (getSetting("satori_telegram_business_can_read_messages") === "1");
+    const pollingMode = transport === "polling";
 
     return NextResponse.json({
       tokenConfigured: true,
+      transport,
+      pollingEnabled: pollingMode,
+      pollingHealthy: pollingMode && polling.healthy,
+      pollingHeartbeatAt: polling.heartbeatAt,
+      pollingLastError: polling.lastError,
       webhookConfigured: webhook.configured,
       webhookHealthy: webhook.healthy,
       expectedWebhookUrl: webhook.expectedUrl,
@@ -144,8 +176,8 @@ export async function GET() {
       pendingUpdates: webhook.pendingUpdates,
       webhookLastError: webhook.lastError,
       webhookLastErrorAt: webhook.lastErrorAt,
-      allowedUpdates: webhook.allowedUpdates,
-      businessUpdatesSubscribed: hasRequiredBusinessUpdates(webhook.allowedUpdates),
+      allowedUpdates: pollingMode ? REQUIRED_BUSINESS_UPDATES : webhook.allowedUpdates,
+      businessUpdatesSubscribed: pollingMode ? true : hasRequiredBusinessUpdates(webhook.allowedUpdates),
       businessConfigured: Boolean(connectionId && businessEnabled),
       businessConnectionId: connectionId || null,
       businessEnabled,
