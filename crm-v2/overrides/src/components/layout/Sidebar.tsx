@@ -96,8 +96,8 @@ export function Sidebar() {
   const { summary } = useUnreadMessages();
 
   return (
-    <aside className="hidden min-h-screen w-[248px] shrink-0 flex-col border-r border-slate-200/80 bg-[#fbfbfc] md:flex">
-      <div className="flex h-[76px] items-center px-5">
+    <aside className="sticky top-0 hidden h-dvh min-h-0 w-[248px] shrink-0 flex-col overflow-hidden border-r border-slate-200/80 bg-[#fbfbfc] md:flex">
+      <div className="flex h-[76px] shrink-0 items-center px-5">
         <Link href="/" className="flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-2xl bg-slate-950 text-[11px] font-semibold tracking-[.14em] text-white shadow-sm">S</div>
           <div className="leading-tight">
@@ -107,12 +107,12 @@ export function Sidebar() {
         </Link>
       </div>
 
-      <nav className="flex-1 space-y-6 overflow-y-auto px-3 pb-5">
+      <nav className="min-h-0 flex-1 space-y-6 overflow-y-auto overscroll-contain px-3 pb-5">
         <NavGroup title="Работа" items={workItems} pathname={pathname} unreadCount={summary.all} />
         <NavGroup title="Управление" items={managementItems} pathname={pathname} />
       </nav>
 
-      <div className="border-t border-slate-200/70 p-3">
+      <div className="shrink-0 border-t border-slate-200/70 bg-[#fbfbfc] p-3">
         <div className="rounded-[22px] border border-slate-200/70 bg-white/70 p-1.5">
           <NavLink item={settingsItem} pathname={pathname} />
         </div>
