@@ -97,8 +97,11 @@ export async function proxy(request: NextRequest) {
     const blocked = roleBlocked(request, session);
     if (blocked) return NextResponse.json({ error: blocked }, { status: 403 });
     const response = NextResponse.next();
+    // Keep middleware response headers ASCII-only. Actor names may contain
+    // Cyrillic; putting them into a Fetch/Edge header throws a ByteString
+    // conversion error and turns every authenticated page into HTTP 500.
+    // Server API routes resolve the actor directly from the signed cookie.
     response.headers.set("x-satori-role", session.role);
-    response.headers.set("x-satori-actor", session.actorName);
     return response;
   }
 
