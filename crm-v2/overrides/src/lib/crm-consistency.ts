@@ -35,6 +35,22 @@ function stageRows(name: string) {
   return sqlite.prepare("SELECT id,name FROM pipeline_stages WHERE name=? ORDER BY rowid ASC").all(name) as Array<{ id: string; name: string }>;
 }
 
+function normalizeLegacyContactSources(): number {
+  if (!tableExists("contacts")) return 0;
+  let changed = 0;
+  const website = sqlite.prepare(`
+    UPDATE contacts SET source='website'
+    WHERE lower(trim(COALESCE(source,''))) IN ('order','web','site','store','shop','website_order')
+  `).run();
+  changed += Number(website.changes || 0);
+  const telegram = sqlite.prepare(`
+    UPDATE contacts SET source='telegram_account'
+    WHERE lower(trim(COALESCE(source,''))) IN ('telegram_business','telegram personal','personal_telegram')
+  `).run();
+  changed += Number(telegram.changes || 0);
+  return changed;
+}
+
 function ensureCanonicalPipeline(): { created: number; merged: number; movedDeals: number } {
   if (!tableExists("pipeline_stages") || !tableExists("deals")) return { created: 0, merged: 0, movedDeals: 0 };
   let created = 0;
@@ -128,7 +144,8 @@ function ensureShipmentWarning(): number {
 }
 
 export function runCrmConsistencyRepair() {
+  const normalizedSources = normalizeLegacyContactSources();
   const pipeline = ensureCanonicalPipeline();
   const shipmentWarnings = ensureShipmentWarning();
-  return { pipeline, shipmentWarnings };
+  return { normalizedSources, pipeline, shipmentWarnings };
 }
