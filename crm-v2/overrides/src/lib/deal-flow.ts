@@ -17,12 +17,20 @@ sqlite.exec(`
     calculation_entered_at INTEGER,
     updated_at INTEGER NOT NULL
   );
+
+  CREATE TABLE IF NOT EXISTS deal_flow_meta (
+    key TEXT PRIMARY KEY,
+    value TEXT NOT NULL,
+    updated_at INTEGER NOT NULL
+  );
 `);
 
 interface StageRow {
   id: string;
   name: string;
   stageOrder: number;
+  isLost: number | boolean;
+  isWon: number | boolean;
 }
 
 function normalize(value: unknown): string {
@@ -34,7 +42,16 @@ function normalize(value: unknown): string {
 
 function stages(): StageRow[] {
   return sqlite
-    .prepare(`SELECT id, name, "order" AS stageOrder FROM pipeline_stages ORDER BY "order" ASC`)
+    .prepare(`
+      SELECT
+        id,
+        name,
+        "order" AS stageOrder,
+        is_lost AS isLost,
+        is_won AS isWon
+      FROM pipeline_stages
+      ORDER BY "order" ASC
+    `)
     .all() as StageRow[];
 }
 
@@ -48,24 +65,76 @@ function isSandboxStage(name: unknown): boolean {
   return value.includes("песочниц") || value.includes("спам");
 }
 
+function cleanupLegacyLostBackfill() {
+  const key = "lost_backfill_cleaned_v1";
+  const existing = sqlite
+    .prepare(`SELECT value FROM deal_flow_meta WHERE key = ?`)
+    .get(key) as { value: string } | undefined;
+  if (existing) return;
+
+  const now = Date.now();
+  const transaction = sqlite.transaction(() => {
+    // The first version of milestone backfill inferred every stage with an order
+    // after «Расчёт», including «Отказ». Historical lost deals therefore could be
+    // marked even when they had never reached calculation. Remove only that
+    // one-time legacy seed. After this marker is stored, genuinely calculated
+    // deals remain tracked even if they later move to «Отказ».
+    sqlite.prepare(`
+      DELETE FROM deal_flow_state
+      WHERE deal_id IN (
+        SELECT d.id
+        FROM deals d
+        JOIN pipeline_stages ps ON ps.id = d.stage_id
+        WHERE COALESCE(ps.is_lost, 0) = 1
+      )
+    `).run();
+
+    sqlite.prepare(`
+      INSERT INTO deal_flow_meta (key, value, updated_at)
+      VALUES (?, '1', ?)
+      ON CONFLICT(key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at
+    `).run(key, now);
+  });
+  transaction();
+}
+
 export function markDealReachedCalculation(dealId: string, targetStageId?: string | null) {
   const calculation = findCalculationStage();
   if (!calculation) return false;
 
   const target = targetStageId
     ? sqlite
-        .prepare(`SELECT id, name, "order" AS stageOrder FROM pipeline_stages WHERE id = ?`)
+        .prepare(`
+          SELECT
+            id,
+            name,
+            "order" AS stageOrder,
+            is_lost AS isLost,
+            is_won AS isWon
+          FROM pipeline_stages
+          WHERE id = ?
+        `)
         .get(targetStageId) as StageRow | undefined
     : sqlite
         .prepare(`
-          SELECT ps.id, ps.name, ps."order" AS stageOrder
+          SELECT
+            ps.id,
+            ps.name,
+            ps."order" AS stageOrder,
+            ps.is_lost AS isLost,
+            ps.is_won AS isWon
           FROM deals d
           JOIN pipeline_stages ps ON ps.id = d.stage_id
           WHERE d.id = ?
         `)
         .get(dealId) as StageRow | undefined;
 
-  if (!target || isSandboxStage(target.name) || Number(target.stageOrder) < Number(calculation.stageOrder)) {
+  if (
+    !target ||
+    Boolean(target.isLost) ||
+    isSandboxStage(target.name) ||
+    Number(target.stageOrder) < Number(calculation.stageOrder)
+  ) {
     return false;
   }
 
@@ -81,14 +150,27 @@ export function markDealReachedCalculation(dealId: string, targetStageId?: strin
 }
 
 export function syncCalculationMilestones() {
+  cleanupLegacyLostBackfill();
+
   const calculation = findCalculationStage();
   if (!calculation) return { calculationStage: null, marked: 0 };
 
   const current = sqlite.prepare(`
-    SELECT d.id AS dealId, ps.name AS stageName, ps."order" AS stageOrder
+    SELECT
+      d.id AS dealId,
+      ps.name AS stageName,
+      ps."order" AS stageOrder,
+      ps.is_lost AS isLost,
+      ps.is_won AS isWon
     FROM deals d
     JOIN pipeline_stages ps ON ps.id = d.stage_id
-  `).all() as Array<{ dealId: string; stageName: string; stageOrder: number }>;
+  `).all() as Array<{
+    dealId: string;
+    stageName: string;
+    stageOrder: number;
+    isLost: number | boolean;
+    isWon: number | boolean;
+  }>;
 
   const insert = sqlite.prepare(`
     INSERT INTO deal_flow_state (deal_id, calculation_entered_at, updated_at)
@@ -102,6 +184,7 @@ export function syncCalculationMilestones() {
   let marked = 0;
   const transaction = sqlite.transaction(() => {
     for (const row of current) {
+      if (Boolean(row.isLost)) continue;
       if (isSandboxStage(row.stageName)) continue;
       if (Number(row.stageOrder) < Number(calculation.stageOrder)) continue;
       insert.run(row.dealId, now, now);
