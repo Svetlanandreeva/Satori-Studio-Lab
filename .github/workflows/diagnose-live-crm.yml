@@ -1,0 +1,72 @@
+name: Diagnose live CRM
+
+on:
+  push:
+    branches: [fix/telegram-business-pipeline]
+    paths:
+      - '.github/workflows/diagnose-live-crm.yml'
+
+jobs:
+  diagnose:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.DEPLOY_SSH_KEY }}
+      - name: Trust production server
+        run: ssh-keyscan -H 194.226.97.103 >> ~/.ssh/known_hosts
+      - name: Check Telegram and pipeline runtime
+        run: |
+          ssh root@194.226.97.103 'bash -se' <<'REMOTE'
+          set -eu
+          echo '=== service ==='
+          systemctl is-active satori-crm-v2
+
+          echo '=== sanitized integration state ==='
+          curl -fsS http://127.0.0.1:3020/api/integrations/settings >/tmp/settings.json
+          python3 - <<'PY'
+          import json
+          d=json.load(open('/tmp/settings.json'))
+          print({
+            'telegramConfigured': bool(d.get('telegramConfigured')),
+            'telegramTokenConfigured': bool(d.get('telegramTokenConfigured')),
+            'telegramInboundConfigured': bool(d.get('telegramInboundConfigured')),
+            'telegramWebhookUrlPresent': bool(d.get('telegramWebhookUrl')),
+            'telegramChatIdPresent': bool(d.get('telegramChatId')),
+          })
+          PY
+
+          echo '=== telegram test response ==='
+          code=$(curl -sS -o /tmp/tgtest.json -w '%{http_code}' -X POST http://127.0.0.1:3020/api/integrations/telegram/test || true)
+          echo "HTTP $code"
+          cat /tmp/tgtest.json
+          echo
+
+          echo '=== pipeline same-stage write ==='
+          curl -fsS http://127.0.0.1:3020/api/pipeline >/tmp/pipeline.json
+          python3 - <<'PY' >/tmp/payload.json
+          import json
+          p=json.load(open('/tmp/pipeline.json'))
+          deal=None
+          for stage in p:
+            if stage.get('deals'):
+              deal=stage['deals'][0]
+              print(json.dumps({'dealId': deal['id'], 'stageId': stage['id']}))
+              break
+          if deal is None:
+            print(json.dumps({'skip': True}))
+          PY
+          if grep -q '"skip"' /tmp/payload.json; then
+            echo 'No visible deals to test'
+          else
+            code=$(curl -sS -o /tmp/pipeline-put.json -w '%{http_code}' -X PUT http://127.0.0.1:3020/api/pipeline -H 'Content-Type: application/json' --data-binary @/tmp/payload.json || true)
+            echo "HTTP $code"
+            cat /tmp/pipeline-put.json
+            echo
+          fi
+
+          echo '=== recent service errors ==='
+          journalctl -u satori-crm-v2 -n 80 --no-pager | grep -Ei 'telegram|error|exception|failed|pipeline' | tail -40 || true
+          REMOTE
