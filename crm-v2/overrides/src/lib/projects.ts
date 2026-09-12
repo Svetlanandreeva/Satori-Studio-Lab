@@ -13,6 +13,7 @@ try { sqlite.pragma("busy_timeout = 15000"); } catch {}
 try { sqlite.pragma("foreign_keys = ON"); } catch {}
 
 const STORE_PRODUCTION_TERM_DAYS = 7;
+const MANAGER_COMMISSION_RATE = 50;
 
 sqlite.exec(`
   CREATE TABLE IF NOT EXISTS project_details (
@@ -304,10 +305,13 @@ export function listProjects() {
   `).all() as Array<Record<string, unknown>>;
 
   const projects = rows.map((row) => {
-    const costs = Number(row.productionCost || 0) + Number(row.paymentCommission || 0) +
+    const directCost = Number(row.productionCost || 0) + Number(row.paymentCommission || 0) +
       Number(row.deliveryCost || 0) + Number(row.packagingCost || 0) +
       Number(row.contractorCost || 0) + Number(row.taxCost || 0) + Number(row.otherCost || 0);
     const received = Number(row.receivedAmount || 0);
+    const profitBeforeManager = received - directCost;
+    const managerCommission = Math.max(0, Math.round(profitBeforeManager * MANAGER_COMMISSION_RATE / 100));
+    const costs = directCost + managerCommission;
     const profit = received - costs;
     const margin = received > 0 ? (profit / received) * 100 : 0;
     const dealNotes = String(row.dealNotes || "");
@@ -341,6 +345,10 @@ export function listProjects() {
       deliveredAt,
       paymentTerms,
       productionTermDays,
+      directCost,
+      profitBeforeManager,
+      managerCommission,
+      managerCommissionRate: MANAGER_COMMISSION_RATE,
       totalCost: costs,
       profit,
       margin,

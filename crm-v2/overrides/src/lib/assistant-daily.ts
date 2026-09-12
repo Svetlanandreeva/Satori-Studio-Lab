@@ -10,6 +10,8 @@ const sqlite = new Database(DB_PATH, { timeout: 15000 });
 try { sqlite.pragma("journal_mode = WAL"); } catch {}
 try { sqlite.pragma("busy_timeout = 15000"); } catch {}
 
+const MANAGER_COMMISSION_RATE = 50;
+
 function tableExists(name: string): boolean {
   return Boolean(sqlite.prepare("SELECT 1 FROM sqlite_master WHERE type='table' AND name=?").get(name));
 }
@@ -18,6 +20,13 @@ function epochMs(value: unknown): number {
   const raw = Number(value || 0);
   if (!Number.isFinite(raw) || raw <= 0) return 0;
   return raw < 10_000_000_000 ? raw * 1000 : raw;
+}
+
+function dateOnlyEpochMs(value: unknown): number {
+  const raw = String(value || "").trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(raw)) return 0;
+  const parsed = Date.parse(`${raw}T12:00:00+03:00`);
+  return Number.isFinite(parsed) ? parsed : 0;
 }
 
 function moscowDate(date = new Date()): string {
@@ -52,6 +61,11 @@ function money(value: unknown): number {
   return Number.isFinite(n) ? Math.round(n) : 0;
 }
 
+function managerCommission(received: number, directCosts: number): number {
+  const profitBeforeManager = Math.max(0, received - directCosts);
+  return Math.round((profitBeforeManager * MANAGER_COMMISSION_RATE) / 100);
+}
+
 export interface DailyManagementBrief {
   generatedAt: number;
   periodLabel: string;
@@ -60,7 +74,7 @@ export interface DailyManagementBrief {
   won: { current: number; previous: number; delta: number };
   messages: { incoming24h: number; unanswered: number };
   projects: { activeProduction: number; overdue: number; dueSoon: number; due7: number; due14: number };
-  finance: { monthReceived: number; monthDealCosts: number; monthBusinessExpenses: number; monthNet: number; margin: number };
+  finance: { monthReceived: number; monthDealCosts: number; monthManagerCommission: number; monthBusinessExpenses: number; monthNet: number; margin: number };
   pipeline: { activeValue: number; weightedValue: number };
   channels: Array<{ source: string; leads24h: number; previous24h: number; delta: number }>;
   crm: { openErrors: number; enrichedProfiles: number };
@@ -77,16 +91,21 @@ export function getDailyManagementBrief(): DailyManagementBrief {
   const dealsCurrent = countWindow("deals", "created_at", currentFrom, now);
   const dealsPrevious = countWindow("deals", "created_at", previousFrom, currentFrom);
 
+  // Продажа считается только по фактической дате оплаты/старта проекта и только
+  // когда в экономике действительно есть поступление. Изменение этапа сделки или
+  // редактирование карточки больше не создаёт ложную «продажу за 24 часа».
   let wonCurrent = 0;
   let wonPrevious = 0;
-  if (tableExists("deals") && tableExists("pipeline_stages")) {
-    const wonRows = sqlite.prepare(`
-      SELECT d.updated_at AS updatedAt
-      FROM deals d JOIN pipeline_stages ps ON ps.id=d.stage_id
-      WHERE COALESCE(ps.is_won,0)=1
-    `).all() as Array<{ updatedAt: unknown }>;
-    for (const row of wonRows) {
-      const time = epochMs(row.updatedAt);
+  if (tableExists("deal_economics") && tableExists("project_details")) {
+    const paidRows = sqlite.prepare(`
+      SELECT p.ordered_at AS paidAt, e.received_amount AS received
+      FROM deal_economics e
+      JOIN project_details p ON p.deal_id=e.deal_id
+      WHERE COALESCE(e.received_amount,0) > 0 AND p.ordered_at IS NOT NULL
+    `).all() as Array<{ paidAt: unknown; received: unknown }>;
+    for (const row of paidRows) {
+      const time = dateOnlyEpochMs(row.paidAt);
+      if (!time) continue;
       if (time >= currentFrom && time < now) wonCurrent++;
       else if (time >= previousFrom && time < currentFrom) wonPrevious++;
     }
@@ -116,6 +135,7 @@ export function getDailyManagementBrief(): DailyManagementBrief {
   const month = moscowMonth();
   let monthReceived = 0;
   let monthDealCosts = 0;
+  let monthManagerCommission = 0;
   if (tableExists("deal_economics") && tableExists("deals")) {
     const hasProjects = tableExists("project_details");
     const rows = sqlite.prepare(hasProjects ? `
@@ -131,8 +151,12 @@ export function getDailyManagementBrief(): DailyManagementBrief {
     `).all() as Array<Record<string, unknown>>;
     for (const row of rows) {
       if (!String(row.eventDate || "").startsWith(month)) continue;
-      monthReceived += money(row.received);
-      monthDealCosts += money(row.costs);
+      const received = money(row.received);
+      const directCosts = money(row.costs);
+      const commission = managerCommission(received, directCosts);
+      monthReceived += received;
+      monthManagerCommission += commission;
+      monthDealCosts += directCosts + commission;
     }
   }
 
@@ -197,7 +221,7 @@ export function getDailyManagementBrief(): DailyManagementBrief {
     won: { current: wonCurrent, previous: wonPrevious, delta: delta(wonCurrent, wonPrevious) },
     messages: { incoming24h, unanswered },
     projects: { activeProduction, overdue, dueSoon, due7, due14 },
-    finance: { monthReceived, monthDealCosts, monthBusinessExpenses, monthNet, margin },
+    finance: { monthReceived, monthDealCosts, monthManagerCommission, monthBusinessExpenses, monthNet, margin },
     pipeline: { activeValue, weightedValue },
     channels,
     crm: { openErrors, enrichedProfiles },

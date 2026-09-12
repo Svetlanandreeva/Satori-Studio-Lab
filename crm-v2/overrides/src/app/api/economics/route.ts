@@ -11,6 +11,8 @@ import {
 
 export const dynamic = "force-dynamic";
 
+const MANAGER_COMMISSION_RATE = 50;
+
 function currentMonth(): string {
   const parts = new Intl.DateTimeFormat("en-US", { timeZone: "Europe/Moscow", year: "numeric", month: "2-digit" }).formatToParts(new Date());
   const year = parts.find((part) => part.type === "year")?.value || String(new Date().getFullYear());
@@ -22,13 +24,42 @@ function isRejectedStage(name: unknown): boolean {
   return String(name || "").trim().toLowerCase().replace(/ё/g, "е").includes("отказ");
 }
 
+function withManagerCommission<T extends {
+  receivedAmount: number;
+  totalCost: number;
+  profit: number;
+  margin: number;
+}>(row: T) {
+  const received = Math.max(0, Number(row.receivedAmount || 0));
+  const directCost = Math.max(0, Number(row.totalCost || 0));
+  const profitBeforeManager = received - directCost;
+  const managerCommission = Math.max(0, Math.round(profitBeforeManager * MANAGER_COMMISSION_RATE / 100));
+  const totalCost = directCost + managerCommission;
+  const profit = received - totalCost;
+  const margin = received > 0 ? (profit / received) * 100 : 0;
+  return {
+    ...row,
+    directCost,
+    profitBeforeManager,
+    managerCommission,
+    managerCommissionRate: MANAGER_COMMISSION_RATE,
+    totalCost,
+    profit,
+    margin,
+  };
+}
+
 function withoutRejectedDeals(report: ReturnType<typeof listEconomics>) {
-  const deals = report.deals.filter((deal) => !isRejectedStage(deal.stageName));
-  const clients = new Map<string, { contactId: string; contactName: string; company: string | null; deals: number; receivedAmount: number; totalCost: number; profit: number }>();
+  const deals = report.deals
+    .filter((deal) => !isRejectedStage(deal.stageName))
+    .map((deal) => withManagerCommission(deal));
+  const clients = new Map<string, { contactId: string; contactName: string; company: string | null; deals: number; receivedAmount: number; directCost: number; managerCommission: number; totalCost: number; profit: number }>();
   for (const row of deals) {
-    const current = clients.get(row.contactId) || { contactId: row.contactId, contactName: row.contactName || "Без имени", company: row.company, deals: 0, receivedAmount: 0, totalCost: 0, profit: 0 };
+    const current = clients.get(row.contactId) || { contactId: row.contactId, contactName: row.contactName || "Без имени", company: row.company, deals: 0, receivedAmount: 0, directCost: 0, managerCommission: 0, totalCost: 0, profit: 0 };
     current.deals += 1;
     current.receivedAmount += Number(row.receivedAmount || 0);
+    current.directCost += Number(row.directCost || 0);
+    current.managerCommission += Number(row.managerCommission || 0);
     current.totalCost += Number(row.totalCost || 0);
     current.profit += Number(row.profit || 0);
     clients.set(row.contactId, current);
@@ -37,11 +68,14 @@ function withoutRejectedDeals(report: ReturnType<typeof listEconomics>) {
   const totals = deals.reduce((acc, row) => {
     acc.dealValue += Number(row.dealValue || 0);
     acc.receivedAmount += Number(row.receivedAmount || 0);
+    acc.directCost += Number(row.directCost || 0);
+    acc.managerCommission += Number(row.managerCommission || 0);
     acc.totalCost += Number(row.totalCost || 0);
+    acc.profitBeforeManager += Number(row.profitBeforeManager || 0);
     acc.profit += Number(row.profit || 0);
     return acc;
-  }, { dealValue: 0, receivedAmount: 0, totalCost: 0, profit: 0 });
-  return { deals, clients: clientRows, totals: { ...totals, margin: totals.receivedAmount > 0 ? (totals.profit / totals.receivedAmount) * 100 : 0 } };
+  }, { dealValue: 0, receivedAmount: 0, directCost: 0, managerCommission: 0, totalCost: 0, profitBeforeManager: 0, profit: 0 });
+  return { deals, clients: clientRows, totals: { ...totals, managerCommissionRate: MANAGER_COMMISSION_RATE, margin: totals.receivedAmount > 0 ? (totals.profit / totals.receivedAmount) * 100 : 0 } };
 }
 
 export async function GET(request: NextRequest) {
