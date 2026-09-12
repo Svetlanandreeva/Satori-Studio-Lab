@@ -5,7 +5,7 @@ import { DB_PATH, sqlite } from "@/db";
 import { listBackups } from "@/lib/backups";
 import { getEmailConfig, isEmailConfigured } from "@/lib/email-integration";
 import { getSetting, INTEGRATION_KEYS } from "@/lib/satori-integrations";
-import { operationsHeartbeat } from "@/lib/operations-scheduler";
+import { lastAssistantAuditAt, operationsHeartbeat } from "@/lib/operations-scheduler";
 
 export const dynamic = "force-dynamic";
 
@@ -34,6 +34,8 @@ export async function GET() {
   const needProject = getSetting(INTEGRATION_KEYS.needNumberProjectId);
   const heartbeat = operationsHeartbeat();
   const heartbeatAge = ageSeconds(heartbeat);
+  const assistantAuditAt = lastAssistantAuditAt();
+  const assistantAuditAge = ageSeconds(assistantAuditAt);
   const backups = listBackups();
 
   let disk: { freeBytes: number; totalBytes: number; freePercent: number } | null = null;
@@ -69,6 +71,12 @@ export async function GET() {
       heartbeat,
       ageSeconds: heartbeatAge,
       message: heartbeatAge !== null && heartbeatAge < 180 ? "Фоновые задачи работают" : "Нет свежего heartbeat",
+    },
+    assistantAudit: {
+      ok: assistantAuditAge !== null && assistantAuditAge < 75 * 60,
+      lastRunAt: assistantAuditAt,
+      ageSeconds: assistantAuditAge,
+      message: assistantAuditAge !== null && assistantAuditAge < 75 * 60 ? "Полный аудит выполняется каждый час" : "Почасовой аудит ещё не запускался или отстал",
     },
     backups: {
       ok: backups.length > 0 && Date.now() - Number((backups[0] as any)?.createdAt || 0) < 36 * 60 * 60 * 1000,
