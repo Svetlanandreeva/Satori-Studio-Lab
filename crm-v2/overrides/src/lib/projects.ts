@@ -209,6 +209,7 @@ export function listProjects() {
 
     return {
       ...row,
+      dealId: String(row.dealId || ""),
       orderedAt,
       contractDeadline,
       shippedAt,
