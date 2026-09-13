@@ -11,10 +11,17 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
+interface Purchase {
+  id: string; name: string; quantity: number; unit: string; plannedUnitCost: number; plannedTotalCost: number;
+  unitCost: number; totalCost: number; variance: number; supplier: string | null; status: string;
+  purchaseDate: string | null; sourceUrl: string | null; notes: string | null;
+}
+
 interface EconomicsDeal {
   dealId: string; dealTitle: string; dealValue: number; contactId: string; contactName: string; company: string | null; stageName: string;
-  receivedAmount: number; productionCost: number; paymentCommission: number; paymentCommissionRate: number; deliveryCost: number;
+  receivedAmount: number; productionCost: number; baseProductionCost: number; paymentCommission: number; paymentCommissionRate: number; deliveryCost: number;
   packagingCost: number; contractorCost: number; taxCost: number; otherCost: number; economicsNotes: string | null;
+  plannedProcurementCost: number; procurementCost: number; procurementVariance: number; purchases: Purchase[];
   directCost: number; profitBeforeManager: number; managerCommission: number; managerCommissionRate: number;
   totalCost: number; profit: number; margin: number; unpaid: number;
 }
@@ -27,7 +34,7 @@ interface FixedExpense {
 
 interface EconomicsPayload {
   deals: EconomicsDeal[];
-  totals: { dealValue: number; receivedAmount: number; directCost: number; managerCommission: number; managerCommissionRate: number; totalCost: number; profitBeforeManager: number; profit: number; margin: number };
+  totals: { dealValue: number; receivedAmount: number; directCost: number; plannedProcurementCost: number; procurementCost: number; procurementVariance: number; managerCommission: number; managerCommissionRate: number; totalCost: number; profitBeforeManager: number; profit: number; margin: number };
   fixedExpenses: { month: string; items: FixedExpense[]; total: number; paidTotal: number; unpaidTotal: number; taxBase?: { baseMonth: string; amount: number } };
   taxBase: { baseMonth: string; amount: number };
 }
@@ -45,9 +52,14 @@ const expenseCategories: Record<string, string> = {
   rent: "Аренда", utilities: "Коммунальные", accounting: "Бухгалтерия", taxes: "Налоги", other: "Прочее",
 };
 
+const purchaseStatuses: Record<string, string> = {
+  planned: "Планируется", ordered: "Заказано", paid: "Оплачено", received: "Получено",
+};
+
 function browserMonth() { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`; }
 function browserDate() { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; }
 function rubles(cents: number) { return new Intl.NumberFormat("ru-RU", { style: "currency", currency: "RUB", maximumFractionDigits: 0 }).format((Number(cents) || 0) / 100); }
+function signedRubles(cents: number) { const value = Number(cents) || 0; return `${value > 0 ? "+" : ""}${rubles(value)}`; }
 function toRubles(cents: number) { const value = (Number(cents) || 0) / 100; return value ? String(value) : ""; }
 function toCents(value: string) { const number = Number(value.replace(/\s/g, "").replace(",", ".")); return Number.isFinite(number) && number > 0 ? Math.round(number * 100) : 0; }
 function numericRate(value: string) { const n = Number(value.replace(",", ".")); return Number.isFinite(n) && n > 0 ? n : 0; }
@@ -55,6 +67,7 @@ function percent(value: number) { return `${(Number(value) || 0).toLocaleString(
 function formatDate(value: string | null) { if (!value) return "—"; const [y, m, d] = value.split("-").map(Number); return y && m && d ? new Intl.DateTimeFormat("ru-RU").format(new Date(y, m - 1, d)) : value; }
 function monthLabel(value: string | null) { if (!value) return "—"; const [y, m] = value.split("-").map(Number); return new Intl.DateTimeFormat("ru-RU", { month: "long", year: "numeric" }).format(new Date(y, m - 1, 1)); }
 function profitClass(value: number) { return value > 0 ? "text-emerald-700" : value < 0 ? "text-red-700" : "text-muted-foreground"; }
+function varianceClass(value: number) { return value > 0 ? "text-red-700" : value < 0 ? "text-emerald-700" : "text-muted-foreground"; }
 
 function expenseStatus(expense: FixedExpense) {
   if (expense.paidAt) return { label: `Оплачено ${formatDate(expense.paidAt)}`, className: "border-emerald-300 bg-emerald-50 text-emerald-700" };
@@ -185,22 +198,23 @@ export default function EconomicsPage() {
 
   if (loading && !data) return <div className="flex min-h-80 items-center justify-center text-muted-foreground"><Loader2 className="mr-2 h-5 w-5 animate-spin" />Загрузка экономики...</div>;
 
-  const totals = data?.totals || { dealValue: 0, receivedAmount: 0, directCost: 0, managerCommission: 0, managerCommissionRate: MANAGER_COMMISSION_RATE, totalCost: 0, profitBeforeManager: 0, profit: 0, margin: 0 };
+  const totals = data?.totals || { dealValue: 0, receivedAmount: 0, directCost: 0, plannedProcurementCost: 0, procurementCost: 0, procurementVariance: 0, managerCommission: 0, managerCommissionRate: MANAGER_COMMISSION_RATE, totalCost: 0, profitBeforeManager: 0, profit: 0, margin: 0 };
   const fixed = data?.fixedExpenses || { month, items: [], total: 0, paidTotal: 0, unpaidTotal: 0 };
   const netProfit = totals.profit - fixed.total;
 
   return <div className="space-y-6">
     <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-      <div><div className="flex items-center gap-2"><Calculator className="h-6 w-6" /><h1 className="text-2xl font-bold tracking-tight">Экономика</h1></div><p className="mt-1 text-sm text-muted-foreground">Фактические оплаты, прямые расходы, зарплата менеджера и ежемесячные расходы бизнеса.</p></div>
+      <div><div className="flex items-center gap-2"><Calculator className="h-6 w-6" /><h1 className="text-2xl font-bold tracking-tight">Экономика</h1></div><p className="mt-1 text-sm text-muted-foreground">Фактические оплаты, прямые расходы, закупки, зарплата менеджера и ежемесячные расходы бизнеса.</p></div>
       <div className="relative w-full lg:w-96"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" /><Input className="pl-9" placeholder="Клиент или сделка..." value={search} onChange={(e) => setSearch(e.target.value)} /></div>
     </div>
 
-    <div className="grid grid-cols-2 gap-3 xl:grid-cols-5">
+    <div className="grid grid-cols-2 gap-3 xl:grid-cols-6">
       <Stat label="Получено от клиентов" value={rubles(totals.receivedAmount)} note={`Сумма сделок: ${rubles(totals.dealValue)}`} />
-      <Stat label="Прямые расходы" value={rubles(totals.directCost)} note="Материалы, доставка, производство и т.д." />
+      <Stat label="Закупки · план" value={rubles(totals.plannedProcurementCost)} note="Плановая стоимость материалов" />
+      <Stat label="Закупки · факт" value={rubles(totals.procurementCost)} note={`Отклонение: ${signedRubles(totals.procurementVariance)}`} tone={varianceClass(totals.procurementVariance)} />
+      <Stat label="Прямые расходы" value={rubles(totals.directCost)} note="Закупки, доставка, производство и т.д." />
       <Stat label="Зарплата / комиссия менеджера" value={rubles(totals.managerCommission)} note={`${totals.managerCommissionRate || MANAGER_COMMISSION_RATE}% от прибыли после прямых расходов`} />
-      <Stat label="Постоянные расходы месяца" value={rubles(fixed.total)} note={`Оплачено: ${rubles(fixed.paidTotal)}`} />
-      <Stat label="Чистый результат компании" value={rubles(netProfit)} note={`После менеджера, до постоянных: ${rubles(totals.profit)}`} tone={profitClass(netProfit)} />
+      <Stat label="Чистый результат компании" value={rubles(netProfit)} note={`Постоянные расходы: ${rubles(fixed.total)}`} tone={profitClass(netProfit)} />
     </div>
 
     <Card>
@@ -236,13 +250,13 @@ export default function EconomicsPage() {
 
     <Card>
       <CardHeader><CardTitle className="flex items-center gap-2 text-base"><WalletCards className="h-4 w-4" />Экономика по сделкам после «Расчёта»</CardTitle></CardHeader>
-      <CardContent className="p-0"><div className="overflow-x-auto"><table className="w-full text-sm"><thead className="bg-muted/50 text-xs text-muted-foreground"><tr><th className="p-3 text-left">Клиент / сделка</th><th className="p-3 text-right">Сумма</th><th className="p-3 text-right">Получено</th><th className="p-3 text-right">Эквайринг</th><th className="p-3 text-right">Прямые расходы</th><th className="p-3 text-right">Менеджер 50%</th><th className="p-3 text-right">Компания</th><th className="p-3 text-right">Маржа</th><th className="p-3"></th></tr></thead><tbody>
-        {visibleDeals.map((deal) => <tr key={deal.dealId} className="border-t hover:bg-muted/20"><td className="p-3"><Link href={`/contacts/${deal.contactId}`} className="font-medium hover:underline">{deal.contactName}</Link><div className="text-xs text-muted-foreground">{deal.dealTitle} · {deal.stageName}</div></td><td className="p-3 text-right">{rubles(deal.dealValue)}</td><td className="p-3 text-right">{rubles(deal.receivedAmount)}</td><td className="p-3 text-right">{percent(deal.paymentCommissionRate)}<div className="text-xs text-muted-foreground">{rubles(deal.paymentCommission)}</div></td><td className="p-3 text-right"><button type="button" onClick={() => setViewing(deal)} className="font-medium underline-offset-4 hover:underline">{rubles(deal.directCost)}</button></td><td className="p-3 text-right font-medium text-violet-700">{rubles(deal.managerCommission)}</td><td className={`p-3 text-right font-medium ${profitClass(deal.profit)}`}>{rubles(deal.profit)}</td><td className="p-3 text-right">{percent(deal.margin)}</td><td className="p-3"><div className="flex justify-end gap-2"><Button variant="ghost" size="sm" onClick={() => setViewing(deal)}><Eye className="mr-2 h-4 w-4" />Посмотреть</Button><Button variant="outline" size="sm" onClick={() => openDeal(deal)}><Edit3 className="mr-2 h-4 w-4" />Изменить</Button></div></td></tr>)}
+      <CardContent className="p-0"><div className="overflow-x-auto"><table className="w-full text-sm"><thead className="bg-muted/50 text-xs text-muted-foreground"><tr><th className="p-3 text-left">Клиент / сделка</th><th className="p-3 text-right">Сумма</th><th className="p-3 text-right">Получено</th><th className="p-3 text-right">Закупки</th><th className="p-3 text-right">Прямые расходы</th><th className="p-3 text-right">Менеджер 50%</th><th className="p-3 text-right">Компания</th><th className="p-3 text-right">Маржа</th><th className="p-3"></th></tr></thead><tbody>
+        {visibleDeals.map((deal) => <tr key={deal.dealId} className="border-t hover:bg-muted/20"><td className="p-3"><Link href={`/contacts/${deal.contactId}`} className="font-medium hover:underline">{deal.contactName}</Link><div className="text-xs text-muted-foreground">{deal.dealTitle} · {deal.stageName}</div></td><td className="p-3 text-right">{rubles(deal.dealValue)}</td><td className="p-3 text-right">{rubles(deal.receivedAmount)}</td><td className="p-3 text-right"><button type="button" onClick={() => setViewing(deal)} className="font-medium underline-offset-4 hover:underline">{rubles(deal.procurementCost)}</button><div className={`text-xs ${varianceClass(deal.procurementVariance)}`}>план {rubles(deal.plannedProcurementCost)} · {signedRubles(deal.procurementVariance)}</div></td><td className="p-3 text-right"><button type="button" onClick={() => setViewing(deal)} className="font-medium underline-offset-4 hover:underline">{rubles(deal.directCost)}</button></td><td className="p-3 text-right font-medium text-violet-700">{rubles(deal.managerCommission)}</td><td className={`p-3 text-right font-medium ${profitClass(deal.profit)}`}>{rubles(deal.profit)}</td><td className="p-3 text-right">{percent(deal.margin)}</td><td className="p-3"><div className="flex justify-end gap-2"><Button variant="ghost" size="sm" onClick={() => setViewing(deal)}><Eye className="mr-2 h-4 w-4" />Посмотреть</Button><Button variant="outline" size="sm" onClick={() => openDeal(deal)}><Edit3 className="mr-2 h-4 w-4" />Изменить</Button></div></td></tr>)}
       </tbody></table></div></CardContent>
     </Card>
 
     <Dialog open={Boolean(viewing)} onOpenChange={(open) => !open && setViewing(null)}>
-      <DialogContent className="flex max-h-[calc(100dvh-1rem)] w-[calc(100%-1rem)] max-w-2xl flex-col overflow-hidden p-0 sm:max-h-[calc(100dvh-3rem)] sm:w-full">
+      <DialogContent className="flex max-h-[calc(100dvh-1rem)] w-[calc(100%-1rem)] max-w-3xl flex-col overflow-hidden p-0 sm:max-h-[calc(100dvh-3rem)] sm:w-full">
         <DialogHeader className="shrink-0 border-b px-5 py-4 pr-12 sm:px-6">
           <DialogTitle>Разбор экономики сделки</DialogTitle>
           <DialogDescription>{viewing ? `${viewing.contactName} · ${viewing.dealTitle} · ${viewing.stageName}` : ""}</DialogDescription>
@@ -259,7 +273,8 @@ export default function EconomicsPage() {
             <div className="overflow-hidden rounded-xl border">
               <div className="border-b bg-muted/40 px-4 py-3"><div className="font-medium">Из чего сложились расходы</div><div className="mt-0.5 text-xs text-muted-foreground">Только расходы этой сделки. Постоянные расходы бизнеса считаются отдельно.</div></div>
               <div className="divide-y">
-                <BreakdownRow label="Производство / материалы" value={viewing.productionCost} />
+                <BreakdownRow label="Производство / работы" value={viewing.baseProductionCost} />
+                <BreakdownRow label={`Закупки / материалы · план ${rubles(viewing.plannedProcurementCost)}`} value={viewing.procurementCost} />
                 <BreakdownRow label={`Эквайринг · ${percent(viewing.paymentCommissionRate)}`} value={viewing.paymentCommission} />
                 <BreakdownRow label="Доставка" value={viewing.deliveryCost} />
                 <BreakdownRow label="Упаковка" value={viewing.packagingCost} />
@@ -268,6 +283,12 @@ export default function EconomicsPage() {
                 <BreakdownRow label="Прочее" value={viewing.otherCost} />
                 <BreakdownRow label="Прямые расходы итого" value={viewing.directCost} strong />
               </div>
+            </div>
+
+            <div className="overflow-hidden rounded-xl border">
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b bg-muted/40 px-4 py-3"><div><div className="font-medium">Какие материалы использованы</div><div className="mt-0.5 text-xs text-muted-foreground">План {rubles(viewing.plannedProcurementCost)} · факт {rubles(viewing.procurementCost)}</div></div><div className={`text-sm font-semibold ${varianceClass(viewing.procurementVariance)}`}>Отклонение {signedRubles(viewing.procurementVariance)}</div></div>
+              {!viewing.purchases?.length ? <div className="px-4 py-6 text-sm text-muted-foreground">Материалы для этой сделки пока не добавлены.</div> : <div className="divide-y">{viewing.purchases.map((item) => <div key={item.id} className="grid gap-2 px-4 py-3 text-sm sm:grid-cols-[1fr_auto_auto] sm:items-center"><div className="min-w-0"><div className="font-medium">{item.name}</div><div className="mt-0.5 text-xs text-muted-foreground">{item.quantity} {item.unit} · {purchaseStatuses[item.status] || item.status}{item.supplier ? ` · ${item.supplier}` : ""}{item.purchaseDate ? ` · ${formatDate(item.purchaseDate)}` : ""}</div></div><div className="text-right text-xs text-muted-foreground">план <span className="font-medium text-foreground">{rubles(item.plannedTotalCost)}</span><br />факт <span className="font-medium text-foreground">{rubles(item.totalCost)}</span></div><div className={`min-w-20 text-right font-medium ${varianceClass(item.variance)}`}>{signedRubles(item.variance)}</div></div>)}</div>}
+              <div className="border-t bg-muted/20 px-4 py-3 text-right"><Link href="/procurement"><Button variant="outline" size="sm">Открыть закупки</Button></Link></div>
             </div>
 
             <div className="rounded-xl border bg-slate-50/70 p-4">
@@ -307,6 +328,7 @@ export default function EconomicsPage() {
 
     <Dialog open={Boolean(editing)} onOpenChange={(open) => !open && setEditing(null)}><DialogContent className="sm:max-w-2xl"><DialogHeader><DialogTitle>Экономика сделки</DialogTitle><DialogDescription>{editing ? `${editing.contactName} · ${editing.dealTitle}` : ""}. Зарплата / комиссия менеджера считается автоматически: 50% от положительной прибыли после всех прямых расходов.</DialogDescription></DialogHeader>
       <div className="grid gap-4 sm:grid-cols-2"><MoneyField label="Получено" value={form.receivedAmount} onChange={(v) => setForm((s) => ({ ...s, receivedAmount: v }))} /><MoneyField label="Производство / материалы" value={form.productionCost} onChange={(v) => setForm((s) => ({ ...s, productionCost: v }))} /><Field label="Эквайринг, %"><Input inputMode="decimal" value={form.paymentCommissionRate} onChange={(e) => setForm((s) => ({ ...s, paymentCommissionRate: e.target.value }))} placeholder="2.5" /><div className="mt-1 text-xs text-muted-foreground">Комиссия: {rubles(dealPreview.acquiring)}</div></Field><MoneyField label="Доставка" value={form.deliveryCost} onChange={(v) => setForm((s) => ({ ...s, deliveryCost: v }))} /><MoneyField label="Упаковка" value={form.packagingCost} onChange={(v) => setForm((s) => ({ ...s, packagingCost: v }))} /><MoneyField label="Подрядчики" value={form.contractorCost} onChange={(v) => setForm((s) => ({ ...s, contractorCost: v }))} /><MoneyField label="Налог/сбор по конкретной сделке" value={form.taxCost} onChange={(v) => setForm((s) => ({ ...s, taxCost: v }))} /><MoneyField label="Прочее" value={form.otherCost} onChange={(v) => setForm((s) => ({ ...s, otherCost: v }))} /></div>
+      {editing && <div className="rounded-lg border bg-slate-50 p-3 text-sm text-slate-700">В поле «Производство / материалы» уже включён факт закупок <b>{rubles(editing.procurementCost)}</b>. План закупок — {rubles(editing.plannedProcurementCost)}, отклонение — <span className={varianceClass(editing.procurementVariance)}>{signedRubles(editing.procurementVariance)}</span>. Детальный состав редактируется в разделе <Link href="/procurement" className="font-medium underline">«Закупки»</Link>.</div>}
       <div className="rounded-lg border border-violet-200 bg-violet-50/50 p-3 text-sm text-violet-900">Комиссия менеджера = 50% от остатка после производства/материалов, эквайринга, доставки, упаковки, подрядчиков, сборов и прочих прямых расходов. Если заказ уже в минусе, комиссия не начисляется.</div>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-5"><Mini label="Прямые расходы" value={rubles(dealPreview.directCosts)} /><Mini label="До менеджера" value={rubles(dealPreview.profitBeforeManager)} good={dealPreview.profitBeforeManager >= 0} /><Mini label="Менеджер 50%" value={rubles(dealPreview.managerCommission)} /><Mini label="Компания" value={rubles(dealPreview.profit)} good={dealPreview.profit >= 0} /><Mini label="Маржа компании" value={percent(dealPreview.margin)} /></div>
       <Field label="Комментарий"><textarea className="min-h-20 w-full rounded-md border bg-background px-3 py-2 text-sm" value={form.notes} onChange={(e) => setForm((s) => ({ ...s, notes: e.target.value }))} /></Field>
