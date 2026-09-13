@@ -44,7 +44,17 @@ interface FormState {
   contractorCost: string; taxCost: string; otherCost: string; notes: string;
 }
 
+interface PurchaseFormState {
+  name: string;
+  quantity: string;
+  unit: string;
+  plannedUnitCost: string;
+  unitCost: string;
+  supplier: string;
+}
+
 const emptyForm: FormState = { receivedAmount: "", productionCost: "", paymentCommissionRate: "", deliveryCost: "", packagingCost: "", contractorCost: "", taxCost: "", otherCost: "", notes: "" };
+const emptyPurchaseForm: PurchaseFormState = { name: "", quantity: "1", unit: "шт.", plannedUnitCost: "", unitCost: "", supplier: "" };
 const MANAGER_COMMISSION_RATE = 50;
 const DEFAULT_PAYMENT_COMMISSION_RATE = 2.5;
 
@@ -100,6 +110,10 @@ export default function EconomicsPage() {
   const [expenseDueDate, setExpenseDueDate] = useState("");
   const [expenseRecurring, setExpenseRecurring] = useState(true);
   const [paymentBusy, setPaymentBusy] = useState<string | null>(null);
+  const [purchaseEditorOpen, setPurchaseEditorOpen] = useState(false);
+  const [purchaseSaving, setPurchaseSaving] = useState(false);
+  const [purchaseDeleting, setPurchaseDeleting] = useState<string | null>(null);
+  const [purchaseForm, setPurchaseForm] = useState<PurchaseFormState>(emptyPurchaseForm);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -122,6 +136,8 @@ export default function EconomicsPage() {
 
   const openDeal = (deal: EconomicsDeal) => {
     setEditing(deal);
+    setPurchaseEditorOpen(false);
+    setPurchaseForm(emptyPurchaseForm);
     setForm({
       receivedAmount: toRubles(deal.receivedAmount),
       productionCost: toRubles(deal.baseProductionCost),
@@ -148,6 +164,64 @@ export default function EconomicsPage() {
     const profit = received - costs;
     return { acquiring, procurementFact, baseProduction, productionAndMaterials, directCosts, profitBeforeManager, managerCommission, costs, profit, margin: received > 0 ? (profit / received) * 100 : 0 };
   }, [form, editing?.procurementCost]);
+
+  async function refreshEditingDeal(dealId: string) {
+    const response = await fetch(`/api/economics?month=${encodeURIComponent(month)}`, { cache: "no-store" });
+    const payload = await response.json();
+    if (!response.ok) throw new Error(payload.error || "Не удалось обновить расчёт проекта");
+    setData(payload);
+    const updated = (payload.deals as EconomicsDeal[]).find((deal) => deal.dealId === dealId);
+    if (updated) setEditing(updated);
+    return updated;
+  }
+
+  async function addProjectPurchase() {
+    if (!editing) return;
+    if (!purchaseForm.name.trim()) return toast.error("Укажи материал или комплектующую");
+    const quantity = Number(purchaseForm.quantity.replace(",", ".")) || 1;
+    if (quantity <= 0) return toast.error("Количество должно быть больше нуля");
+    const actualUnitCost = toCents(purchaseForm.unitCost);
+    setPurchaseSaving(true);
+    try {
+      const response = await fetch("/api/procurement", {
+        method: "POST",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({
+          dealId: editing.dealId,
+          name: purchaseForm.name.trim(),
+          quantity,
+          unit: purchaseForm.unit.trim() || "шт.",
+          plannedUnitCost: toCents(purchaseForm.plannedUnitCost),
+          unitCost: actualUnitCost,
+          supplier: purchaseForm.supplier.trim() || null,
+          status: actualUnitCost > 0 ? "received" : "planned",
+          purchaseDate: actualUnitCost > 0 ? browserDate() : null,
+        }),
+      });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "Не удалось добавить закупку");
+      await refreshEditingDeal(editing.dealId);
+      setPurchaseForm(emptyPurchaseForm);
+      toast.success("Закупка добавлена в этот проект");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Ошибка добавления закупки");
+    } finally { setPurchaseSaving(false); }
+  }
+
+  async function removeProjectPurchase(id: string) {
+    if (!editing) return;
+    if (!confirm("Удалить эту закупку из проекта?")) return;
+    setPurchaseDeleting(id);
+    try {
+      const response = await fetch(`/api/procurement?id=${encodeURIComponent(id)}`, { method: "DELETE" });
+      const payload = await response.json();
+      if (!response.ok) throw new Error(payload.error || "Не удалось удалить закупку");
+      await refreshEditingDeal(editing.dealId);
+      toast.success("Закупка удалена из проекта");
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : "Ошибка удаления закупки");
+    } finally { setPurchaseDeleting(null); }
+  }
 
   async function saveDeal() {
     if (!editing) return;
@@ -341,26 +415,59 @@ export default function EconomicsPage() {
       <DialogFooter><Button variant="outline" onClick={() => setExpenseOpen(false)}>Отмена</Button><Button onClick={() => void addExpense()} disabled={expenseSaving}>{expenseSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Добавить</Button></DialogFooter>
     </DialogContent></Dialog>
 
-    <Dialog open={Boolean(editing)} onOpenChange={(open) => !open && setEditing(null)}><DialogContent className="sm:max-w-2xl"><DialogHeader><DialogTitle>Экономика сделки</DialogTitle><DialogDescription>{editing ? `${editing.contactName} · ${editing.dealTitle}` : ""}. Зарплата / комиссия менеджера считается автоматически: 50% от положительной прибыли после всех прямых расходов.</DialogDescription></DialogHeader>
-      <div className="grid gap-4 sm:grid-cols-2">
-        <MoneyField label="Получено" value={form.receivedAmount} onChange={(v) => setForm((s) => ({ ...s, receivedAmount: v }))} />
-        <MoneyField label="Производство / работы" value={form.productionCost} onChange={(v) => setForm((s) => ({ ...s, productionCost: v }))} />
-        <Field label="Эквайринг, %"><Input inputMode="decimal" value={form.paymentCommissionRate} onChange={(e) => setForm((s) => ({ ...s, paymentCommissionRate: e.target.value }))} placeholder={String(DEFAULT_PAYMENT_COMMISSION_RATE)} /><div className="mt-1 text-xs text-muted-foreground">Комиссия: {rubles(dealPreview.acquiring)}</div></Field>
-        <MoneyField label="Доставка" value={form.deliveryCost} onChange={(v) => setForm((s) => ({ ...s, deliveryCost: v }))} />
-        <MoneyField label="Упаковка" value={form.packagingCost} onChange={(v) => setForm((s) => ({ ...s, packagingCost: v }))} />
-        <MoneyField label="Подрядчики" value={form.contractorCost} onChange={(v) => setForm((s) => ({ ...s, contractorCost: v }))} />
-        <MoneyField label="Налог/сбор по конкретной сделке" value={form.taxCost} onChange={(v) => setForm((s) => ({ ...s, taxCost: v }))} />
-        <MoneyField label="Прочее" value={form.otherCost} onChange={(v) => setForm((s) => ({ ...s, otherCost: v }))} />
-      </div>
-      {editing && <div className="grid gap-3 sm:grid-cols-2">
-        <div className="rounded-lg border bg-slate-50 p-3"><div className="text-xs text-muted-foreground">Закупки / материалы · факт</div><div className="mt-1 text-lg font-semibold">{rubles(editing.procurementCost)}</div><div className="mt-1 text-xs text-muted-foreground">План {rubles(editing.plannedProcurementCost)} · <span className={varianceClass(editing.procurementVariance)}>{signedRubles(editing.procurementVariance)}</span></div></div>
-        <div className="rounded-lg border bg-slate-50 p-3"><div className="text-xs text-muted-foreground">Производство + материалы</div><div className="mt-1 text-lg font-semibold">{rubles(dealPreview.productionAndMaterials)}</div><div className="mt-1 text-xs text-muted-foreground">Закупки редактируются отдельно в разделе <Link href="/procurement" className="font-medium underline">«Закупки»</Link>.</div></div>
-      </div>}
-      <div className="rounded-lg border border-violet-200 bg-violet-50/50 p-3 text-sm text-violet-900">Комиссия менеджера = 50% от остатка после производства, материалов, эквайринга, доставки, упаковки, подрядчиков, сборов и прочих прямых расходов. Если заказ уже в минусе, комиссия не начисляется.</div>
-      <div className="grid grid-cols-2 gap-3 sm:grid-cols-5"><Mini label="Прямые расходы" value={rubles(dealPreview.directCosts)} /><Mini label="До менеджера" value={rubles(dealPreview.profitBeforeManager)} good={dealPreview.profitBeforeManager >= 0} /><Mini label="Менеджер 50%" value={rubles(dealPreview.managerCommission)} /><Mini label="Компания" value={rubles(dealPreview.profit)} good={dealPreview.profit >= 0} /><Mini label="Маржа компании" value={percent(dealPreview.margin)} /></div>
-      <Field label="Комментарий"><textarea className="min-h-20 w-full rounded-md border bg-background px-3 py-2 text-sm" value={form.notes} onChange={(e) => setForm((s) => ({ ...s, notes: e.target.value }))} /></Field>
-      <DialogFooter><Button variant="outline" onClick={() => setEditing(null)}>Отмена</Button><Button onClick={() => void saveDeal()} disabled={saving}>{saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Сохранить</Button></DialogFooter>
-    </DialogContent></Dialog>
+    <Dialog open={Boolean(editing)} onOpenChange={(open) => { if (!open) { setEditing(null); setPurchaseEditorOpen(false); setPurchaseForm(emptyPurchaseForm); } }}>
+      <DialogContent className="max-h-[calc(100dvh-2rem)] overflow-y-auto sm:max-w-3xl">
+        <DialogHeader><DialogTitle>Экономика проекта</DialogTitle><DialogDescription>{editing ? `${editing.contactName} · ${editing.dealTitle}` : ""}. Здесь же вносится список закупок именно для этого проекта.</DialogDescription></DialogHeader>
+        <div className="grid gap-4 sm:grid-cols-2">
+          <MoneyField label="Получено" value={form.receivedAmount} onChange={(v) => setForm((s) => ({ ...s, receivedAmount: v }))} />
+          <MoneyField label="Производство / работы" value={form.productionCost} onChange={(v) => setForm((s) => ({ ...s, productionCost: v }))} />
+          <Field label="Эквайринг, %"><Input inputMode="decimal" value={form.paymentCommissionRate} onChange={(e) => setForm((s) => ({ ...s, paymentCommissionRate: e.target.value }))} placeholder={String(DEFAULT_PAYMENT_COMMISSION_RATE)} /><div className="mt-1 text-xs text-muted-foreground">Комиссия: {rubles(dealPreview.acquiring)}</div></Field>
+          <MoneyField label="Доставка" value={form.deliveryCost} onChange={(v) => setForm((s) => ({ ...s, deliveryCost: v }))} />
+          <MoneyField label="Упаковка" value={form.packagingCost} onChange={(v) => setForm((s) => ({ ...s, packagingCost: v }))} />
+          <MoneyField label="Подрядчики" value={form.contractorCost} onChange={(v) => setForm((s) => ({ ...s, contractorCost: v }))} />
+          <MoneyField label="Налог/сбор по конкретной сделке" value={form.taxCost} onChange={(v) => setForm((s) => ({ ...s, taxCost: v }))} />
+          <MoneyField label="Прочее" value={form.otherCost} onChange={(v) => setForm((s) => ({ ...s, otherCost: v }))} />
+        </div>
+
+        {editing && <div className="overflow-hidden rounded-xl border">
+          <div className="flex flex-wrap items-center justify-between gap-3 border-b bg-slate-50 px-4 py-3">
+            <div>
+              <div className="font-medium">Закупки этого проекта</div>
+              <div className="mt-0.5 text-xs text-muted-foreground">План {rubles(editing.plannedProcurementCost)} · факт {rubles(editing.procurementCost)} · производство + материалы {rubles(dealPreview.productionAndMaterials)}</div>
+            </div>
+            <Button type="button" variant={purchaseEditorOpen ? "secondary" : "outline"} size="sm" onClick={() => setPurchaseEditorOpen((open) => !open)}><Plus className="mr-2 h-4 w-4" />{purchaseEditorOpen ? "Скрыть форму" : "Внести список закупок"}</Button>
+          </div>
+
+          {editing.purchases?.length > 0 ? <div className="divide-y">{editing.purchases.map((item) => <div key={item.id} className="grid gap-2 px-4 py-3 text-sm sm:grid-cols-[1fr_auto_auto_auto] sm:items-center">
+            <div className="min-w-0"><div className="font-medium">{item.name}</div><div className="mt-0.5 text-xs text-muted-foreground">{item.quantity} {item.unit}{item.supplier ? ` · ${item.supplier}` : ""} · {purchaseStatuses[item.status] || item.status}</div></div>
+            <div className="text-right text-xs text-muted-foreground">план <span className="font-medium text-foreground">{rubles(item.plannedTotalCost)}</span><br />факт <span className="font-medium text-foreground">{rubles(item.totalCost)}</span></div>
+            <div className={`min-w-20 text-right font-medium ${varianceClass(item.variance)}`}>{signedRubles(item.variance)}</div>
+            <Button type="button" variant="ghost" size="icon" disabled={purchaseDeleting === item.id} onClick={() => void removeProjectPurchase(item.id)} title="Удалить закупку">{purchaseDeleting === item.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4 text-red-600" />}</Button>
+          </div>)}</div> : <div className="px-4 py-4 text-sm text-muted-foreground">Список закупок пока пуст.</div>}
+
+          {purchaseEditorOpen && <div className="border-t bg-muted/20 p-4">
+            <div className="mb-3 text-sm font-medium">Добавить позицию в закупки проекта</div>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <Field label="Материал / комплектующая"><Input value={purchaseForm.name} onChange={(e) => setPurchaseForm((s) => ({ ...s, name: e.target.value }))} placeholder="Например, PETG чёрный" /></Field>
+              <Field label="Поставщик"><Input value={purchaseForm.supplier} onChange={(e) => setPurchaseForm((s) => ({ ...s, supplier: e.target.value }))} placeholder="Ozon, 1688, фабрика…" /></Field>
+              <Field label="Количество"><Input inputMode="decimal" value={purchaseForm.quantity} onChange={(e) => setPurchaseForm((s) => ({ ...s, quantity: e.target.value }))} /></Field>
+              <Field label="Единица"><Input value={purchaseForm.unit} onChange={(e) => setPurchaseForm((s) => ({ ...s, unit: e.target.value }))} placeholder="шт., кг, м" /></Field>
+              <MoneyField label="Плановая цена за единицу" value={purchaseForm.plannedUnitCost} onChange={(v) => setPurchaseForm((s) => ({ ...s, plannedUnitCost: v }))} />
+              <MoneyField label="Фактическая цена за единицу" value={purchaseForm.unitCost} onChange={(v) => setPurchaseForm((s) => ({ ...s, unitCost: v }))} />
+            </div>
+            <div className="mt-3 flex flex-wrap items-center justify-between gap-3">
+              <div className="text-xs text-muted-foreground">Если фактическая цена указана, позиция сразу попадёт в себестоимость проекта. Если заполнен только план — она останется плановой.</div>
+              <Button type="button" onClick={() => void addProjectPurchase()} disabled={purchaseSaving}>{purchaseSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Добавить позицию</Button>
+            </div>
+          </div>}
+        </div>}
+
+        <div className="rounded-lg border border-violet-200 bg-violet-50/50 p-3 text-sm text-violet-900">Комиссия менеджера = 50% от остатка после производства, закупок этого проекта, эквайринга, доставки, упаковки, подрядчиков, сборов и прочих прямых расходов. Если проект уже в минусе, комиссия не начисляется.</div>
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-5"><Mini label="Прямые расходы" value={rubles(dealPreview.directCosts)} /><Mini label="До менеджера" value={rubles(dealPreview.profitBeforeManager)} good={dealPreview.profitBeforeManager >= 0} /><Mini label="Менеджер 50%" value={rubles(dealPreview.managerCommission)} /><Mini label="Компания" value={rubles(dealPreview.profit)} good={dealPreview.profit >= 0} /><Mini label="Маржа компании" value={percent(dealPreview.margin)} /></div>
+        <Field label="Комментарий"><textarea className="min-h-20 w-full rounded-md border bg-background px-3 py-2 text-sm" value={form.notes} onChange={(e) => setForm((s) => ({ ...s, notes: e.target.value }))} /></Field>
+        <DialogFooter><Button variant="outline" onClick={() => setEditing(null)}>Отмена</Button><Button onClick={() => void saveDeal()} disabled={saving}>{saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Сохранить расчёт проекта</Button></DialogFooter>
+      </DialogContent>
+    </Dialog>
   </div>;
 }
 
