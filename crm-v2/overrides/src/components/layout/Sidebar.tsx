@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import {
   BarChart3,
   Banknote,
+  Boxes,
   CalendarClock,
   Factory,
   FolderKanban,
@@ -40,6 +41,7 @@ const workItems: NavItem[] = [
 
 const managementItems: NavItem[] = [
   { href: "/economics", label: "Деньги", icon: Banknote, iconBg: "bg-emerald-50", iconText: "text-emerald-600", dot: "bg-emerald-500" },
+  { href: "/procurement", label: "Закупки", icon: Boxes, iconBg: "bg-lime-50", iconText: "text-lime-700", dot: "bg-lime-500" },
   { href: "/analytics", label: "Аналитика", icon: BarChart3, iconBg: "bg-fuchsia-50", iconText: "text-fuchsia-600", dot: "bg-fuchsia-500" },
   { href: "/assistant", label: "Помощник", icon: Sparkles, iconBg: "bg-indigo-50", iconText: "text-indigo-600", dot: "bg-indigo-500" },
   { href: "/control", label: "Контроль", icon: ShieldCheck, iconBg: "bg-slate-100", iconText: "text-slate-700", dot: "bg-slate-600" },
