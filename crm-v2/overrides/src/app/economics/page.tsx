@@ -46,6 +46,7 @@ interface FormState {
 
 const emptyForm: FormState = { receivedAmount: "", productionCost: "", paymentCommissionRate: "", deliveryCost: "", packagingCost: "", contractorCost: "", taxCost: "", otherCost: "", notes: "" };
 const MANAGER_COMMISSION_RATE = 50;
+const DEFAULT_PAYMENT_COMMISSION_RATE = 2.5;
 
 const expenseCategories: Record<string, string> = {
   salary: "Фиксированные зарплаты", ads: "Реклама за месяц", server: "Сервер / IT", subscriptions: "Подписки / сервисы",
@@ -121,26 +122,40 @@ export default function EconomicsPage() {
 
   const openDeal = (deal: EconomicsDeal) => {
     setEditing(deal);
-    setForm({ receivedAmount: toRubles(deal.receivedAmount), productionCost: toRubles(deal.productionCost), paymentCommissionRate: deal.paymentCommissionRate ? String(deal.paymentCommissionRate) : "", deliveryCost: toRubles(deal.deliveryCost), packagingCost: toRubles(deal.packagingCost), contractorCost: toRubles(deal.contractorCost), taxCost: toRubles(deal.taxCost), otherCost: toRubles(deal.otherCost), notes: deal.economicsNotes || "" });
+    setForm({
+      receivedAmount: toRubles(deal.receivedAmount),
+      productionCost: toRubles(deal.baseProductionCost),
+      paymentCommissionRate: String(deal.paymentCommissionRate > 0 ? deal.paymentCommissionRate : DEFAULT_PAYMENT_COMMISSION_RATE),
+      deliveryCost: toRubles(deal.deliveryCost),
+      packagingCost: toRubles(deal.packagingCost),
+      contractorCost: toRubles(deal.contractorCost),
+      taxCost: toRubles(deal.taxCost),
+      otherCost: toRubles(deal.otherCost),
+      notes: deal.economicsNotes || "",
+    });
   };
 
   const dealPreview = useMemo(() => {
     const received = toCents(form.receivedAmount);
+    const procurementFact = Number(editing?.procurementCost || 0);
+    const baseProduction = toCents(form.productionCost);
+    const productionAndMaterials = baseProduction + procurementFact;
     const acquiring = Math.round((received * numericRate(form.paymentCommissionRate)) / 100);
-    const directCosts = toCents(form.productionCost) + acquiring + toCents(form.deliveryCost) + toCents(form.packagingCost) + toCents(form.contractorCost) + toCents(form.taxCost) + toCents(form.otherCost);
+    const directCosts = productionAndMaterials + acquiring + toCents(form.deliveryCost) + toCents(form.packagingCost) + toCents(form.contractorCost) + toCents(form.taxCost) + toCents(form.otherCost);
     const profitBeforeManager = received - directCosts;
     const managerCommission = Math.max(0, Math.round(profitBeforeManager * MANAGER_COMMISSION_RATE / 100));
     const costs = directCosts + managerCommission;
     const profit = received - costs;
-    return { acquiring, directCosts, profitBeforeManager, managerCommission, costs, profit, margin: received > 0 ? (profit / received) * 100 : 0 };
-  }, [form]);
+    return { acquiring, procurementFact, baseProduction, productionAndMaterials, directCosts, profitBeforeManager, managerCommission, costs, profit, margin: received > 0 ? (profit / received) * 100 : 0 };
+  }, [form, editing?.procurementCost]);
 
   async function saveDeal() {
     if (!editing) return;
     setSaving(true);
     try {
+      const productionAndMaterials = toCents(form.productionCost) + Number(editing.procurementCost || 0);
       const response = await fetch("/api/economics", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify({
-        dealId: editing.dealId, receivedAmount: toCents(form.receivedAmount), productionCost: toCents(form.productionCost), paymentCommissionRate: numericRate(form.paymentCommissionRate),
+        dealId: editing.dealId, receivedAmount: toCents(form.receivedAmount), productionCost: productionAndMaterials, paymentCommissionRate: numericRate(form.paymentCommissionRate),
         deliveryCost: toCents(form.deliveryCost), packagingCost: toCents(form.packagingCost), contractorCost: toCents(form.contractorCost), taxCost: toCents(form.taxCost), otherCost: toCents(form.otherCost), notes: form.notes,
       }) });
       const payload = await response.json(); if (!response.ok) throw new Error(payload.error || "Не удалось сохранить расчёт");
@@ -327,9 +342,21 @@ export default function EconomicsPage() {
     </DialogContent></Dialog>
 
     <Dialog open={Boolean(editing)} onOpenChange={(open) => !open && setEditing(null)}><DialogContent className="sm:max-w-2xl"><DialogHeader><DialogTitle>Экономика сделки</DialogTitle><DialogDescription>{editing ? `${editing.contactName} · ${editing.dealTitle}` : ""}. Зарплата / комиссия менеджера считается автоматически: 50% от положительной прибыли после всех прямых расходов.</DialogDescription></DialogHeader>
-      <div className="grid gap-4 sm:grid-cols-2"><MoneyField label="Получено" value={form.receivedAmount} onChange={(v) => setForm((s) => ({ ...s, receivedAmount: v }))} /><MoneyField label="Производство / материалы" value={form.productionCost} onChange={(v) => setForm((s) => ({ ...s, productionCost: v }))} /><Field label="Эквайринг, %"><Input inputMode="decimal" value={form.paymentCommissionRate} onChange={(e) => setForm((s) => ({ ...s, paymentCommissionRate: e.target.value }))} placeholder="2.5" /><div className="mt-1 text-xs text-muted-foreground">Комиссия: {rubles(dealPreview.acquiring)}</div></Field><MoneyField label="Доставка" value={form.deliveryCost} onChange={(v) => setForm((s) => ({ ...s, deliveryCost: v }))} /><MoneyField label="Упаковка" value={form.packagingCost} onChange={(v) => setForm((s) => ({ ...s, packagingCost: v }))} /><MoneyField label="Подрядчики" value={form.contractorCost} onChange={(v) => setForm((s) => ({ ...s, contractorCost: v }))} /><MoneyField label="Налог/сбор по конкретной сделке" value={form.taxCost} onChange={(v) => setForm((s) => ({ ...s, taxCost: v }))} /><MoneyField label="Прочее" value={form.otherCost} onChange={(v) => setForm((s) => ({ ...s, otherCost: v }))} /></div>
-      {editing && <div className="rounded-lg border bg-slate-50 p-3 text-sm text-slate-700">В поле «Производство / материалы» уже включён факт закупок <b>{rubles(editing.procurementCost)}</b>. План закупок — {rubles(editing.plannedProcurementCost)}, отклонение — <span className={varianceClass(editing.procurementVariance)}>{signedRubles(editing.procurementVariance)}</span>. Детальный состав редактируется в разделе <Link href="/procurement" className="font-medium underline">«Закупки»</Link>.</div>}
-      <div className="rounded-lg border border-violet-200 bg-violet-50/50 p-3 text-sm text-violet-900">Комиссия менеджера = 50% от остатка после производства/материалов, эквайринга, доставки, упаковки, подрядчиков, сборов и прочих прямых расходов. Если заказ уже в минусе, комиссия не начисляется.</div>
+      <div className="grid gap-4 sm:grid-cols-2">
+        <MoneyField label="Получено" value={form.receivedAmount} onChange={(v) => setForm((s) => ({ ...s, receivedAmount: v }))} />
+        <MoneyField label="Производство / работы" value={form.productionCost} onChange={(v) => setForm((s) => ({ ...s, productionCost: v }))} />
+        <Field label="Эквайринг, %"><Input inputMode="decimal" value={form.paymentCommissionRate} onChange={(e) => setForm((s) => ({ ...s, paymentCommissionRate: e.target.value }))} placeholder={String(DEFAULT_PAYMENT_COMMISSION_RATE)} /><div className="mt-1 text-xs text-muted-foreground">Комиссия: {rubles(dealPreview.acquiring)}</div></Field>
+        <MoneyField label="Доставка" value={form.deliveryCost} onChange={(v) => setForm((s) => ({ ...s, deliveryCost: v }))} />
+        <MoneyField label="Упаковка" value={form.packagingCost} onChange={(v) => setForm((s) => ({ ...s, packagingCost: v }))} />
+        <MoneyField label="Подрядчики" value={form.contractorCost} onChange={(v) => setForm((s) => ({ ...s, contractorCost: v }))} />
+        <MoneyField label="Налог/сбор по конкретной сделке" value={form.taxCost} onChange={(v) => setForm((s) => ({ ...s, taxCost: v }))} />
+        <MoneyField label="Прочее" value={form.otherCost} onChange={(v) => setForm((s) => ({ ...s, otherCost: v }))} />
+      </div>
+      {editing && <div className="grid gap-3 sm:grid-cols-2">
+        <div className="rounded-lg border bg-slate-50 p-3"><div className="text-xs text-muted-foreground">Закупки / материалы · факт</div><div className="mt-1 text-lg font-semibold">{rubles(editing.procurementCost)}</div><div className="mt-1 text-xs text-muted-foreground">План {rubles(editing.plannedProcurementCost)} · <span className={varianceClass(editing.procurementVariance)}>{signedRubles(editing.procurementVariance)}</span></div></div>
+        <div className="rounded-lg border bg-slate-50 p-3"><div className="text-xs text-muted-foreground">Производство + материалы</div><div className="mt-1 text-lg font-semibold">{rubles(dealPreview.productionAndMaterials)}</div><div className="mt-1 text-xs text-muted-foreground">Закупки редактируются отдельно в разделе <Link href="/procurement" className="font-medium underline">«Закупки»</Link>.</div></div>
+      </div>}
+      <div className="rounded-lg border border-violet-200 bg-violet-50/50 p-3 text-sm text-violet-900">Комиссия менеджера = 50% от остатка после производства, материалов, эквайринга, доставки, упаковки, подрядчиков, сборов и прочих прямых расходов. Если заказ уже в минусе, комиссия не начисляется.</div>
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-5"><Mini label="Прямые расходы" value={rubles(dealPreview.directCosts)} /><Mini label="До менеджера" value={rubles(dealPreview.profitBeforeManager)} good={dealPreview.profitBeforeManager >= 0} /><Mini label="Менеджер 50%" value={rubles(dealPreview.managerCommission)} /><Mini label="Компания" value={rubles(dealPreview.profit)} good={dealPreview.profit >= 0} /><Mini label="Маржа компании" value={percent(dealPreview.margin)} /></div>
       <Field label="Комментарий"><textarea className="min-h-20 w-full rounded-md border bg-background px-3 py-2 text-sm" value={form.notes} onChange={(e) => setForm((s) => ({ ...s, notes: e.target.value }))} /></Field>
       <DialogFooter><Button variant="outline" onClick={() => setEditing(null)}>Отмена</Button><Button onClick={() => void saveDeal()} disabled={saving}>{saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}Сохранить</Button></DialogFooter>
