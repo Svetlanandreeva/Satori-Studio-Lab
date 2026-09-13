@@ -1,5 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { deleteDealPurchase, listDealPurchases, listProcurementOverview, saveDealPurchase } from "@/lib/procurement";
+import {
+  deleteDealPurchase,
+  getDealProcurementSummary,
+  listDealPurchases,
+  listProcurementOverview,
+  saveDealPurchase,
+} from "@/lib/procurement";
 import { getRequestActor } from "@/lib/request-actor";
 import { writeAuditLog } from "@/lib/operations";
 
@@ -14,7 +20,12 @@ function assertCanEdit(request: NextRequest) {
 export async function GET(request: NextRequest) {
   try {
     const dealId = new URL(request.url).searchParams.get("dealId");
-    if (dealId) return NextResponse.json({ purchases: listDealPurchases(dealId) });
+    if (dealId) {
+      return NextResponse.json({
+        purchases: listDealPurchases(dealId),
+        summary: getDealProcurementSummary(dealId),
+      });
+    }
     return NextResponse.json(listProcurementOverview());
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Не удалось загрузить закупки" }, { status: 500 });
@@ -31,19 +42,30 @@ export async function POST(request: NextRequest) {
       name: String(body.name || ""),
       quantity: Number(body.quantity || 1),
       unit: String(body.unit || "шт."),
+      plannedUnitCost: Number(body.plannedUnitCost || 0),
       unitCost: Number(body.unitCost || 0),
       supplier: body.supplier ? String(body.supplier) : null,
+      status: body.status ? String(body.status) : "planned",
+      purchaseDate: body.purchaseDate ? String(body.purchaseDate) : null,
+      sourceUrl: body.sourceUrl ? String(body.sourceUrl) : null,
       notes: body.notes ? String(body.notes) : null,
     });
+    const summary = getDealProcurementSummary(purchase.dealId);
     writeAuditLog(actor, body.id ? "update_purchase" : "create_purchase", "deal", purchase.dealId, {
       purchaseId: purchase.id,
       name: purchase.name,
       quantity: purchase.quantity,
       unit: purchase.unit,
+      plannedUnitCost: purchase.plannedUnitCost,
+      plannedTotalCost: purchase.plannedTotalCost,
       unitCost: purchase.unitCost,
       totalCost: purchase.totalCost,
+      variance: purchase.variance,
+      status: purchase.status,
+      purchaseDate: purchase.purchaseDate,
+      sourceUrl: purchase.sourceUrl,
     });
-    return NextResponse.json({ purchase }, { status: body.id ? 200 : 201 });
+    return NextResponse.json({ purchase, summary }, { status: body.id ? 200 : 201 });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Не удалось сохранить закупку" }, { status: 400 });
   }
