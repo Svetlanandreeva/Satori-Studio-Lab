@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { eq } from "drizzle-orm";
-import { ArrowLeft, Clock3, UserRound, WalletCards } from "lucide-react";
+import { ArrowLeft, Boxes, Clock3, UserRound, WalletCards } from "lucide-react";
 import { db } from "@/db";
 import { contacts, deals, pipelineStages, teamMembers } from "@/db/schema";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,6 +11,7 @@ import { DealOperationsPanel } from "@/components/deals/DealOperationsPanel";
 import { getDealEconomics } from "@/lib/economics";
 import { calculateDealFinancials } from "@/lib/deal-financials";
 import { listDealHistory, listTeamMembers } from "@/lib/operations";
+import { getDealProcurementTotal, listDealPurchases } from "@/lib/procurement";
 
 export const dynamic = "force-dynamic";
 
@@ -36,7 +37,9 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
     .where(eq(deals.id, id)).get();
   if (!deal) notFound();
 
-  const economics = calculateDealFinancials({ ...(getDealEconomics(id) || {}), dealValue: deal.value });
+  const economics = calculateDealFinancials({ ...(getDealEconomics(id) || {}), dealId: id, dealValue: deal.value });
+  const procurement = listDealPurchases(id);
+  const procurementTotal = getDealProcurementTotal(id);
   const history = listDealHistory(id) as Array<any>;
   const members = listTeamMembers() as Array<any>;
 
@@ -55,9 +58,10 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
         </div>
       </div>
 
-      <div className="grid gap-4 md:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
         <Metric label="Сумма сделки" value={money(deal.value)} />
         <Metric label="Получено" value={money(economics.receivedAmount)} />
+        <Metric label="Закупки" value={money(procurementTotal)} />
         <Metric label="Прибыль компании" value={money(economics.profit)} />
         <Metric label="Маржа" value={economics.receivedAmount ? `${economics.margin.toFixed(1)}%` : "—"} />
       </div>
@@ -65,6 +69,13 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
       <Card className="rounded-[24px] border-slate-200/80 shadow-sm">
         <CardHeader><CardTitle className="flex items-center gap-2 text-base"><UserRound className="h-4 w-4" />Ответственный и результат</CardTitle></CardHeader>
         <CardContent><DealOperationsPanel dealId={deal.id} ownerId={deal.ownerId || null} lossReason={deal.lossReason || null} members={members} /></CardContent>
+      </Card>
+
+      <Card className="rounded-[24px] border-slate-200/80 shadow-sm">
+        <CardHeader><div className="flex flex-wrap items-center justify-between gap-3"><div><CardTitle className="flex items-center gap-2 text-base"><Boxes className="h-4 w-4" />Закупки и материалы</CardTitle><p className="mt-1 text-xs text-slate-400">Эти позиции уже входят в прямые расходы и влияют на комиссию менеджера и прибыль компании.</p></div><Link href="/procurement"><Button variant="outline" size="sm">Управлять закупками</Button></Link></div></CardHeader>
+        <CardContent>
+          {!procurement.length ? <div className="rounded-2xl bg-slate-50 p-5 text-sm text-slate-500">Материалы пока не занесены. Добавь их в разделе «Закупки», чтобы себестоимость сделки считалась точно.</div> : <div className="overflow-x-auto"><table className="min-w-[680px] w-full text-sm"><thead className="text-left text-[11px] uppercase tracking-wide text-slate-400"><tr><th className="pb-2">Материал</th><th className="pb-2">Количество</th><th className="pb-2">Цена</th><th className="pb-2">Поставщик</th><th className="pb-2 text-right">Итого</th></tr></thead><tbody className="divide-y divide-slate-100">{procurement.map((item) => <tr key={item.id}><td className="py-3 pr-3"><div className="font-medium text-slate-800">{item.name}</div>{item.notes && <div className="mt-0.5 text-xs text-slate-400">{item.notes}</div>}</td><td className="py-3 pr-3 text-slate-500">{item.quantity} {item.unit}</td><td className="py-3 pr-3 text-slate-500">{money(item.unitCost)}</td><td className="py-3 pr-3 text-slate-500">{item.supplier || "—"}</td><td className="py-3 text-right font-semibold text-slate-900">{money(item.totalCost)}</td></tr>)}</tbody><tfoot><tr><td colSpan={4} className="pt-4 text-sm font-medium text-slate-500">Закупки итого</td><td className="pt-4 text-right text-base font-semibold text-slate-950">{money(procurementTotal)}</td></tr></tfoot></table></div>}
+        </CardContent>
       </Card>
 
       <Card className="rounded-[24px] border-slate-200/80 shadow-sm">
