@@ -26,6 +26,7 @@ function isRejectedStage(name: unknown): boolean {
 
 function withManagerCommission<T extends {
   dealId: string;
+  productionCost?: number;
   receivedAmount: number;
   totalCost: number;
   profit: number;
@@ -33,10 +34,15 @@ function withManagerCommission<T extends {
   dealValue?: number;
 }>(row: T) {
   const procurementCost = getDealProcurementTotal(row.dealId);
+  const baseProductionCost = Number(row.productionCost || 0);
   const directCostBeforeProcurement = Number(row.totalCost || 0);
   const directCost = directCostBeforeProcurement + procurementCost;
   return {
     ...row,
+    baseProductionCost,
+    // Старый интерфейс экономики называет это поле «Производство / материалы».
+    // Возвращаем туда производство + закупки, чтобы preview и итог не расходились.
+    productionCost: baseProductionCost + procurementCost,
     procurementCost,
     purchases: listDealPurchases(row.dealId),
     ...calculateFinancialsFromDirectCost(row.receivedAmount, directCost, row.dealValue || 0),
@@ -96,10 +102,15 @@ export async function PUT(request: NextRequest) {
     const body = (await request.json()) as Record<string, unknown>;
     const dealId = String(body.dealId || "").trim();
     if (!dealId) return NextResponse.json({ error: "Не указана сделка" }, { status: 400 });
+    const procurementCost = getDealProcurementTotal(dealId);
+    // В форме поле «Производство / материалы» содержит и отдельные закупки.
+    // В базе deal_economics храним только производство/работы, чтобы закупки не посчитались дважды.
+    const productionAndMaterials = cents(body.productionCost);
+    const productionCost = Math.max(0, productionAndMaterials - procurementCost);
     const result = saveDealEconomics({
       dealId,
       receivedAmount: cents(body.receivedAmount),
-      productionCost: cents(body.productionCost),
+      productionCost,
       paymentCommission: body.paymentCommission === undefined ? undefined : cents(body.paymentCommission),
       paymentCommissionRate: body.paymentCommissionRate === undefined ? undefined : Number(body.paymentCommissionRate) || 0,
       deliveryCost: cents(body.deliveryCost),
@@ -109,7 +120,7 @@ export async function PUT(request: NextRequest) {
       otherCost: cents(body.otherCost),
       notes: body.notes ? String(body.notes) : null,
     });
-    return NextResponse.json(result);
+    return NextResponse.json({ ...result, procurementCost, purchases: listDealPurchases(dealId) });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Не удалось сохранить экономику";
     return NextResponse.json({ error: message }, { status: message === "Сделка не найдена" ? 404 : 500 });
