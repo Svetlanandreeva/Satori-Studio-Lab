@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
-  BarChart3, Banknote, CalendarClock, Factory, FolderKanban, Kanban, LayoutDashboard, Menu,
+  BarChart3, Banknote, Boxes, CalendarClock, Factory, FolderKanban, Kanban, LayoutDashboard, Menu,
   MessageCircle, Settings, ShieldCheck, Sparkles, Users,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
@@ -20,6 +20,7 @@ const pageMeta = [
   { path: "/projects", title: "Проекты", subtitle: "Сроки, доставка и исполнение", icon: FolderKanban, bg: "bg-amber-50", text: "text-amber-600" },
   { path: "/contacts", title: "Клиенты", subtitle: "Контакты, история и документы", icon: Users, bg: "bg-teal-50", text: "text-teal-600" },
   { path: "/economics", title: "Деньги", subtitle: "Доходы, расходы и экономика", icon: Banknote, bg: "bg-emerald-50", text: "text-emerald-600" },
+  { path: "/procurement", title: "Закупки", subtitle: "Материалы, комплектующие и себестоимость", icon: Boxes, bg: "bg-lime-50", text: "text-lime-700" },
   { path: "/analytics", title: "Аналитика", subtitle: "Конверсия, источники и причины отказов", icon: BarChart3, bg: "bg-fuchsia-50", text: "text-fuchsia-600" },
   { path: "/assistant", title: "Помощник", subtitle: "Что требует внимания сейчас", icon: Sparkles, bg: "bg-indigo-50", text: "text-indigo-600" },
   { path: "/control", title: "Контроль", subtitle: "Система, команда, backup и аудит", icon: ShieldCheck, bg: "bg-slate-100", text: "text-slate-700" },
