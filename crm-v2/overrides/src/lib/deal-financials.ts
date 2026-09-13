@@ -1,8 +1,12 @@
+import { getDealProcurementTotal } from "@/lib/procurement";
+
 export const MANAGER_COMMISSION_RATE = 50;
 
 export type DealEconomicsLike = {
+  dealId?: unknown;
   receivedAmount?: unknown;
   productionCost?: unknown;
+  procurementCost?: unknown;
   paymentCommission?: unknown;
   deliveryCost?: unknown;
   packagingCost?: unknown;
@@ -18,8 +22,15 @@ function amount(value: unknown): number {
   return Math.max(0, Math.round(number));
 }
 
+function procurement(row: DealEconomicsLike): number {
+  if (row.procurementCost !== undefined && row.procurementCost !== null) return amount(row.procurementCost);
+  const dealId = String(row.dealId || "").trim();
+  return dealId ? getDealProcurementTotal(dealId) : 0;
+}
+
 export function directCostFromEconomics(row: DealEconomicsLike): number {
   return amount(row.productionCost) +
+    procurement(row) +
     amount(row.paymentCommission) +
     amount(row.deliveryCost) +
     amount(row.packagingCost) +

@@ -9,6 +9,7 @@ import {
   taxBaseForPaymentMonth,
 } from "@/lib/economics";
 import { calculateFinancialsFromDirectCost, MANAGER_COMMISSION_RATE } from "@/lib/deal-financials";
+import { getDealProcurementTotal, listDealPurchases } from "@/lib/procurement";
 
 export const dynamic = "force-dynamic";
 
@@ -24,15 +25,27 @@ function isRejectedStage(name: unknown): boolean {
 }
 
 function withManagerCommission<T extends {
+  dealId: string;
+  productionCost?: number;
   receivedAmount: number;
   totalCost: number;
   profit: number;
   margin: number;
   dealValue?: number;
 }>(row: T) {
+  const procurementCost = getDealProcurementTotal(row.dealId);
+  const baseProductionCost = Number(row.productionCost || 0);
+  const directCostBeforeProcurement = Number(row.totalCost || 0);
+  const directCost = directCostBeforeProcurement + procurementCost;
   return {
     ...row,
-    ...calculateFinancialsFromDirectCost(row.receivedAmount, row.totalCost, row.dealValue || 0),
+    baseProductionCost,
+    // Старый интерфейс экономики называет это поле «Производство / материалы».
+    // Возвращаем туда производство + закупки, чтобы preview и итог не расходились.
+    productionCost: baseProductionCost + procurementCost,
+    procurementCost,
+    purchases: listDealPurchases(row.dealId),
+    ...calculateFinancialsFromDirectCost(row.receivedAmount, directCost, row.dealValue || 0),
   };
 }
 
@@ -40,12 +53,13 @@ function withoutRejectedDeals(report: ReturnType<typeof listEconomics>) {
   const deals = report.deals
     .filter((deal) => !isRejectedStage(deal.stageName))
     .map((deal) => withManagerCommission(deal));
-  const clients = new Map<string, { contactId: string; contactName: string; company: string | null; deals: number; receivedAmount: number; directCost: number; managerCommission: number; totalCost: number; profit: number }>();
+  const clients = new Map<string, { contactId: string; contactName: string; company: string | null; deals: number; receivedAmount: number; directCost: number; procurementCost: number; managerCommission: number; totalCost: number; profit: number }>();
   for (const row of deals) {
-    const current = clients.get(row.contactId) || { contactId: row.contactId, contactName: row.contactName || "Без имени", company: row.company, deals: 0, receivedAmount: 0, directCost: 0, managerCommission: 0, totalCost: 0, profit: 0 };
+    const current = clients.get(row.contactId) || { contactId: row.contactId, contactName: row.contactName || "Без имени", company: row.company, deals: 0, receivedAmount: 0, directCost: 0, procurementCost: 0, managerCommission: 0, totalCost: 0, profit: 0 };
     current.deals += 1;
     current.receivedAmount += Number(row.receivedAmount || 0);
     current.directCost += Number(row.directCost || 0);
+    current.procurementCost += Number(row.procurementCost || 0);
     current.managerCommission += Number(row.managerCommission || 0);
     current.totalCost += Number(row.totalCost || 0);
     current.profit += Number(row.profit || 0);
@@ -56,12 +70,13 @@ function withoutRejectedDeals(report: ReturnType<typeof listEconomics>) {
     acc.dealValue += Number(row.dealValue || 0);
     acc.receivedAmount += Number(row.receivedAmount || 0);
     acc.directCost += Number(row.directCost || 0);
+    acc.procurementCost += Number(row.procurementCost || 0);
     acc.managerCommission += Number(row.managerCommission || 0);
     acc.totalCost += Number(row.totalCost || 0);
     acc.profitBeforeManager += Number(row.profitBeforeManager || 0);
     acc.profit += Number(row.profit || 0);
     return acc;
-  }, { dealValue: 0, receivedAmount: 0, directCost: 0, managerCommission: 0, totalCost: 0, profitBeforeManager: 0, profit: 0 });
+  }, { dealValue: 0, receivedAmount: 0, directCost: 0, procurementCost: 0, managerCommission: 0, totalCost: 0, profitBeforeManager: 0, profit: 0 });
   return { deals, clients: clientRows, totals: { ...totals, managerCommissionRate: MANAGER_COMMISSION_RATE, margin: totals.receivedAmount > 0 ? (totals.profit / totals.receivedAmount) * 100 : 0 } };
 }
 
@@ -87,10 +102,15 @@ export async function PUT(request: NextRequest) {
     const body = (await request.json()) as Record<string, unknown>;
     const dealId = String(body.dealId || "").trim();
     if (!dealId) return NextResponse.json({ error: "Не указана сделка" }, { status: 400 });
+    const procurementCost = getDealProcurementTotal(dealId);
+    // В форме поле «Производство / материалы» содержит и отдельные закупки.
+    // В базе deal_economics храним только производство/работы, чтобы закупки не посчитались дважды.
+    const productionAndMaterials = cents(body.productionCost);
+    const productionCost = Math.max(0, productionAndMaterials - procurementCost);
     const result = saveDealEconomics({
       dealId,
       receivedAmount: cents(body.receivedAmount),
-      productionCost: cents(body.productionCost),
+      productionCost,
       paymentCommission: body.paymentCommission === undefined ? undefined : cents(body.paymentCommission),
       paymentCommissionRate: body.paymentCommissionRate === undefined ? undefined : Number(body.paymentCommissionRate) || 0,
       deliveryCost: cents(body.deliveryCost),
@@ -100,7 +120,7 @@ export async function PUT(request: NextRequest) {
       otherCost: cents(body.otherCost),
       notes: body.notes ? String(body.notes) : null,
     });
-    return NextResponse.json(result);
+    return NextResponse.json({ ...result, procurementCost, purchases: listDealPurchases(dealId) });
   } catch (error) {
     const message = error instanceof Error ? error.message : "Не удалось сохранить экономику";
     return NextResponse.json({ error: message }, { status: message === "Сделка не найдена" ? 404 : 500 });

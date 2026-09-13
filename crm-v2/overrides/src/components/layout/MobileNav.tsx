@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import {
   BarChart3,
   Banknote,
+  Boxes,
   CalendarClock,
   Factory,
   FolderKanban,
@@ -38,6 +39,7 @@ const primary: Item[] = [
 
 const secondary: Item[] = [
   { href: "/economics", label: "Деньги", icon: Banknote, iconBg: "bg-emerald-50", iconText: "text-emerald-600" },
+  { href: "/procurement", label: "Закупки", icon: Boxes, iconBg: "bg-lime-50", iconText: "text-lime-700" },
   { href: "/analytics", label: "Аналитика", icon: BarChart3, iconBg: "bg-fuchsia-50", iconText: "text-fuchsia-600" },
   { href: "/assistant", label: "Помощник", icon: Sparkles, iconBg: "bg-indigo-50", iconText: "text-indigo-600" },
   { href: "/control", label: "Контроль", icon: ShieldCheck, iconBg: "bg-slate-100", iconText: "text-slate-700" },
