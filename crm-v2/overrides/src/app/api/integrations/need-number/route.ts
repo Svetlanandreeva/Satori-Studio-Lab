@@ -314,6 +314,7 @@ export async function POST(request: NextRequest) {
     niche ? `🏷 ${escapeTelegramHtml(niche)}` : null,
     region ? `📍 ${escapeTelegramHtml(region)}` : null,
     interest ? `💬 ${escapeTelegramHtml(interest)}` : null,
+    source ? `🔗 Источник: ${escapeTelegramHtml(source)}` : null,
     `Проект: ${escapeTelegramHtml(project)}`,
   ].filter(Boolean) as string[];
 
