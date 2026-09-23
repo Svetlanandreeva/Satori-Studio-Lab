@@ -31,6 +31,7 @@ import { startContactOverrides } from "./contactOverrides";
 import { startHeaderContactButton } from "./headerContactButton";
 import { startDesignerExperience } from "./designerExperience";
 import { startDesignerReadability } from "./designerReadability";
+import { startHomepageSectionStability } from "./homepageSectionStability";
 
 const isAdmin = window.location.pathname.startsWith("/admin");
 if (!isAdmin) prepareSeoRoute();
@@ -63,5 +64,6 @@ if (!isAdmin) {
   startContactOverrides();
   startHeaderContactButton();
   startDesignerExperience();
+  startHomepageSectionStability();
   startDesignerReadability();
 }
