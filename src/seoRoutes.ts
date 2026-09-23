@@ -2,7 +2,7 @@ const ROUTES: Record<string, string> = {
   catalog: "/catalog",
   limited: "/limited",
   about: "/about",
-  custom: "/custom",
+  custom: "/na-zakaz",
   business: "/business",
   designers: "/designers",
   faq: "/faq",
@@ -13,7 +13,7 @@ const ROUTE_LABELS: Record<string, string[]> = {
   "/catalog": ["Каталог"],
   "/limited": ["Лимит. серия", "Лимитированная серия"],
   "/about": ["О студии"],
-  "/custom": ["На заказ"],
+  "/na-zakaz": ["На заказ"],
   "/business": ["Бизнесу"],
   // Designers reuse the existing B2B React screen and are transformed by
   // designerExperience.ts into a dedicated professional landing page.
@@ -53,6 +53,10 @@ function pushRoute(path: string, replace = false) {
  * remove only that internal query parameter from the visible address bar.
  */
 export function prepareSeoRoute() {
+  if (cleanPath() === "/custom") {
+    history.replaceState({}, "", `${ROUTES.custom}${window.location.search}${window.location.hash}`);
+  }
+
   const match = cleanPath().match(/^\/product\/(\d+)$/);
   if (!match) return;
   const params = new URLSearchParams(window.location.search);
@@ -134,7 +138,7 @@ function enhanceHero() {
   if (secondButton) {
     secondButton.textContent = "Создать под заказ";
     secondButton.dataset.satoriHeroCustom = "1";
-    secondButton.dataset.satoriRoute = "/custom";
+    secondButton.dataset.satoriRoute = ROUTES.custom;
   }
 
   // Keep the Hero to two primary actions so the row stays stable at all widths.
@@ -174,7 +178,7 @@ function handleNavigationClick(event: MouseEvent) {
   if (target.dataset.satoriHeroCustom === "1") {
     event.preventDefault();
     event.stopPropagation();
-    const destination = findButton(ROUTE_LABELS["/custom"]);
+    const destination = findButton(ROUTE_LABELS[ROUTES.custom]);
     if (destination && destination !== target) destination.click();
     pushRoute(route);
     return;
@@ -202,7 +206,7 @@ function addCrawlableSectionLinks() {
   const links: Array<[string, string]> = [
     ["Каталог", "/catalog"],
     ["Лимитированная серия", "/limited"],
-    ["На заказ", "/custom"],
+    ["На заказ", ROUTES.custom],
     ["Дизайнерам и архитекторам", "/designers"],
     ["Для бизнеса", "/business"],
     ["О студии", "/about"],
