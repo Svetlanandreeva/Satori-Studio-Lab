@@ -10,6 +10,7 @@ import "./styles/admin-figma.css";
 import "./styles/admin-order-drawer.css";
 import "./styles/admin-crm-summary.css";
 import "./styles/page-transitions.css";
+import "./styles/na-zakaz.css";
 import { startFeaturedSwitcher } from "./featuredSwitcher";
 import { startStorefrontEnhancements } from "./storefrontEnhancements";
 import { startBrandCopyEnhancements } from "./brandCopyEnhancements";
@@ -22,6 +23,7 @@ import { startStorefrontCleanup } from "./storefrontCleanup";
 import { startAdminOrderDrawer } from "./adminOrderDrawer";
 import { startAdminOrderCounters } from "./adminOrderCounters";
 import { startAdminCrmSummary } from "./adminCrmSummary";
+import { startAdminLeadReference } from "./adminLeadReference";
 import { startCoverSync } from "./coverSync";
 import { startMadeToOrderPresentation } from "./madeToOrderPresentation";
 import { startSeoEnhancements } from "./seoEnhancements";
@@ -32,6 +34,7 @@ import { startHeaderContactButton } from "./headerContactButton";
 import { startDesignerExperience } from "./designerExperience";
 import { startDesignerReadability } from "./designerReadability";
 import { startHomepageSectionStability } from "./homepageSectionStability";
+import { startNaZakazPage } from "./naZakazPage";
 
 const isAdmin = window.location.pathname.startsWith("/admin");
 if (!isAdmin) prepareSeoRoute();
@@ -48,6 +51,7 @@ if (isAdmin) {
   startAdminOrderDrawer();
   startAdminOrderCounters();
   startAdminCrmSummary();
+  startAdminLeadReference();
 }
 
 if (!isAdmin) {
@@ -60,6 +64,7 @@ if (!isAdmin) {
   startCoverSync();
   startMadeToOrderPresentation();
   startSeoRoutes();
+  startNaZakazPage();
   startSeoEnhancements();
   startContactOverrides();
   startHeaderContactButton();
