@@ -11,6 +11,7 @@ import "./styles/admin-order-drawer.css";
 import "./styles/admin-crm-summary.css";
 import "./styles/page-transitions.css";
 import "./styles/na-zakaz.css";
+import "./styles/na-zakaz-sales.css";
 import { startFeaturedSwitcher } from "./featuredSwitcher";
 import { startStorefrontEnhancements } from "./storefrontEnhancements";
 import { startBrandCopyEnhancements } from "./brandCopyEnhancements";
@@ -35,6 +36,7 @@ import { startDesignerExperience } from "./designerExperience";
 import { startDesignerReadability } from "./designerReadability";
 import { startHomepageSectionStability } from "./homepageSectionStability";
 import { startNaZakazPage } from "./naZakazPage";
+import { startNaZakazSalesUpgrade } from "./naZakazSalesUpgrade";
 
 const isAdmin = window.location.pathname.startsWith("/admin");
 if (!isAdmin) prepareSeoRoute();
@@ -65,6 +67,7 @@ if (!isAdmin) {
   startMadeToOrderPresentation();
   startSeoRoutes();
   startNaZakazPage();
+  startNaZakazSalesUpgrade();
   startSeoEnhancements();
   startContactOverrides();
   startHeaderContactButton();
