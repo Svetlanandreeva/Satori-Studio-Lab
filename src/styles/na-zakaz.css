@@ -1,0 +1,675 @@
+/* SATORI — /na-zakaz custom lighting landing page */
+
+.satori-nz-page {
+  --nz-paper: #f6f0e8;
+  --nz-paper-2: #eee4d8;
+  --nz-ink: #181411;
+  --nz-muted: #6b6258;
+  --nz-line: #d9ccbe;
+  --nz-dark: #1b1714;
+  --nz-dark-2: #2b241f;
+  --nz-cream: #f6efe6;
+  width: 100%;
+  margin: 0;
+  padding: 30px 0 72px;
+  background: var(--nz-paper);
+  color: var(--nz-ink);
+  font-family: Inter, sans-serif;
+}
+
+.satori-nz-page *,
+.satori-nz-page *::before,
+.satori-nz-page *::after { box-sizing: border-box; }
+
+.satori-nz-page h1,
+.satori-nz-page h2,
+.satori-nz-page h3,
+.satori-nz-page p { margin-top: 0; }
+
+.satori-nz-page h1,
+.satori-nz-page h2 {
+  font-family: "Playfair Display", serif !important;
+  font-weight: 400 !important;
+  letter-spacing: -.035em !important;
+}
+
+.satori-nz-page a { text-decoration: none; }
+
+.satori-nz-hero,
+.satori-nz-section,
+.satori-nz-quick {
+  width: calc(100% - 96px);
+  max-width: 1344px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.satori-nz-hero {
+  position: relative;
+  min-height: 610px;
+  border-radius: 40px;
+  overflow: hidden;
+  background:
+    linear-gradient(90deg, rgba(17,14,12,.91) 0%, rgba(17,14,12,.72) 42%, rgba(17,14,12,.18) 70%, rgba(17,14,12,.08) 100%),
+    var(--satori-nz-hero) center / cover no-repeat,
+    var(--nz-dark);
+  isolation: isolate;
+}
+
+.satori-nz-hero-shade {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to top, rgba(10,8,7,.32), transparent 42%);
+  pointer-events: none;
+}
+
+.satori-nz-hero-copy {
+  position: relative;
+  z-index: 2;
+  width: min(720px, 62%);
+  min-height: 610px;
+  padding: 72px 54px 58px;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: center;
+}
+
+.satori-nz-kicker {
+  margin: 0 0 18px;
+  color: #cdbba9;
+  font: 650 11px/1.3 Inter, sans-serif;
+  letter-spacing: .16em;
+}
+
+.satori-nz-kicker-dark { color: #7e7063; }
+
+.satori-nz-hero h1 {
+  max-width: 680px;
+  margin-bottom: 22px;
+  color: #f7f1ea !important;
+  font-size: clamp(48px, 5.1vw, 72px) !important;
+  line-height: .98 !important;
+  text-wrap: balance;
+}
+
+.satori-nz-lead {
+  max-width: 590px;
+  margin-bottom: 30px;
+  color: #eee4da;
+  font-size: 16px;
+  line-height: 1.65;
+}
+
+.satori-nz-primary,
+.satori-nz-secondary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 50px;
+  padding: 0 24px;
+  border: 0;
+  border-radius: 999px;
+  font: 650 13px/1 Inter, sans-serif;
+  cursor: pointer;
+  transition: transform .18s ease, opacity .18s ease, background-color .18s ease;
+}
+
+.satori-nz-primary {
+  background: #f3ece4;
+  color: #171310 !important;
+}
+
+.satori-nz-secondary {
+  background: transparent;
+  color: #f3ece4 !important;
+  border: 1px solid rgba(255,255,255,.28);
+}
+
+.satori-nz-primary:hover,
+.satori-nz-secondary:hover { transform: translateY(-1px); opacity: .88; }
+
+.satori-nz-quick {
+  position: sticky;
+  top: 96px;
+  z-index: 20;
+  display: flex;
+  gap: 8px;
+  margin-top: 18px;
+  margin-bottom: 74px;
+  padding: 10px;
+  overflow-x: auto;
+  scrollbar-width: none;
+  border: 1px solid rgba(24,20,17,.08);
+  border-radius: 999px;
+  background: rgba(246,240,232,.9);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+}
+
+.satori-nz-quick::-webkit-scrollbar { display: none; }
+
+.satori-nz-quick a {
+  flex: 0 0 auto;
+  padding: 10px 16px;
+  border-radius: 999px;
+  color: #332c27;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.satori-nz-quick a:hover { background: #e9ded2; }
+
+.satori-nz-section {
+  margin-bottom: 92px;
+  scroll-margin-top: 146px;
+}
+
+.satori-nz-section-head {
+  max-width: 760px;
+  margin-bottom: 30px;
+}
+
+.satori-nz-section-head-row {
+  max-width: none;
+  display: flex;
+  justify-content: space-between;
+  align-items: end;
+  gap: 60px;
+}
+
+.satori-nz-section-head-row > div { max-width: 720px; }
+.satori-nz-section-head-row > p { max-width: 430px; margin-bottom: 4px; }
+
+.satori-nz-section-head h2,
+.satori-nz-b2b h2,
+.satori-nz-form-copy h2 {
+  margin-bottom: 14px;
+  color: var(--nz-ink) !important;
+  font-size: clamp(36px, 3.7vw, 54px) !important;
+  line-height: 1.02 !important;
+  text-wrap: balance;
+}
+
+.satori-nz-section-head > p:last-child,
+.satori-nz-section-head-row > p,
+.satori-nz-b2b-main > p:last-of-type,
+.satori-nz-form-copy > p:last-of-type {
+  color: var(--nz-muted);
+  font-size: 14px;
+  line-height: 1.7;
+}
+
+.satori-nz-card-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.satori-nz-photo-card {
+  position: relative;
+  min-width: 0;
+  height: 390px;
+  overflow: hidden;
+  border-radius: 30px;
+  background: #d8cec2;
+  scroll-margin-top: 148px;
+}
+
+.satori-nz-photo-card::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to top, rgba(13,10,8,.88) 0%, rgba(13,10,8,.08) 58%, transparent 75%);
+}
+
+.satori-nz-photo-card img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  transition: transform .6s cubic-bezier(.2,.7,.2,1);
+}
+
+.satori-nz-photo-card:hover img { transform: scale(1.035); }
+
+.satori-nz-photo-card > div {
+  position: absolute;
+  z-index: 2;
+  left: 24px;
+  right: 24px;
+  bottom: 24px;
+}
+
+.satori-nz-photo-card span {
+  display: block;
+  margin-bottom: 10px;
+  color: #cbb9a7;
+  font-size: 10px;
+}
+
+.satori-nz-photo-card h3 {
+  margin: 0;
+  color: #fff6ed;
+  font-family: "Playfair Display", serif;
+  font-size: 24px;
+  font-weight: 400;
+  line-height: 1.12;
+}
+
+.satori-nz-process {
+  padding: 44px;
+  border-radius: 36px;
+  background: #eee4d8;
+}
+
+.satori-nz-steps {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.satori-nz-steps article {
+  min-height: 244px;
+  padding: 24px 20px;
+  display: flex;
+  flex-direction: column;
+  border: 1px solid rgba(24,20,17,.08);
+  border-radius: 24px;
+  background: #f8f3ed;
+}
+
+.satori-nz-steps b {
+  margin-bottom: auto;
+  color: #9a8b7c;
+  font-size: 10px;
+  letter-spacing: .08em;
+}
+
+.satori-nz-steps h3 {
+  margin: 34px 0 7px;
+  font-size: 17px;
+  font-weight: 650;
+}
+
+.satori-nz-steps p {
+  min-height: 42px;
+  margin-bottom: 14px;
+  color: var(--nz-muted);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.satori-nz-steps small {
+  color: #3e352e;
+  font-size: 11px;
+  font-weight: 650;
+}
+
+.satori-nz-work-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 28px 16px;
+}
+
+.satori-nz-work { min-width: 0; }
+
+.satori-nz-work-media {
+  aspect-ratio: 4 / 3;
+  margin-bottom: 13px;
+  overflow: hidden;
+  border-radius: 25px;
+  background: #ddd2c5;
+}
+
+.satori-nz-work-media img {
+  width: 100%;
+  height: 100%;
+  display: block;
+  object-fit: cover;
+  transition: transform .6s cubic-bezier(.2,.7,.2,1);
+}
+
+.satori-nz-work:hover img { transform: scale(1.025); }
+
+.satori-nz-work > p {
+  margin: 0 4px;
+  color: #4f463e;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.satori-nz-b2b {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(360px, .75fr);
+  gap: 54px;
+  padding: 50px;
+  border-radius: 38px;
+  background: var(--nz-dark);
+  color: #f5eee7;
+}
+
+.satori-nz-b2b h2 { color: #f6efe8 !important; }
+
+.satori-nz-b2b-main > p:last-of-type {
+  max-width: 680px;
+  margin-bottom: 28px;
+  color: #bfb0a1;
+}
+
+.satori-nz-b2b-notes {
+  display: grid;
+  gap: 10px;
+}
+
+.satori-nz-b2b-notes > div {
+  padding: 20px 22px;
+  border: 1px solid rgba(255,255,255,.1);
+  border-radius: 20px;
+  background: rgba(255,255,255,.035);
+}
+
+.satori-nz-b2b-notes span {
+  display: block;
+  margin-bottom: 13px;
+  color: #9e8f81;
+  font-size: 9px;
+}
+
+.satori-nz-b2b-notes b {
+  display: block;
+  margin-bottom: 6px;
+  color: #f6efe8;
+  font-size: 14px;
+}
+
+.satori-nz-b2b-notes p {
+  margin: 0;
+  color: #b9aa9b;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.satori-nz-price {
+  padding: 46px;
+  border: 1px solid var(--nz-line);
+  border-radius: 34px;
+}
+
+.satori-nz-price-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  border-top: 1px solid var(--nz-line);
+}
+
+.satori-nz-price-grid article {
+  padding: 28px 26px 4px;
+  min-width: 0;
+}
+
+.satori-nz-price-grid article:not(:last-child) { border-right: 1px solid var(--nz-line); }
+
+.satori-nz-price-grid span {
+  display: block;
+  margin-bottom: 12px;
+  color: #847568;
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: .08em;
+}
+
+.satori-nz-price-grid strong {
+  display: block;
+  font-family: "Playfair Display", serif;
+  font-size: clamp(30px, 3vw, 44px);
+  font-weight: 400;
+  line-height: 1.05;
+}
+
+.satori-nz-form-section {
+  display: grid;
+  grid-template-columns: minmax(0, .8fr) minmax(0, 1.2fr);
+  gap: 70px;
+  align-items: start;
+}
+
+.satori-nz-form-copy {
+  position: sticky;
+  top: 154px;
+  padding-top: 14px;
+}
+
+.satori-nz-form-copy > p:last-of-type { max-width: 500px; }
+
+.satori-nz-messengers {
+  display: flex;
+  gap: 10px;
+  margin-top: 26px;
+}
+
+.satori-nz-messengers a {
+  min-height: 42px;
+  padding: 0 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #cfc1b4;
+  border-radius: 999px;
+  color: #231e1a;
+  font-size: 12px;
+  font-weight: 650;
+}
+
+.satori-nz-form-card {
+  padding: 34px;
+  border-radius: 30px;
+  background: #eee5da;
+}
+
+.satori-nz-form-card form {
+  display: grid;
+  gap: 18px;
+}
+
+.satori-nz-form-card label:not(.satori-nz-check) {
+  display: grid;
+  gap: 8px;
+  color: #76695d;
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: .1em;
+}
+
+.satori-nz-form-card label > span { color: #9a8d80; font-weight: 500; }
+
+.satori-nz-form-card input:not([type="checkbox"]),
+.satori-nz-form-card textarea {
+  width: 100%;
+  padding: 14px 15px;
+  border: 1px solid #d1c3b5 !important;
+  border-radius: 15px !important;
+  outline: none;
+  background: #fffaf4 !important;
+  color: var(--nz-ink) !important;
+  font: 400 14px/1.45 Inter, sans-serif;
+  letter-spacing: normal;
+}
+
+.satori-nz-form-card textarea { resize: vertical; min-height: 126px; }
+
+.satori-nz-file small {
+  color: #8b7f73;
+  font-size: 10px;
+  font-weight: 400;
+  letter-spacing: 0;
+}
+
+.satori-nz-check {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #3c342e;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.satori-nz-check input {
+  width: 18px;
+  height: 18px;
+  accent-color: #1b1714;
+}
+
+.satori-nz-form-status {
+  min-height: 18px;
+  margin: 0;
+  color: #71665d;
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.satori-nz-form-status.is-success { color: #355c40; }
+.satori-nz-form-status.is-error { color: #a2453f; }
+
+.satori-nz-submit {
+  width: fit-content;
+  background: var(--nz-dark) !important;
+  color: #f6efe8 !important;
+}
+
+.satori-nz-submit:disabled { opacity: .5; cursor: wait; }
+
+.satori-nz-privacy {
+  margin: -4px 0 0;
+  color: #8a7d71;
+  font-size: 10px;
+  line-height: 1.5;
+}
+
+.satori-nz-faq-list {
+  border-top: 1px solid var(--nz-line);
+}
+
+.satori-nz-faq details {
+  border-bottom: 1px solid var(--nz-line) !important;
+  border-radius: 0 !important;
+}
+
+.satori-nz-faq summary {
+  position: relative;
+  padding: 24px 46px 24px 2px;
+  list-style: none;
+  cursor: pointer;
+  color: #211c18;
+  font-size: 15px;
+  font-weight: 650;
+}
+
+.satori-nz-faq summary::-webkit-details-marker { display: none; }
+.satori-nz-faq summary::after {
+  content: "+";
+  position: absolute;
+  right: 6px;
+  top: 20px;
+  font-size: 24px;
+  font-weight: 300;
+}
+.satori-nz-faq details[open] summary::after { content: "−"; }
+
+.satori-nz-faq details p {
+  max-width: 780px;
+  margin: -6px 0 24px;
+  color: var(--nz-muted);
+  font-size: 13px;
+  line-height: 1.7;
+}
+
+@media (max-width: 1100px) {
+  .satori-nz-card-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .satori-nz-photo-card { height: 360px; }
+  .satori-nz-steps { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+  .satori-nz-b2b { grid-template-columns: 1fr; }
+  .satori-nz-b2b-notes { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+@media (max-width: 767px) {
+  .satori-nz-page { padding-top: 14px; padding-bottom: 42px; }
+
+  .satori-nz-hero,
+  .satori-nz-section,
+  .satori-nz-quick {
+    width: calc(100% - 32px);
+  }
+
+  .satori-nz-hero {
+    min-height: 660px;
+    border-radius: 28px;
+    background:
+      linear-gradient(to top, rgba(14,11,9,.94) 0%, rgba(14,11,9,.78) 38%, rgba(14,11,9,.16) 72%, rgba(14,11,9,.06) 100%),
+      var(--satori-nz-hero) center / cover no-repeat,
+      var(--nz-dark);
+  }
+
+  .satori-nz-hero-copy {
+    width: 100%;
+    min-height: 660px;
+    padding: 40px 24px 34px;
+    justify-content: flex-end;
+  }
+
+  .satori-nz-hero h1 {
+    font-size: clamp(40px, 12vw, 54px) !important;
+    line-height: .96 !important;
+  }
+
+  .satori-nz-lead { font-size: 14px; line-height: 1.55; }
+
+  .satori-nz-quick {
+    top: 68px;
+    width: 100%;
+    margin-top: 12px;
+    margin-bottom: 52px;
+    border-left: 0;
+    border-right: 0;
+    border-radius: 0;
+    padding-left: 16px;
+    padding-right: 16px;
+  }
+
+  .satori-nz-section { margin-bottom: 64px; scroll-margin-top: 118px; }
+  .satori-nz-section-head-row { display: block; }
+  .satori-nz-section-head-row > p { max-width: none; margin-top: 16px; }
+
+  .satori-nz-section-head h2,
+  .satori-nz-b2b h2,
+  .satori-nz-form-copy h2 {
+    font-size: 36px !important;
+  }
+
+  .satori-nz-card-grid { grid-template-columns: 1fr; }
+  .satori-nz-photo-card { height: 310px; scroll-margin-top: 118px; }
+
+  .satori-nz-process { padding: 26px 18px; border-radius: 28px; }
+  .satori-nz-steps { grid-template-columns: 1fr; }
+  .satori-nz-steps article { min-height: 0; }
+  .satori-nz-steps b { margin-bottom: 24px; }
+  .satori-nz-steps h3 { margin-top: 0; }
+  .satori-nz-steps p { min-height: 0; }
+
+  .satori-nz-work-grid { grid-template-columns: 1fr; gap: 24px; }
+
+  .satori-nz-b2b { padding: 30px 22px; gap: 34px; border-radius: 28px; }
+  .satori-nz-b2b-notes { grid-template-columns: 1fr; }
+
+  .satori-nz-price { padding: 28px 20px; border-radius: 26px; }
+  .satori-nz-price-grid { grid-template-columns: 1fr; }
+  .satori-nz-price-grid article { padding: 22px 0; }
+  .satori-nz-price-grid article:not(:last-child) { border-right: 0; border-bottom: 1px solid var(--nz-line); }
+
+  .satori-nz-form-section { grid-template-columns: 1fr; gap: 32px; }
+  .satori-nz-form-copy { position: static; padding-top: 0; }
+  .satori-nz-form-card { padding: 24px 18px; border-radius: 24px; }
+  .satori-nz-submit { width: 100%; }
+
+  .satori-nz-messengers { flex-wrap: wrap; }
+}
