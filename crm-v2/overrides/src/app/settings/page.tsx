@@ -123,7 +123,7 @@ export default function SettingsPage() {
   const [busy, setBusy] = useState<string | null>(null);
   const [origin, setOrigin] = useState("");
   const [openAiKey, setOpenAiKey] = useState("");
-  const [openAi, setOpenAi] = useState<{configured:boolean;masked:string;model:string}>({configured:false,masked:"",model:"gpt-5.4-mini"});
+  const [openAi, setOpenAi] = useState<{configured:boolean;masked:string;model:string;baseUrl:string}>({configured:false,masked:"",model:"gpt-5.4-mini",baseUrl:"https://api.openai.com/v1"});
 
   const loadIntegration = async () => {
     const response = await fetch("/api/integrations/settings", { cache: "no-store" });
@@ -331,7 +331,7 @@ export default function SettingsPage() {
   const saveOpenAi = async () => {
     setBusy("openai-save");
     try {
-      const response = await fetch("/api/integrations/openai", { method:"POST", headers:{"content-type":"application/json"}, body:JSON.stringify({apiKey:openAiKey,model:openAi.model}) });
+      const response = await fetch("/api/integrations/openai", { method:"POST", headers:{"content-type":"application/json"}, body:JSON.stringify({apiKey:openAiKey,model:openAi.model,baseUrl:openAi.baseUrl}) });
       const data = await response.json(); if(!response.ok) throw new Error(data.error || "Не удалось сохранить OpenAI");
       setOpenAi(data); setOpenAiKey(""); toast.success("OpenAI подключён");
     } catch(error){ toast.error(error instanceof Error ? error.message : "Ошибка OpenAI"); } finally { setBusy(null); }
@@ -550,7 +550,7 @@ export default function SettingsPage() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="rounded-lg bg-muted/50 p-3 text-sm">Вставь API key один раз. Он сохраняется на сервере CRM в зашифрованном виде и после сохранения полностью больше не показывается.</div>
-            <div className="grid gap-4 lg:grid-cols-[1fr_240px]">
+            <div className="grid gap-4 lg:grid-cols-3">
               <div className="space-y-2">
                 <Label>OpenAI API key</Label>
                 <Input type="password" autoComplete="new-password" placeholder={openAi.configured ? openAi.masked + " — вставь новый только для замены" : "sk-..."} value={openAiKey} onChange={e=>setOpenAiKey(e.target.value)} />
@@ -558,6 +558,11 @@ export default function SettingsPage() {
               <div className="space-y-2">
                 <Label>Модель AI-менеджера</Label>
                 <Input value={openAi.model} onChange={e=>setOpenAi(v=>({...v,model:e.target.value}))} />
+              </div>
+              <div className="space-y-2">
+                <Label>Base URL</Label>
+                <Input placeholder="https://api.openai.com/v1" value={openAi.baseUrl} onChange={e=>setOpenAi(v=>({...v,baseUrl:e.target.value}))} />
+                <p className="text-[11px] text-muted-foreground">Для стороннего API вставь адрес из инструкции продавца, обязательно с /v1.</p>
               </div>
             </div>
             <div className="flex flex-wrap gap-2">
