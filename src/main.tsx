@@ -37,6 +37,7 @@ import { startDesignerReadability } from "./designerReadability";
 import { startHomepageSectionStability } from "./homepageSectionStability";
 import { startNaZakazPage } from "./naZakazPage";
 import { startNaZakazSalesUpgrade } from "./naZakazSalesUpgrade";
+import { startNaZakazHqMedia } from "./naZakazHqMedia";
 
 const isAdmin = window.location.pathname.startsWith("/admin");
 if (!isAdmin) prepareSeoRoute();
@@ -68,6 +69,7 @@ if (!isAdmin) {
   startSeoRoutes();
   startNaZakazPage();
   startNaZakazSalesUpgrade();
+  startNaZakazHqMedia();
   startSeoEnhancements();
   startContactOverrides();
   startHeaderContactButton();
