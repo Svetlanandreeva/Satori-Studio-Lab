@@ -12,6 +12,7 @@ import "./styles/admin-crm-summary.css";
 import "./styles/page-transitions.css";
 import "./styles/na-zakaz.css";
 import "./styles/na-zakaz-sales.css";
+import "./styles/na-zakaz-original-media.css";
 import { startFeaturedSwitcher } from "./featuredSwitcher";
 import { startStorefrontEnhancements } from "./storefrontEnhancements";
 import { startBrandCopyEnhancements } from "./brandCopyEnhancements";
@@ -37,6 +38,7 @@ import { startDesignerReadability } from "./designerReadability";
 import { startHomepageSectionStability } from "./homepageSectionStability";
 import { startNaZakazPage } from "./naZakazPage";
 import { startNaZakazSalesUpgrade } from "./naZakazSalesUpgrade";
+import { startNaZakazOriginalMedia } from "./naZakazOriginalMedia";
 
 const isAdmin = window.location.pathname.startsWith("/admin");
 if (!isAdmin) prepareSeoRoute();
@@ -68,6 +70,7 @@ if (!isAdmin) {
   startSeoRoutes();
   startNaZakazPage();
   startNaZakazSalesUpgrade();
+  startNaZakazOriginalMedia();
   startSeoEnhancements();
   startContactOverrides();
   startHeaderContactButton();
