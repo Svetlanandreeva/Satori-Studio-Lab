@@ -2,6 +2,7 @@ import Database from "better-sqlite3";
 import fs from "fs";
 import path from "path";
 import { getClientDocument, listClientDocuments } from "@/lib/client-documents";
+import { getOpenAiKey, openAiSettings } from "@/lib/ai-settings";
 
 const DB_PATH = process.env.CRM_DB_PATH || path.join(process.cwd(), "data", "crm.db");
 const sqlite = new Database(DB_PATH, { timeout: 15000 });
@@ -39,9 +40,9 @@ function conversation(contactId: string) {
 }
 
 async function callOpenAI(input: unknown): Promise<AiDecision | null> {
-  const key = String(process.env.OPENAI_API_KEY || "").trim();
+  const key = getOpenAiKey();
   if (!key) return null;
-  const model = String(process.env.OPENAI_CRM_MODEL || "gpt-5.4-mini");
+  const model = openAiSettings().model;
   const response = await fetch("https://api.openai.com/v1/responses", {
     method: "POST",
     headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
@@ -85,12 +86,12 @@ export async function analyzeContactWithAi(contactId: string, options: { documen
   const selected = options.documentId ? await documentInput(options.documentId, contactId) : null;
 
   const payload: any = { contact, deals, conversation: conversation(contactId), documents: docs, selectedDocument: selected && !("dataUrl" in selected) ? selected : selected ? { name:selected.name,kind:selected.kind } : null };
-  const key = String(process.env.OPENAI_API_KEY || "").trim();
+  const key = getOpenAiKey();
   if (!key) return { configured:false, applied:false, message:"Добавьте OPENAI_API_KEY на сервер", context:payload };
 
   let decision: AiDecision | null;
   if (selected && "dataUrl" in selected) {
-    const model = String(process.env.OPENAI_CRM_MODEL || "gpt-5.4-mini");
+    const model = openAiSettings().model;
     const response = await fetch("https://api.openai.com/v1/responses", {
       method:"POST", headers:{Authorization:`Bearer ${key}`,"Content-Type":"application/json"},
       body:JSON.stringify({model,input:[{role:"system",content:[{type:"input_text",text:"Ты AI-менеджер SATORI CRM. Прочитай карточку, переписку и документ. Верни только JSON с полями summary, disposition, reason, nextStep, confidence, documentFacts. Не выдумывай факты."}]},{role:"user",content:[{type:"input_text",text:JSON.stringify(payload)},{type:"input_file",filename:selected.name,file_data:selected.dataUrl}]}],text:{format:{type:"json_object"}}})
