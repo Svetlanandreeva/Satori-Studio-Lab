@@ -122,6 +122,8 @@ export default function SettingsPage() {
   const [mail, setMail] = useState<MailForm>(emptyMail);
   const [busy, setBusy] = useState<string | null>(null);
   const [origin, setOrigin] = useState("");
+  const [openAiKey, setOpenAiKey] = useState("");
+  const [openAi, setOpenAi] = useState<{configured:boolean;masked:string;model:string}>({configured:false,masked:"",model:"gpt-5.4-mini"});
 
   const loadIntegration = async () => {
     const response = await fetch("/api/integrations/settings", { cache: "no-store" });
@@ -155,6 +157,7 @@ export default function SettingsPage() {
       .then(setStages)
       .catch(() => {});
     loadIntegration().catch((error) => toast.error(error.message));
+    fetch("/api/integrations/openai", { cache: "no-store" }).then(r => r.json()).then(setOpenAi).catch(() => {});
   }, []);
 
   const webhookUrl = useMemo(() => {
@@ -323,6 +326,23 @@ export default function SettingsPage() {
       username: current.username || current.address,
     }));
     toast.success("Серверы подставлены — проверь и сохрани");
+  };
+
+  const saveOpenAi = async () => {
+    setBusy("openai-save");
+    try {
+      const response = await fetch("/api/integrations/openai", { method:"POST", headers:{"content-type":"application/json"}, body:JSON.stringify({apiKey:openAiKey,model:openAi.model}) });
+      const data = await response.json(); if(!response.ok) throw new Error(data.error || "Не удалось сохранить OpenAI");
+      setOpenAi(data); setOpenAiKey(""); toast.success("OpenAI подключён");
+    } catch(error){ toast.error(error instanceof Error ? error.message : "Ошибка OpenAI"); } finally { setBusy(null); }
+  };
+  const testOpenAi = async () => {
+    setBusy("openai-test");
+    try {
+      const response=await fetch("/api/integrations/openai",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"test"})});
+      const data=await response.json(); if(!response.ok) throw new Error(data.error || "Проверка не пройдена");
+      setOpenAi(data); toast.success("OpenAI работает — AI-менеджер подключён");
+    } catch(error){toast.error(error instanceof Error?error.message:"Ошибка OpenAI");} finally{setBusy(null);}
   };
 
   const copyWebhook = async () => {
@@ -518,6 +538,37 @@ export default function SettingsPage() {
               <CheckCircle2 className="h-4 w-4" />
               Дубли проверяются по нормализованному номеру телефона.
             </div>
+          </CardContent>
+        </Card>
+
+        <Card className="xl:col-span-2">
+          <CardHeader>
+            <CardTitle className="text-base flex items-center justify-between gap-3">
+              <span className="flex items-center gap-2"><Bot className="h-4 w-4" /> ИИ-ассистент / OpenAI</span>
+              <Badge variant={openAi.configured ? "default" : "outline"}>{openAi.configured ? "Подключён" : "Не подключён"}</Badge>
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="rounded-lg bg-muted/50 p-3 text-sm">Вставь API key один раз. Он сохраняется на сервере CRM в зашифрованном виде и после сохранения полностью больше не показывается.</div>
+            <div className="grid gap-4 lg:grid-cols-[1fr_240px]">
+              <div className="space-y-2">
+                <Label>OpenAI API key</Label>
+                <Input type="password" autoComplete="new-password" placeholder={openAi.configured ? openAi.masked + " — вставь новый только для замены" : "sk-..."} value={openAiKey} onChange={e=>setOpenAiKey(e.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <Label>Модель AI-менеджера</Label>
+                <Input value={openAi.model} onChange={e=>setOpenAi(v=>({...v,model:e.target.value}))} />
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button onClick={saveOpenAi} disabled={busy!==null || (!openAiKey && !openAi.configured)}>
+                {busy==="openai-save" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} {openAi.configured ? "Сохранить / заменить" : "Подключить"}
+              </Button>
+              <Button variant="outline" onClick={testOpenAi} disabled={busy!==null || !openAi.configured}>
+                {busy==="openai-test" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ShieldCheck className="mr-2 h-4 w-4" />} Проверить соединение
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">Ключ используется сервером для разбора переписок, КП и документов. В браузер сохранённый ключ не возвращается.</p>
           </CardContent>
         </Card>
 
