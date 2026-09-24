@@ -2,7 +2,7 @@ import Database from "better-sqlite3";
 import fs from "fs";
 import path from "path";
 import { getClientDocument, listClientDocuments } from "@/lib/client-documents";
-import { getOpenAiKey, openAiSettings } from "@/lib/ai-settings";
+import { getOpenAiKey, getOpenAiBaseUrl, openAiSettings } from "@/lib/ai-settings";
 
 const DB_PATH = process.env.CRM_DB_PATH || path.join(process.cwd(), "data", "crm.db");
 const sqlite = new Database(DB_PATH, { timeout: 15000 });
@@ -43,7 +43,7 @@ async function callOpenAI(input: unknown): Promise<AiDecision | null> {
   const key = getOpenAiKey();
   if (!key) return null;
   const model = openAiSettings().model;
-  const response = await fetch("https://api.openai.com/v1/responses", {
+  const response = await fetch(`${getOpenAiBaseUrl()}/responses`, {
     method: "POST",
     headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
     body: JSON.stringify({
@@ -92,7 +92,7 @@ export async function analyzeContactWithAi(contactId: string, options: { documen
   let decision: AiDecision | null;
   if (selected && "dataUrl" in selected) {
     const model = openAiSettings().model;
-    const response = await fetch("https://api.openai.com/v1/responses", {
+    const response = await fetch(`${getOpenAiBaseUrl()}/responses`, {
       method:"POST", headers:{Authorization:`Bearer ${key}`,"Content-Type":"application/json"},
       body:JSON.stringify({model,input:[{role:"system",content:[{type:"input_text",text:"Ты AI-менеджер SATORI CRM. Прочитай карточку, переписку и документ. Верни только JSON с полями summary, disposition, reason, nextStep, confidence, documentFacts. Не выдумывай факты."}]},{role:"user",content:[{type:"input_text",text:JSON.stringify(payload)},{type:"input_file",filename:selected.name,file_data:selected.dataUrl}]}],text:{format:{type:"json_object"}}})
     });
