@@ -25,13 +25,18 @@ export function getOpenAiKey(){
   const env=String(process.env.OPENAI_API_KEY||"").trim(); if(env) return env;
   const v=row("openai_api_key_encrypted")?.value; if(!v)return ""; try{return decrypt(v)}catch{return ""}
 }
+export function getOpenAiBaseUrl(){
+  const raw=String(row("openai_base_url")?.value || process.env.OPENAI_BASE_URL || "https://api.openai.com/v1").trim();
+  return raw.replace(/\/+$/,"");
+}
 export function openAiSettings(){
   const key=getOpenAiKey(); const model=row("openai_crm_model")?.value || process.env.OPENAI_CRM_MODEL || "gpt-5.4-mini";
-  return {configured:Boolean(key),masked:key?`${key.slice(0,7)}••••••••${key.slice(-4)}`:"",model};
+  return {configured:Boolean(key),masked:key?`${key.slice(0,7)}••••••••${key.slice(-4)}`:"",model,baseUrl:getOpenAiBaseUrl()};
 }
-export function saveOpenAiSettings(key:string,model?:string){
+export function saveOpenAiSettings(key:string,model?:string,baseUrl?:string){
   if(key.trim()) sqlite.prepare("INSERT INTO crm_settings(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run("openai_api_key_encrypted",encrypt(key.trim()));
   if(model) sqlite.prepare("INSERT INTO crm_settings(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run("openai_crm_model",model);
+  if(baseUrl?.trim()) sqlite.prepare("INSERT INTO crm_settings(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run("openai_base_url",baseUrl.trim().replace(/\\\/+$/,""));
   return openAiSettings();
 }
 export function clearOpenAiKey(){sqlite.prepare("DELETE FROM crm_settings WHERE key='openai_api_key_encrypted'").run()}
