@@ -1,0 +1,58 @@
+/* Full-resolution media overrides for /na-zakaz.
+   These intentionally replace the earlier compressed sprite crops. */
+
+.satori-nz-page[data-satori-hq-media="1"] .satori-nz-real-media,
+.satori-nz-page[data-satori-hq-media="1"] .satori-nz-card-real {
+  background-repeat: no-repeat !important;
+  background-size: cover !important;
+  image-rendering: auto;
+}
+
+.satori-nz-page[data-satori-hq-media="1"] .satori-nz-real-hero,
+.satori-nz-page[data-satori-hq-media="1"] .satori-nz-card-real.satori-nz-real-hero {
+  background-image: var(--satori-hq-hero) !important;
+  background-position: center 42% !important;
+}
+
+.satori-nz-page[data-satori-hq-media="1"] .satori-nz-real-team,
+.satori-nz-page[data-satori-hq-media="1"] .satori-nz-card-real.satori-nz-real-team {
+  background-image: var(--satori-hq-team) !important;
+  background-position: 52% 58% !important;
+}
+
+.satori-nz-page[data-satori-hq-media="1"] .satori-nz-real-weld,
+.satori-nz-page[data-satori-hq-media="1"] .satori-nz-card-real.satori-nz-real-weld {
+  background-image: var(--satori-hq-weld) !important;
+  background-position: 38% 70% !important;
+}
+
+.satori-nz-page[data-satori-hq-media="1"] .satori-nz-real-chandelier,
+.satori-nz-page[data-satori-hq-media="1"] .satori-nz-card-real.satori-nz-real-chandelier {
+  background-image: var(--satori-hq-chandelier) !important;
+  background-position: center 48% !important;
+}
+
+.satori-nz-page[data-satori-hq-media="1"] .satori-nz-real-detail,
+.satori-nz-page[data-satori-hq-media="1"] .satori-nz-card-real.satori-nz-real-detail {
+  background-image: var(--satori-hq-detail) !important;
+  background-position: center 66% !important;
+}
+
+.satori-nz-page[data-satori-hq-media="1"] .satori-nz-hero.satori-nz-real-hero::before {
+  background-image: var(--satori-hq-hero) !important;
+  background-repeat: no-repeat !important;
+  background-size: cover !important;
+  background-position: center 42% !important;
+  transform: none !important;
+}
+
+@media (max-width: 760px) {
+  .satori-nz-page[data-satori-hq-media="1"] .satori-nz-hero.satori-nz-real-hero::before {
+    background-size: cover !important;
+    background-position: 43% center !important;
+  }
+
+  .satori-nz-page[data-satori-hq-media="1"] .satori-nz-real-team {
+    background-position: 46% center !important;
+  }
+}
