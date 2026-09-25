@@ -49,76 +49,72 @@
 }
 
 :root {
-  --background: #f6f7f9;
-  --foreground: #111827;
+  --background: #f3f4f6;
+  --foreground: #15171b;
   --card: #ffffff;
-  --card-foreground: #111827;
+  --card-foreground: #15171b;
   --popover: #ffffff;
-  --popover-foreground: #111827;
-  --primary: #0f172a;
+  --popover-foreground: #15171b;
+  --primary: #17191f;
   --primary-foreground: #ffffff;
-  --secondary: #f3f4f6;
+  --secondary: #eceef2;
   --secondary-foreground: #1f2937;
-  --muted: #f3f4f6;
-  --muted-foreground: #6b7280;
-  --accent: #f3f4f6;
-  --accent-foreground: #111827;
+  --muted: #eceef2;
+  --muted-foreground: #707782;
+  --accent: #eceef2;
+  --accent-foreground: #15171b;
   --destructive: #e11d48;
-  --border: #e5e7eb;
-  --input: #dfe3e8;
-  --ring: #64748b;
-  --chart-1: #111827;
-  --chart-2: #059669;
-  --chart-3: #d97706;
-  --chart-4: #7c3aed;
-  --chart-5: #64748b;
-  --radius: 0.82rem;
-  --sidebar: #ffffff;
-  --sidebar-foreground: #111827;
-  --sidebar-primary: #111827;
-  --sidebar-primary-foreground: #ffffff;
-  --sidebar-accent: #f3f4f6;
-  --sidebar-accent-foreground: #111827;
-  --sidebar-border: #e5e7eb;
-  --sidebar-ring: #64748b;
-  --success: #059669;
-  --success-foreground: #ffffff;
-  --warning: #d97706;
-  --warning-foreground: #ffffff;
+  --border: #e2e5ea;
+  --input: #d9dde4;
+  --ring: #7667ff;
+  --chart-1: #7667ff;
+  --chart-2: #15c7a3;
+  --chart-3: #f8a94f;
+  --chart-4: #d85cff;
+  --chart-5: #788294;
+  --radius: 0.95rem;
+  --sidebar: #17191f;
+  --sidebar-foreground: #f7f7f8;
+  --sidebar-primary: #ffffff;
+  --sidebar-primary-foreground: #17191f;
+  --sidebar-accent: rgba(255,255,255,.08);
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: rgba(255,255,255,.08);
+  --sidebar-ring: #8a7cff;
 }
 
 .dark {
-  --background: #0b0d10;
-  --foreground: #f8fafc;
-  --card: #15181d;
-  --card-foreground: #f8fafc;
-  --popover: #15181d;
-  --popover-foreground: #f8fafc;
-  --primary: #f8fafc;
-  --primary-foreground: #111827;
-  --secondary: #20242a;
-  --secondary-foreground: #f8fafc;
-  --muted: #20242a;
-  --muted-foreground: #9ca3af;
-  --accent: #20242a;
-  --accent-foreground: #f8fafc;
+  --background: #0f1115;
+  --foreground: #f6f7f9;
+  --card: #171a20;
+  --card-foreground: #f6f7f9;
+  --popover: #171a20;
+  --popover-foreground: #f6f7f9;
+  --primary: #f6f7f9;
+  --primary-foreground: #111318;
+  --secondary: #22262e;
+  --secondary-foreground: #f6f7f9;
+  --muted: #22262e;
+  --muted-foreground: #9ba2ae;
+  --accent: #22262e;
+  --accent-foreground: #f6f7f9;
   --destructive: #fb7185;
-  --border: rgba(255,255,255,.1);
+  --border: rgba(255,255,255,.09);
   --input: rgba(255,255,255,.14);
-  --ring: #94a3b8;
-  --chart-1: #f8fafc;
-  --chart-2: #34d399;
-  --chart-3: #fbbf24;
-  --chart-4: #a78bfa;
-  --chart-5: #94a3b8;
+  --ring: #8a7cff;
+  --chart-1: #9b8cff;
+  --chart-2: #35d8b4;
+  --chart-3: #ffb65f;
+  --chart-4: #e277ff;
+  --chart-5: #9aa4b5;
   --sidebar: #111318;
-  --sidebar-foreground: #f8fafc;
-  --sidebar-primary: #f8fafc;
-  --sidebar-primary-foreground: #111827;
-  --sidebar-accent: #20242a;
-  --sidebar-accent-foreground: #f8fafc;
-  --sidebar-border: rgba(255,255,255,.1);
-  --sidebar-ring: #94a3b8;
+  --sidebar-foreground: #f6f7f9;
+  --sidebar-primary: #ffffff;
+  --sidebar-primary-foreground: #111318;
+  --sidebar-accent: rgba(255,255,255,.08);
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: rgba(255,255,255,.08);
+  --sidebar-ring: #8a7cff;
 }
 
 @layer base {
@@ -126,15 +122,27 @@
   html { @apply font-sans; text-rendering: optimizeLegibility; }
   body { @apply bg-background text-foreground; }
   button, a, input, textarea, select { -webkit-tap-highlight-color: transparent; }
-  ::selection { background: #dbeafe; color: #0f172a; }
+  ::selection { background: #8a7cff; color: #fff; }
 }
 
 @layer components {
-  .app-surface {
-    background: rgba(255,255,255,.96);
-    border: 1px solid rgba(226,232,240,.85);
-    border-radius: 1.5rem;
-    box-shadow: 0 1px 2px rgba(15,23,42,.035), 0 12px 30px rgba(15,23,42,.025);
+  .studio-card {
+    @apply rounded-[24px] border border-black/[.055] bg-white shadow-[0_12px_40px_rgba(16,24,40,.035)] dark:border-white/[.08] dark:bg-[#171a20] dark:shadow-none;
+  }
+  .studio-card-soft {
+    @apply rounded-[22px] border border-black/[.045] bg-[#f8f8fa] dark:border-white/[.07] dark:bg-[#1c2027];
+  }
+  .studio-muted { @apply text-slate-500 dark:text-slate-400; }
+  .studio-title { @apply text-slate-950 dark:text-white; }
+  .studio-label { @apply text-[10px] font-semibold uppercase tracking-[.16em] text-slate-400 dark:text-slate-500; }
+  .studio-gradient {
+    background: linear-gradient(135deg,#7868ff 0%,#b05cff 52%,#ff6f91 100%);
+  }
+  .studio-gradient-text {
+    background: linear-gradient(100deg,#7767ff 0%,#be57ff 55%,#ff708d 100%);
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
   }
 }
 
@@ -143,29 +151,10 @@
 }
 
 @media (min-width: 1024px) {
-  [role="dialog"][class~="max-w-2xl"] {
-    width: min(58rem, calc(100vw - 3rem)) !important;
-    max-width: 58rem !important;
-  }
-
-  [role="dialog"][class~="max-w-2xl"] > .min-h-0.flex-1.overflow-y-auto > .space-y-5 {
-    display: grid;
-    grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
-    gap: 1rem;
-    align-items: start;
-  }
-
-  [role="dialog"][class~="max-w-2xl"] > .min-h-0.flex-1.overflow-y-auto > .space-y-5 > * {
-    margin-top: 0 !important;
-  }
-
+  [role="dialog"][class~="max-w-2xl"] { width: min(58rem, calc(100vw - 3rem)) !important; max-width: 58rem !important; }
+  [role="dialog"][class~="max-w-2xl"] > .min-h-0.flex-1.overflow-y-auto > .space-y-5 { display: grid; grid-template-columns: minmax(0, 1.15fr) minmax(0, .85fr); gap: 1rem; align-items: start; }
+  [role="dialog"][class~="max-w-2xl"] > .min-h-0.flex-1.overflow-y-auto > .space-y-5 > * { margin-top: 0 !important; }
   [role="dialog"][class~="max-w-2xl"] > .min-h-0.flex-1.overflow-y-auto > .space-y-5 > :first-child,
-  [role="dialog"][class~="max-w-2xl"] > .min-h-0.flex-1.overflow-y-auto > .space-y-5 > :nth-child(n+4) {
-    grid-column: 1 / -1;
-  }
-
-  [role="dialog"][class~="max-w-2xl"] > .min-h-0.flex-1.overflow-y-auto > .space-y-5 > :nth-child(3) {
-    grid-column: 2;
-    grid-row: 2;
-  }
+  [role="dialog"][class~="max-w-2xl"] > .min-h-0.flex-1.overflow-y-auto > .space-y-5 > :nth-child(n+4) { grid-column: 1 / -1; }
+  [role="dialog"][class~="max-w-2xl"] > .min-h-0.flex-1.overflow-y-auto > .space-y-5 > :nth-child(3) { grid-column: 2; grid-row: 2; }
 }
