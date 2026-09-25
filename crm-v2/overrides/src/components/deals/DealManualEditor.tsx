@@ -1,15 +1,16 @@
 "use client";
-import {useState} from "react";
+import {useEffect,useState} from "react";
 import {useRouter} from "next/navigation";
 
-export function DealManualEditor({dealId,value,receivedAmount,stageId,stages,lossReason}:{dealId:string;value:number;receivedAmount:number;stageId:string;stages:Array<{id:string;name:string;isLost:boolean}>;lossReason?:string|null}){
+export function DealManualEditor({dealId,value,stageId,stages,lossReason}:{dealId:string;value:number;stageId:string;stages:Array<{id:string;name:string;isLost:boolean}>;lossReason?:string|null}){
  const r=useRouter();
  const [v,setV]=useState(String((value||0)/100));
- const [received,setReceived]=useState(String((receivedAmount||0)/100));
+ const [received,setReceived]=useState("0");
  const [s,setS]=useState(stageId);
  const [reason,setReason]=useState(lossReason||"");
  const [busy,setBusy]=useState(false);
  const selected=stages.find(x=>x.id===s);
+ useEffect(()=>{fetch("/api/deals/"+dealId,{cache:"no-store"}).then(x=>x.json()).then(data=>setReceived(String((Number(data?.economics?.receivedAmount)||0)/100))).catch(()=>{})},[dealId]);
  function rubles(value:string){return Math.max(0,Math.round((Number(value.replace(/\s/g,"").replace(",","."))||0)*100))}
  async function save(){
    setBusy(true);
