@@ -5,6 +5,7 @@ import { eq } from "drizzle-orm";
 import { pushDealStageToStorefront } from "@/lib/store-orders";
 import { annotateLatestStageHistory, writeAuditLog } from "@/lib/operations";
 import { getRequestActor } from "@/lib/request-actor";
+import { lockDealFields } from "@/lib/deal-overrides";
 
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -60,6 +61,13 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
   }
 
   const result = db.update(deals).set(updateData).where(eq(deals.id, id)).returning().get();
+
+  // Any manual edit wins over future AI automation until explicitly unlocked.
+  lockDealFields(id, {
+    value: body.value !== undefined ? true : undefined,
+    stage: body.stageId !== undefined ? true : undefined,
+    title: body.title !== undefined ? true : undefined,
+  });
 
   if (body.stageId !== undefined && stage && String(existing.stageId) !== String(stage.id)) {
     annotateLatestStageHistory(id, {
