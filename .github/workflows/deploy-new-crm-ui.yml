@@ -45,11 +45,7 @@ jobs:
       - name: Upload new CRM application
         run: |
           ssh root@194.226.97.103 'mkdir -p /var/www/satori/crm-new-ui'
-          rsync -az --delete \
-            --exclude node_modules/ \
-            --exclude src/ \
-            --exclude .git/ \
-            /tmp/satori-new-crm/dist/ root@194.226.97.103:/var/www/satori/crm-new-ui/dist/
+          rsync -az --delete /tmp/satori-new-crm/dist/ root@194.226.97.103:/var/www/satori/crm-new-ui/dist/
           rsync -az /tmp/satori-new-crm/server.js /tmp/satori-new-crm/package.json root@194.226.97.103:/var/www/satori/crm-new-ui/
           scp /tmp/new-crm-sha root@194.226.97.103:/var/www/satori/crm-new-ui/VERSION
 
@@ -57,8 +53,9 @@ jobs:
         run: |
           ssh root@194.226.97.103 'bash -se' <<'REMOTE'
           set -eu
+          export PATH=/opt/node22/bin:$PATH
           cd /var/www/satori/crm-new-ui
-          npm install --omit=dev --legacy-peer-deps --no-audit --no-fund
+          /opt/node22/bin/npm install --omit=dev --legacy-peer-deps --no-audit --no-fund
 
           cat >/etc/systemd/system/satori-crm-ui.service <<'UNIT'
           [Unit]
@@ -71,10 +68,11 @@ jobs:
           ExecStart=/opt/node22/bin/node /var/www/satori/crm-new-ui/server.js
           Restart=always
           RestartSec=3
+          EnvironmentFile=-/var/www/satori/.env
           Environment=NODE_ENV=production
           Environment=PORT=3030
           Environment=HOST=127.0.0.1
-          EnvironmentFile=-/var/www/satori/.env
+          Environment=PATH=/opt/node22/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
 
           [Install]
           WantedBy=multi-user.target
@@ -84,7 +82,11 @@ jobs:
           systemctl enable satori-crm-ui >/dev/null 2>&1 || true
           systemctl restart satori-crm-ui
           systemctl is-active --quiet satori-crm-ui
-          curl --fail --silent --show-error --retry 15 --retry-connrefused --retry-delay 2 http://127.0.0.1:3030/ | grep -qi '<html'
+          if ! curl --fail --silent --show-error --retry 12 --retry-connrefused --retry-delay 2 http://127.0.0.1:3030/ | grep -qi '<html'; then
+            systemctl status satori-crm-ui --no-pager || true
+            journalctl -u satori-crm-ui -n 80 --no-pager || true
+            exit 1
+          fi
           REMOTE
 
       - name: Switch Satori CRM domain to new interface and preserve old API
@@ -94,7 +96,9 @@ jobs:
           cfg=/etc/nginx/conf.d/satori-crm.conf
           test -f "$cfg"
           systemctl is-active --quiet satori-crm-v2
+          systemctl is-active --quiet satori-crm-ui
           curl --fail --silent http://127.0.0.1:3020/api/deals >/dev/null
+          curl --fail --silent http://127.0.0.1:3030/ >/dev/null
 
           stamp=$(date +%Y%m%d-%H%M%S)
           mkdir -p /var/backups/satori-crm-ui-$stamp
@@ -110,24 +114,21 @@ jobs:
           end='# SATORI NEW CRM UI ROUTING END'
           s=re.sub(r'\n?\s*'+re.escape(start)+r'.*?'+re.escape(end)+r'\s*\n?', '\n', s, flags=re.S)
 
-          marker='    location / {\n'
-          if marker not in s:
-              raise SystemExit('CRM root location not found')
+          roots=list(re.finditer(r'(?ms)^(?P<i>\s*)location / \{.*?^(?P=i)\}', s))
+          target=None
+          for m in roots:
+              if 'proxy_pass http://127.0.0.1:3020;' in m.group(0) or 'proxy_pass http://127.0.0.1:3030;' in m.group(0):
+                  target=m
+                  break
+          if not target:
+              raise SystemExit('CRM root proxy location not found')
 
-          routing='''    # SATORI NEW CRM UI ROUTING BEGIN\n    location = /api/next-best-action {\n        proxy_pass http://127.0.0.1:3030;\n        proxy_http_version 1.1;\n        proxy_set_header Host $host;\n        proxy_set_header X-Forwarded-Proto $scheme;\n        proxy_set_header X-Real-IP $remote_addr;\n        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n    }\n\n    location ^~ /api/ {\n        proxy_pass http://127.0.0.1:3020;\n        proxy_http_version 1.1;\n        proxy_set_header Host $host;\n        proxy_set_header X-Forwarded-Proto $scheme;\n        proxy_set_header X-Real-IP $remote_addr;\n        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n    }\n    # SATORI NEW CRM UI ROUTING END\n\n'''
-          s=s.replace(marker, routing+marker, 1)
+          indent=target.group('i')
+          routing=f'''{indent}# SATORI NEW CRM UI ROUTING BEGIN\n{indent}location = /api/next-best-action {{\n{indent}    proxy_pass http://127.0.0.1:3030;\n{indent}    proxy_http_version 1.1;\n{indent}    proxy_set_header Host $host;\n{indent}    proxy_set_header X-Forwarded-Proto $scheme;\n{indent}    proxy_set_header X-Real-IP $remote_addr;\n{indent}    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n{indent}}}\n\n{indent}location ^~ /api/ {{\n{indent}    proxy_pass http://127.0.0.1:3020;\n{indent}    proxy_http_version 1.1;\n{indent}    proxy_set_header Host $host;\n{indent}    proxy_set_header X-Forwarded-Proto $scheme;\n{indent}    proxy_set_header X-Real-IP $remote_addr;\n{indent}    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n{indent}}}\n{indent}# SATORI NEW CRM UI ROUTING END\n\n'''
 
-          root_match=re.search(r'(?ms)^\s*location / \{.*?^\s*\}', s)
-          if not root_match:
-              raise SystemExit('CRM root location block not found')
-          block=root_match.group(0)
-          if 'proxy_pass http://127.0.0.1:3020;' in block:
-              block=block.replace('proxy_pass http://127.0.0.1:3020;','proxy_pass http://127.0.0.1:3030;',1)
-          elif 'proxy_pass http://127.0.0.1:3010;' in block:
-              block=block.replace('proxy_pass http://127.0.0.1:3010;','proxy_pass http://127.0.0.1:3030;',1)
-          elif 'proxy_pass http://127.0.0.1:3030;' not in block:
-              raise SystemExit('Expected root proxy_pass not found')
-          s=s[:root_match.start()]+block+s[root_match.end():]
+          block=target.group(0)
+          block=block.replace('proxy_pass http://127.0.0.1:3020;','proxy_pass http://127.0.0.1:3030;',1)
+          s=s[:target.start()]+routing+block+s[target.end():]
           p.write_text(s)
           PY
 
