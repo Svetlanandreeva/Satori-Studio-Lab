@@ -6,6 +6,7 @@ import { contacts, emailMessages, emailThreads } from "@/db/schema";
 import { getEmailConfig, isEmailConfigured } from "@/lib/email-integration";
 import { detectClientDocumentKind, saveClientDocument } from "@/lib/client-documents";
 import { getSetting, setSetting } from "@/lib/satori-integrations";
+import { analyzeContactWithAi } from "@/lib/ai-manager";
 
 const BACKFILL_KEY = "satori_email_attachment_backfill_done";
 
@@ -94,7 +95,7 @@ async function importMessageAttachments(input: {
         sourceDirection: direction,
         createdAt: receivedAt,
       });
-      if (saved) imported += 1;
+      if (saved) { imported += 1; void analyzeContactWithAi(contactId, { documentId: saved.id, apply: true }).catch((error)=>console.warn("AI document analysis skipped", rawName, error instanceof Error ? error.message : error)); }
     } catch (error) {
       console.warn("Email attachment skipped", rawName, error instanceof Error ? error.message : error);
     }
