@@ -7,6 +7,7 @@ import { getEmailConfig, isEmailConfigured } from "@/lib/email-integration";
 import { detectClientDocumentKind, saveClientDocument } from "@/lib/client-documents";
 import { getSetting, setSetting } from "@/lib/satori-integrations";
 import { analyzeContactWithAi } from "@/lib/ai-manager";
+import { promoteEmailThreadToCrm } from "@/lib/email-crm-policy";
 
 const BACKFILL_KEY = "satori_email_attachment_backfill_done";
 
@@ -37,6 +38,17 @@ function findContactId(remoteEmail: string, messageId: string): string | null {
   if (existingMessage) {
     const thread = db.select().from(emailThreads).where(eq(emailThreads.id, existingMessage.threadId)).get();
     if (thread?.contactId) return thread.contactId;
+
+    // A real correspondence with a useful attachment is a business lead.
+    // Promote only non-service mail so the attachment can be stored, shown in the
+    // conversation and analyzed by the AI manager without a manual "Добавить в CRM".
+    if (thread && !thread.isService) {
+      try {
+        return promoteEmailThreadToCrm(thread.id).contact.id;
+      } catch (error) {
+        console.warn("Email attachment lead promotion skipped", remoteEmail, error instanceof Error ? error.message : error);
+      }
+    }
   }
 
   const normalized = remoteEmail.trim().toLowerCase();
