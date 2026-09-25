@@ -64,7 +64,7 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
   return (
     <div className="mx-auto max-w-[1280px] space-y-5 pb-10">
       <div className="flex flex-wrap items-center gap-3">
-        <Link href={deal.contactId ? `/contacts/${deal.contactId}` : "/pipeline"}><Button variant="ghost" size="icon" className="rounded-xl"><ArrowLeft className="h-5 w-5" /></Button></Link>
+        <Link href="/deals"><Button variant="ghost" size="icon" className="rounded-xl" aria-label="Назад к сделкам"><ArrowLeft className="h-5 w-5" /></Button></Link>
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2">
             <h1 className="truncate text-2xl font-semibold tracking-tight text-slate-950">{deal.title}</h1>
