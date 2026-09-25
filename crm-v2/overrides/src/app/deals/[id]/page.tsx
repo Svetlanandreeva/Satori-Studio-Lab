@@ -15,6 +15,7 @@ import { getDealProcurementSummary, listDealPurchases } from "@/lib/procurement"
 import { DealConversation } from "@/components/deals/DealConversation";
 import { listClientDocuments } from "@/lib/client-documents";
 import { dealConversationContext } from "@/lib/deal-intelligence";
+import { DealManualEditor } from "@/components/deals/DealManualEditor";
 
 export const dynamic = "force-dynamic";
 
@@ -46,7 +47,7 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
     id: deals.id, title: deals.title, value: deals.value, probability: deals.probability, notes: deals.notes,
     ownerId: deals.ownerId, lossReason: deals.lossReason, createdAt: deals.createdAt, updatedAt: deals.updatedAt,
     contactId: contacts.id, contactName: contacts.name, company: contacts.company,
-    stageName: pipelineStages.name, stageColor: pipelineStages.color, isWon: pipelineStages.isWon, isLost: pipelineStages.isLost,
+    stageId: deals.stageId, stageName: pipelineStages.name, stageColor: pipelineStages.color, isWon: pipelineStages.isWon, isLost: pipelineStages.isLost,
     ownerName: teamMembers.name,
   }).from(deals)
     .leftJoin(contacts, eq(deals.contactId, contacts.id))
@@ -55,6 +56,7 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
     .where(eq(deals.id, id)).get();
   if (!deal) notFound();
 
+  const stageOptions=db.select({id:pipelineStages.id,name:pipelineStages.name,isLost:pipelineStages.isLost}).from(pipelineStages).orderBy(pipelineStages.order).all();
   const economics = calculateDealFinancials({ ...(getDealEconomics(id) || {}), dealId: id, dealValue: deal.value });
   const procurement = listDealPurchases(id);
   const procurementSummary = getDealProcurementSummary(id);
@@ -79,6 +81,8 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
           <div className="mt-1 text-sm text-slate-500">{deal.contactName || "Без клиента"}{deal.company ? ` · ${deal.company}` : ""}</div>
         </div>
       </div>
+
+      <DealManualEditor dealId={deal.id} value={effectiveDeal.value} stageId={deal.stageId} stages={stageOptions} lossReason={deal.lossReason}/>
 
       <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4 2xl:grid-cols-7">
         <Metric label="Сумма сделки" value={money(deal.value)} />
