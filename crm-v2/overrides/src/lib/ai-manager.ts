@@ -30,7 +30,7 @@ function lostStageId(): string | null {
   const row = sqlite.prepare(`
     SELECT id FROM pipeline_stages
     WHERE COALESCE(is_lost,0)=1 OR lower(name) LIKE '%отказ%'
-    ORDER BY COALESCE(is_lost,0) DESC, position DESC LIMIT 1
+    ORDER BY COALESCE(is_lost,0) DESC, "order" DESC LIMIT 1
   `).get() as { id?: string } | undefined;
   return row?.id || null;
 }
@@ -127,7 +127,7 @@ export async function analyzeContactWithAi(contactId: string, options: { documen
         sqlite.prepare("UPDATE contacts SET qualification='qualified',updated_at=? WHERE id=?").run(Date.now(), contactId);
         const activeDeal = sqlite.prepare(`SELECT d.id FROM deals d JOIN pipeline_stages ps ON ps.id=d.stage_id WHERE d.contact_id=? AND COALESCE(ps.is_won,0)=0 AND COALESCE(ps.is_lost,0)=0 LIMIT 1`).get(contactId) as {id?:string}|undefined;
         if (!activeDeal?.id) {
-          const firstStage = sqlite.prepare("SELECT id FROM pipeline_stages WHERE COALESCE(is_won,0)=0 AND COALESCE(is_lost,0)=0 ORDER BY position ASC LIMIT 1").get() as {id?:string}|undefined;
+          const firstStage = sqlite.prepare("SELECT id FROM pipeline_stages WHERE COALESCE(is_won,0)=0 AND COALESCE(is_lost,0)=0 ORDER BY "order" ASC LIMIT 1").get() as {id?:string}|undefined;
           if (firstStage?.id) sqlite.prepare("INSERT INTO deals(id,title,value,stage_id,contact_id,probability,notes,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)")
             .run(crypto.randomUUID(), decision.summary?.slice(0,100) || "Новая заявка", 0, firstStage.id, contactId, 20, decision.nextStep || null, Date.now(), Date.now());
         }
