@@ -11,8 +11,13 @@ function money(v:number){return new Intl.NumberFormat("ru-RU",{style:"currency",
 function date(v:Date|number){return new Intl.DateTimeFormat("ru-RU").format(v instanceof Date?v:new Date(v))}
 export default async function DealsPage(){
  await reconcileDeals();
- const rows=db.select({id:deals.id,title:deals.title,value:deals.value,createdAt:deals.createdAt,updatedAt:deals.updatedAt,contactName:contacts.name,contactSource:contacts.source,qualification:contacts.qualification,stageName:pipelineStages.name,stageColor:pipelineStages.color,isLost:pipelineStages.isLost})
- .from(deals).leftJoin(contacts,eq(deals.contactId,contacts.id)).leftJoin(pipelineStages,eq(deals.stageId,pipelineStages.id)).orderBy(desc(deals.updatedAt)).all().filter(d=>d.contactSource!=="need_number" && !["spam","unqualified","ignore"].includes(String(d.qualification||"").toLowerCase()));
+ const rows=db.select({id:deals.id,title:deals.title,value:deals.value,createdAt:deals.createdAt,updatedAt:deals.updatedAt,contactName:contacts.name,contactSource:contacts.source,qualification:contacts.qualification,stageName:pipelineStages.name,stageColor:pipelineStages.color,isLost:pipelineStages.isLost,notes:deals.notes})
+ .from(deals).leftJoin(contacts,eq(deals.contactId,contacts.id)).leftJoin(pipelineStages,eq(deals.stageId,pipelineStages.id)).orderBy(desc(deals.updatedAt)).all().filter(d=>{
+   if(d.contactSource==="need_number"||["spam","unqualified","ignore"].includes(String(d.qualification||"").toLowerCase())) return false;
+   const hay=(String(d.title||"")+" "+String(d.contactName||"")+" "+String(d.notes||"")).toLowerCase();
+   if(/elama|e-lama|ai-маркетолог|ticket#|mailer-daemon|no-reply|noreply/.test(hay)) return false;
+   return true;
+ });
  return <div className="mx-auto max-w-[1480px] space-y-5 pb-10">
   <div><h1 className="text-3xl font-semibold tracking-tight">Сделки</h1><p className="mt-1 text-sm text-slate-500">Все заказы в одном списке: дата, клиент, статус и сумма.</p></div>
   <div className="overflow-hidden rounded-[24px] border border-slate-200/80 bg-white shadow-sm">
