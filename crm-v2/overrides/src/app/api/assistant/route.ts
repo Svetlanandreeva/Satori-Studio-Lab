@@ -3,6 +3,7 @@ import { saveChannelSpend } from "@/lib/assistant";
 import { enrichContactsFromDialogs } from "@/lib/contact-intelligence";
 import { getDailyManagementBrief } from "@/lib/assistant-daily";
 import { getSanitizedAssistantState, runAssistantSafely } from "@/lib/assistant-runtime";
+import { chatWithCrmManager } from "@/lib/assistant-chat";
 
 export const dynamic = "force-dynamic";
 
@@ -35,6 +36,11 @@ export async function POST(request: NextRequest) {
     let body: Record<string, unknown> = {};
     try { body = (await request.json()) as Record<string, unknown>; } catch {}
     const action = String(body.action || "run");
+    if (action === "chat") {
+      const message=String(body.message||"").trim();
+      if(!message) return NextResponse.json({error:"Напишите задачу для AI-менеджера"},{status:400});
+      return NextResponse.json(await chatWithCrmManager(message));
+    }
     if (action === "spend") {
       saveChannelSpend({
         channel: String(body.channel || ""),
