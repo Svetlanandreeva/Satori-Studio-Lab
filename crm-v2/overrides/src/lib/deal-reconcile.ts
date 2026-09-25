@@ -1,97 +1,33 @@
 import Database from "better-sqlite3";
 import path from "path";
-import { analyzeDealWithAi, dealAiNeedsRefresh } from "@/lib/deal-ai";
 
-const sqlite = new Database(process.env.CRM_DB_PATH || path.join(process.cwd(), "data", "crm.db"), { timeout: 15000 });
+const sqlite=new Database(process.env.CRM_DB_PATH||path.join(process.cwd(),"data","crm.db"),{timeout:15000});
 
-function normalizedTitle(value: unknown): string {
-  return String(value || "")
-    .toLowerCase()
-    .replace(/^\s*(re|fw|fwd):\s*/gi, "")
-    .replace(/\[ticket[^\]]*\]/gi, "")
-    .replace(/коммерческ(?:ое|ого)? предложение/gi, "")
-    .replace(/[^a-zа-яё0-9]+/gi, " ")
-    .replace(/\s+/g, " ")
-    .trim();
-}
+function normalizedTitle(value:unknown){return String(value||"").toLowerCase().replace(/^\s*(re|fw|fwd):\s*/gi,"").replace(/\[ticket[^\]]*\]/gi,"").replace(/коммерческ(?:ое|ого)? предложение/gi,"").replace(/[^a-zа-яё0-9]+/gi," ").replace(/\s+/g," ").trim()}
+function generic(title:string){return !title||["запрос","запрос кп","новая заявка","заказ","кп"].includes(title)}
 
-function repairEmailOwnership(): number {
-  let repaired = 0;
-  const threads = sqlite.prepare(`SELECT id,remote_email AS remoteEmail,contact_id AS contactId FROM email_threads`).all() as any[];
-  const contacts = sqlite.prepare(`SELECT id,email FROM contacts WHERE email IS NOT NULL AND trim(email)<>''`).all() as any[];
-  const byEmail = new Map(contacts.map((contact) => [String(contact.email).trim().toLowerCase(), contact.id]));
-
-  for (const thread of threads) {
-    const expectedContactId = byEmail.get(String(thread.remoteEmail || "").trim().toLowerCase());
-    if (!expectedContactId || expectedContactId === thread.contactId) continue;
-    sqlite.prepare("UPDATE email_threads SET contact_id=?,updated_at=? WHERE id=?").run(expectedContactId, Date.now(), thread.id);
-    repaired += 1;
-  }
-
-  try {
-    sqlite.exec(`
-      UPDATE client_documents
-      SET contact_id = (
-        SELECT et.contact_id
-        FROM email_messages em
-        JOIN email_threads et ON et.id=em.thread_id
-        WHERE em.message_id=client_documents.source_message_id
-        LIMIT 1
-      )
-      WHERE source_channel='email'
-        AND source_message_id IS NOT NULL
-        AND EXISTS (
-          SELECT 1
-          FROM email_messages em
-          JOIN email_threads et ON et.id=em.thread_id
-          WHERE em.message_id=client_documents.source_message_id
-            AND et.contact_id IS NOT NULL
-            AND et.contact_id<>client_documents.contact_id
-        );
-    `);
-  } catch {}
-  return repaired;
-}
-
-export async function reconcileDeals() {
-  const repairedThreads = repairEmailOwnership();
-
-  const rows = sqlite.prepare(`SELECT d.id,d.title,d.contact_id AS contactId,d.value,d.updated_at AS updatedAt FROM deals d ORDER BY d.updated_at DESC`).all() as any[];
-
-  // Merge only exact duplicate deal titles inside the same contact.
-  const groups = new Map<string, any[]>();
-  for (const row of rows) {
-    const title = normalizedTitle(row.title);
-    if (!title || ["запрос", "запрос кп", "новая заявка"].includes(title)) continue;
-    const key = `${row.contactId}:${title}`;
-    const group = groups.get(key) || [];
-    group.push(row);
-    groups.set(key, group);
-  }
-
-  let merged = 0;
-  for (const group of groups.values()) {
-    if (group.length < 2) continue;
-    const primary = group.sort((a, b) => Number(b.updatedAt) - Number(a.updatedAt))[0];
-    for (const duplicate of group) {
-      if (duplicate.id === primary.id) continue;
-      sqlite.prepare("DELETE FROM deals WHERE id=?").run(duplicate.id);
-      merged += 1;
-    }
-  }
-
-  // AI is now strictly deal-scoped. Never re-analyze an entire contact from this page.
-  const currentDeals = sqlite.prepare(`SELECT id FROM deals ORDER BY updated_at DESC LIMIT 60`).all() as Array<{ id: string }>;
-  let analyzed = 0;
-  for (const row of currentDeals) {
-    try {
-      if (!dealAiNeedsRefresh(row.id)) continue;
-      await analyzeDealWithAi(row.id, true);
-      analyzed += 1;
-    } catch (error) {
-      console.error("Deal AI reconcile failed", row.id, error);
-    }
-  }
-
-  return { merged, repairedThreads, analyzed };
+export function reconcileDeals(){
+ const rows=sqlite.prepare(`SELECT d.id,d.title,d.contact_id AS contactId,d.value,d.updated_at AS updatedAt FROM deals d ORDER BY d.updated_at DESC`).all() as any[];
+ const groups=new Map<string,any[]>();
+ for(const row of rows){
+   const title=normalizedTitle(row.title);
+   if(generic(title))continue;
+   // Merge only provable duplicates: same client card + same normalized deal title.
+   // Never merge different contacts merely because the wording looks similar.
+   const key=`${row.contactId}:${title}`;
+   const group=groups.get(key)||[];group.push(row);groups.set(key,group);
+ }
+ let merged=0;
+ for(const group of groups.values()){
+   if(group.length<2)continue;
+   // Keep the record with a manually entered amount first; otherwise the newest.
+   const primary=[...group].sort((a,b)=>Number(Boolean(b.value))-Number(Boolean(a.value))||Number(b.updatedAt)-Number(a.updatedAt))[0];
+   for(const duplicate of group){
+     if(duplicate.id===primary.id)continue;
+     // Preserve history/documents on the contact. Only the duplicate deal row is removed.
+     sqlite.prepare("DELETE FROM deals WHERE id=?").run(duplicate.id);
+     merged+=1;
+   }
+ }
+ return{merged};
 }
