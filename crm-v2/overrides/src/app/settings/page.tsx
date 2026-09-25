@@ -23,6 +23,8 @@ import {
   Send,
   ShieldCheck,
   WandSparkles,
+  ChevronDown,
+  Activity,
 } from "lucide-react";
 import { toast } from "sonner";
 
@@ -126,6 +128,12 @@ export default function SettingsPage() {
   const [openAiModels, setOpenAiModels] = useState<string[]>([]);
   const [openAiModelsError, setOpenAiModelsError] = useState("");
   const [openAi, setOpenAi] = useState<{configured:boolean;masked:string;model:string;baseUrl:string}>({configured:false,masked:"",model:"gpt-5.4-mini",baseUrl:"https://api.openai.com/v1"});
+  const [openSections,setOpenSections]=useState<Record<string,boolean>>({ai:true});
+  const [health,setHealth]=useState<Record<string,"ok"|"error"|"unknown">>({telegram:"unknown",email:"unknown",ai:"unknown",need:"unknown"});
+  const toggleSection=(key:string)=>setOpenSections(v=>({...v,[key]:!v[key]}));
+  const statusBadge=(state:"ok"|"error"|"unknown",configured:boolean,label="Подключено") => (
+    <Badge variant={state==="error"?"destructive":configured?"default":"outline"}>{state==="error"?"Ошибка":configured?(state==="ok"?label:"Настроено"):"Не подключено"}</Badge>
+  );
 
   const loadIntegration = async () => {
     const response = await fetch("/api/integrations/settings", { cache: "no-store" });
@@ -218,9 +226,9 @@ export default function SettingsPage() {
       const response = await fetch("/api/integrations/telegram/test", { method: "POST" });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Тест Telegram не прошёл");
-      toast.success("Тестовое сообщение отправлено в Telegram");
+      setHealth(v=>({...v,telegram:"ok"})); toast.success("Тестовое сообщение отправлено в Telegram");
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Ошибка Telegram");
+      setHealth(v=>({...v,telegram:"error"})); toast.error(error instanceof Error ? error.message : "Ошибка Telegram");
     } finally {
       setBusy(null);
     }
@@ -296,10 +304,10 @@ export default function SettingsPage() {
       const response = await fetch("/api/integrations/email/test", { method: "POST" });
       const data = await response.json();
       if (!response.ok) throw new Error(data.error || "Подключение не прошло проверку");
-      toast.success("IMAP и SMTP работают — почта подключена");
+      setHealth(v=>({...v,email:"ok"})); toast.success("IMAP и SMTP работают — почта подключена");
       await loadIntegration();
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : "Ошибка подключения почты");
+      setHealth(v=>({...v,email:"error"})); toast.error(error instanceof Error ? error.message : "Ошибка подключения почты");
     } finally {
       setBusy(null);
     }
@@ -356,8 +364,8 @@ export default function SettingsPage() {
     try {
       const response=await fetch("/api/integrations/openai",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"test"})});
       const data=await response.json(); if(!response.ok) throw new Error(data.error || "Проверка не пройдена");
-      setOpenAi(data); toast.success("OpenAI работает — AI-менеджер подключён");
-    } catch(error){toast.error(error instanceof Error?error.message:"Ошибка OpenAI");} finally{setBusy(null);}
+      setOpenAi(data); setHealth(v=>({...v,ai:"ok"})); toast.success("OpenAI работает — AI-менеджер подключён");
+    } catch(error){setHealth(v=>({...v,ai:"error"})); toast.error(error instanceof Error?error.message:"Ошибка OpenAI");} finally{setBusy(null);}
   };
 
   const copyWebhook = async () => {
@@ -376,14 +384,9 @@ export default function SettingsPage() {
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base flex items-center gap-2">
-              <Kanban className="h-4 w-4" />
-              Этапы воронки
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
+        <Card className="overflow-hidden">
+          <CardHeader className="cursor-pointer" onClick={()=>toggleSection("pipeline")}><CardTitle className="text-base flex items-center justify-between"><span className="flex items-center gap-2"><Kanban className="h-4 w-4"/>Этапы воронки</span><ChevronDown className={`h-4 w-4 transition-transform ${openSections.pipeline?"rotate-180":""}`}/></CardTitle></CardHeader>
+          {openSections.pipeline && <CardContent>
             <div className="space-y-2">
               {stages.map((stage) => (
                 <div
@@ -399,37 +402,38 @@ export default function SettingsPage() {
                 </div>
               ))}
             </div>
-          </CardContent>
+          </CardContent>}
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base flex items-center gap-2">
-              <Bell className="h-4 w-4" />
-              Уведомления CRM
+        <Card className="overflow-hidden">
+          <CardHeader className="cursor-pointer" onClick={()=>toggleSection("notifications")}>
+            <CardTitle className="text-base flex items-center justify-between gap-2">
+              <span className="flex items-center gap-2"><Bell className="h-4 w-4" />
+              Уведомления CRM</span><ChevronDown className={`h-4 w-4 transition-transform ${openSections.notifications?"rotate-180":""}`}/>
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-3">
+          {openSections.notifications && <CardContent className="space-y-3">
             <NotificationToggle />
             <p className="text-xs text-muted-foreground">
               Браузерные уведомления работают, пока CRM открыта. Telegram ниже будет получать новые лиды независимо от открытой вкладки.
             </p>
-          </CardContent>
+          </CardContent>}
         </Card>
 
-        <Card>
-          <CardHeader>
+        <Card className="overflow-hidden">
+          <CardHeader className="cursor-pointer" onClick={()=>toggleSection("telegram")}>
             <CardTitle className="text-base flex items-center justify-between gap-3">
               <span className="flex items-center gap-2">
                 <MessageCircle className="h-4 w-4" />
                 Telegram
               </span>
               <Badge variant={integration?.telegramConfigured ? "default" : "outline"}>
-                {integration?.telegramConfigured ? "Подключён" : "Не настроен"}
+                {integration?.telegramConfigured ? (health.telegram==="error"?"Ошибка":"Подключён") : "Не настроен"}
               </Badge>
+              <ChevronDown className={`h-4 w-4 transition-transform ${openSections.telegram?"rotate-180":""}`}/>
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
+          {openSections.telegram && <CardContent className="space-y-4">
             <div className="rounded-lg bg-muted/50 p-3 text-sm space-y-1">
               <p><b>1.</b> Создайте бота через @BotFather и скопируйте его токен.</p>
               <p><b>2.</b> Откройте созданного бота и отправьте ему <code>/start</code>.</p>
@@ -484,17 +488,17 @@ export default function SettingsPage() {
                 Отправить тест
               </Button>
             </div>
-          </CardContent>
+          </CardContent>}
         </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base flex items-center gap-2">
-              <PhoneIncoming className="h-4 w-4" />
-              Need Number
+        <Card className="overflow-hidden">
+          <CardHeader className="cursor-pointer" onClick={()=>toggleSection("need")}>
+            <CardTitle className="text-base flex items-center justify-between gap-2">
+              <span className="flex items-center gap-2"><PhoneIncoming className="h-4 w-4" />
+              Need Number</span><span className="flex items-center gap-2">{statusBadge("unknown",Boolean(integration?.needNumberWebhookPath))}<ChevronDown className={`h-4 w-4 transition-transform ${openSections.need?"rotate-180":""}`}/></span>
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
+          {openSections.need && <CardContent className="space-y-4">
             <p className="text-sm text-muted-foreground">
               Новые номера Need Number будут автоматически создаваться в CRM, а после подключения Telegram — сразу приходить туда уведомлением.
             </p>
@@ -553,17 +557,17 @@ export default function SettingsPage() {
               <CheckCircle2 className="h-4 w-4" />
               Дубли проверяются по нормализованному номеру телефона.
             </div>
-          </CardContent>
+          </CardContent>}
         </Card>
 
-        <Card className="xl:col-span-2">
-          <CardHeader>
+        <Card className="xl:col-span-2 overflow-hidden">
+          <CardHeader className="cursor-pointer" onClick={()=>toggleSection("ai")}>
             <CardTitle className="text-base flex items-center justify-between gap-3">
               <span className="flex items-center gap-2"><Bot className="h-4 w-4" /> ИИ-ассистент / OpenAI</span>
-              <Badge variant={openAi.configured ? "default" : "outline"}>{openAi.configured ? "Подключён" : "Не подключён"}</Badge>
+              <span className="flex items-center gap-2">{statusBadge(health.ai,openAi.configured)}<ChevronDown className={`h-4 w-4 transition-transform ${openSections.ai?"rotate-180":""}`}/></span>
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
+          {openSections.ai && <CardContent className="space-y-4">
             <div className="rounded-lg bg-muted/50 p-3 text-sm">Вставь API key один раз. Он сохраняется на сервере CRM в зашифрованном виде и после сохранения полностью больше не показывается.</div>
             <div className="grid gap-4 lg:grid-cols-3">
               <div className="space-y-2">
@@ -598,19 +602,19 @@ export default function SettingsPage() {
               </Button>
             </div>
             <p className="text-xs text-muted-foreground">Ключ используется сервером для разбора переписок, КП и документов. В браузер сохранённый ключ не возвращается.</p>
-          </CardContent>
+          </CardContent>}
         </Card>
 
-        <Card className="xl:col-span-2">
-          <CardHeader>
+        <Card className="xl:col-span-2 overflow-hidden">
+          <CardHeader className="cursor-pointer" onClick={()=>toggleSection("email")}>
             <CardTitle className="text-base flex items-center justify-between gap-3">
               <span className="flex items-center gap-2"><Mail className="h-4 w-4" /> Почта → CRM-чат</span>
               <Badge variant={integration?.emailConfigured ? "default" : "outline"}>
-                {integration?.emailConfigured ? "Подключена" : "Не настроена"}
-              </Badge>
+                {integration?.emailConfigured ? (health.email==="error"?"Ошибка":"Подключена") : "Не настроена"}
+              </Badge><ChevronDown className={`h-4 w-4 transition-transform ${openSections.email?"rotate-180":""}`}/>
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-5">
+          {openSections.email && <CardContent className="space-y-5">
             <div className="rounded-lg bg-muted/50 p-3 text-sm">
               Входящие письма от людей попадают в раздел <b>«Почта»</b> и автоматически связываются с клиентом по email. No-reply, рассылки, автоответы и заданные ниже отправители уходят в отдельную вкладку <b>«Сервисные»</b>. Отвечать можно прямо из CRM — как в обычном чате.
             </div>
@@ -708,7 +712,7 @@ export default function SettingsPage() {
               {integration?.emailLastSyncError && <div className="mt-1 text-red-600"><b>Последняя ошибка:</b> {integration.emailLastSyncError}</div>}
               <div className="mt-2">После подключения сервер проверяет почту автоматически каждую минуту. Ручная кнопка нужна только если хочешь увидеть письмо сразу.</div>
             </div>
-          </CardContent>
+          </CardContent>}
         </Card>
       </div>
     </div>
