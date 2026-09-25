@@ -351,6 +351,7 @@ export async function POST(request: NextRequest) {
 
   db.insert(activities)
     .values({
+      id: `tg:${chatId}:${message.message_id}`,
       type: isBusiness
         ? fromOwner
           ? "telegram_business_outgoing"
