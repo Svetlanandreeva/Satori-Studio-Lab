@@ -28,9 +28,13 @@ export async function POST(req:NextRequest){
    const baseUrl=getOpenAiBaseUrl();
    const model=openAiSettings().model;
    // Compatible gateways often do not implement /me or /models, so validate with a tiny real inference request.
-   const inference=await fetch(`${baseUrl}/responses`,{
+   const official = baseUrl.includes("api.openai.com");
+   const inference=await fetch(official ? `${baseUrl}/responses` : `${baseUrl}/chat/completions`,{
      method:"POST",headers:{Authorization:`Bearer ${key}`,"Content-Type":"application/json"},
-     body:JSON.stringify({model,input:"Ответь одним словом: OK",max_output_tokens:8}),cache:"no-store"
+     body:JSON.stringify(official
+       ? {model,input:"Ответь одним словом: OK",max_output_tokens:8}
+       : {model,messages:[{role:"user",content:"Ответь одним словом: OK"}],max_tokens:8}
+     ),cache:"no-store"
    });
    if(!inference.ok){const e=await openAiError(inference);return NextResponse.json({error:e.message,openAiStatus:e.status,openAiCode:e.code},{status:400})}
    return NextResponse.json({ok:true,...openAiSettings()});
