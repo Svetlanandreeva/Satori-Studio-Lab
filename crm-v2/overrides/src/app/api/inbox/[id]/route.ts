@@ -21,6 +21,7 @@ export async function GET(
   const messages = result.messages.map((message) => ({
     ...message,
     bodyText: cleanEmailDisplayBody(message.bodyText),
+    sourceMessageId: message.messageId || null,
   }));
   const deal = getContactPipelineContext(result.contact?.id || result.thread.contactId);
   const contactId=result.contact?.id || result.thread.contactId;
