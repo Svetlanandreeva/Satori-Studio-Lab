@@ -5,6 +5,21 @@ import { activities, contacts, deals, emailMessages, emailThreads, pipelineStage
 const LEGACY_AUTO_EMAIL_NOTE = "Создан автоматически из входящего письма";
 const MANUAL_EMAIL_NOTE = "Добавлен вручную из почты";
 const INITIAL_STAGE_NAME = "Новый запрос";
+const SERVICE_EMAIL_RE = /(?:no[-_.]?reply|noreply|mailer[-_.]?daemon|postmaster|notification|уведомлен|ticket|support|поддержк|яндекс|yandex|google|github|e[- ]?lama|elama|маркетолог|рассылк|delivery status|security|password|парол|код подтверждения)/i;
+const APPLICATION_RE = /(?:заказ|заявк|кп|коммерческ|смет|стоимост|цен[ау]|изготов|производ|светильник|люстр|бра|абажур|тираж|штук|техническ.*задан|тз\b|срок изготовления)/i;
+function threadLooksLikeApplication(thread:any){
+  const messages=db.select().from(emailMessages).where(eq(emailMessages.threadId,thread.id)).all();
+  const text=[thread.subject,thread.remoteName,thread.remoteEmail,...messages.map(m=>m.bodyText)].join(" ");
+  if(SERVICE_EMAIL_RE.test(text)&&!APPLICATION_RE.test(text)) return false;
+  return APPLICATION_RE.test(text);
+}
+function inferDealTitle(thread:any){
+  const messages=db.select().from(emailMessages).where(eq(emailMessages.threadId,thread.id)).all();
+  const text=[thread.subject,...messages.map(m=>m.bodyText)].join(" ");
+  const patterns=[/(?:изготовление|производство)\s+([^\n,.]{3,70})/i,/(?:заказ|заявка|кп)\s+(?:на\s+)?([^\n,.]{3,70})/i,/((?:светильник|люстра|бра|абажур)[^\n,.]{0,60})/i];
+  for(const re of patterns){const m=text.match(re);if(m?.[1])return m[1].trim().replace(/\s+/g," ")}
+  return String(thread.subject||"").replace(/^\s*(?:re|fw|fwd):\s*/i,"").replace(/^\[ticket[^\]]*\]\s*/i,"").trim().slice(0,100);
+}
 
 function decodeHtmlEntities(value: string): string {
   const named: Record<string, string> = {
@@ -136,6 +151,10 @@ export function promoteEmailThreadToCrm(threadId: string) {
   cleanupLegacyAutoEmailContacts();
   const thread = db.select().from(emailThreads).where(eq(emailThreads.id, threadId)).get();
   if (!thread) throw new Error("Диалог не найден");
+  if (thread.isService || !threadLooksLikeApplication(thread)) {
+    setEmailThreadService(thread.id,true);
+    throw new Error("Это сервисное письмо или в нём нет подтверждённой заявки");
+  }
 
   let contact = findContactByEmail(thread.remoteEmail);
   const now = new Date();
@@ -163,7 +182,7 @@ export function promoteEmailThreadToCrm(threadId: string) {
   })()) {
     const stage = initialPipelineStage();
     if (!stage) throw new Error("В CRM нет первого этапа воронки");
-    const cleanSubject = String(thread.subject || "").replace(/^\s*re:\s*/i, "").trim();
+    const cleanSubject = inferDealTitle(thread);
     deal = db.insert(deals).values({
       id: crypto.randomUUID(),
       title: cleanSubject || `Запрос — ${contact.name}`,
@@ -196,6 +215,8 @@ export function ensureContactsHavePipelineDeals(): number {
   let created = 0;
   for (const contact of db.select().from(contacts).all()) {
     if (represented.has(contact.id)) continue;
+    if (["need_number"].includes(String(contact.source||"").toLowerCase()) || ["spam","unqualified","ignore"].includes(String(contact.qualification||"").toLowerCase())) continue;
+    if (contact.source === "email") continue;
     const now = new Date();
     db.insert(deals).values({
       id: crypto.randomUUID(),
