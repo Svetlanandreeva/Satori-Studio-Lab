@@ -34,6 +34,7 @@ export async function GET(request: NextRequest) {
   // все сделки закончились отказом, остаются в истории/аналитике, но здесь
   // не показываются. Административные экраны могут явно запросить их обратно.
   const includeRejected = searchParams.get("includeRejected") === "1";
+  const callList = searchParams.get("callList") === "1";
 
   const contactRows = db.select().from(contacts).orderBy(desc(contacts.createdAt)).all();
   const stageMap = new Map(db.select().from(pipelineStages).all().map((stage) => [stage.id, stage]));
@@ -75,6 +76,12 @@ export async function GET(request: NextRequest) {
   const results = contactRows
     .filter((contact) => {
       if (!includeSpam && (contact.qualification === "spam" || contact.qualification === "ignore")) return false;
+      // Need Number is prospecting. It becomes a CRM client only after qualification / a real application.
+      if (callList) {
+        if (contact.source !== "need_number" || contact.qualification === "qualified") return false;
+      } else if (contact.source === "need_number" && contact.qualification !== "qualified") {
+        return false;
+      }
 
       const dealState = dealStateByContact.get(contact.id);
       const rejectedOnly = Boolean(
