@@ -36,7 +36,7 @@ export function openAiSettings(){
 export function saveOpenAiSettings(key:string,model?:string,baseUrl?:string){
   if(key.trim()) sqlite.prepare("INSERT INTO crm_settings(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run("openai_api_key_encrypted",encrypt(key.trim()));
   if(model) sqlite.prepare("INSERT INTO crm_settings(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run("openai_crm_model",model);
-  if(baseUrl?.trim()) sqlite.prepare("INSERT INTO crm_settings(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run("openai_base_url",baseUrl.trim().replace(/\\\/+$/,""));
+  if(baseUrl?.trim()) sqlite.prepare("INSERT INTO crm_settings(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run("openai_base_url",baseUrl.trim());
   return openAiSettings();
 }
 export function clearOpenAiKey(){sqlite.prepare("DELETE FROM crm_settings WHERE key='openai_api_key_encrypted'").run()}
