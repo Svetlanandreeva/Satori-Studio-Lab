@@ -1,16 +1,18 @@
 import Link from "next/link";
-import { asc, desc, eq } from "drizzle-orm";
+import { desc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { contacts, deals, pipelineStages } from "@/db/schema";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { ArrowRight } from "lucide-react";
-// Reconciliation runs outside the page request.
+import { reconcileDeals } from "@/lib/deal-reconcile";
+
 export const dynamic="force-dynamic";
 function money(v:number){return new Intl.NumberFormat("ru-RU",{style:"currency",currency:"RUB",maximumFractionDigits:0}).format((Number(v)||0)/100)}
 function date(v:Date|number){return new Intl.DateTimeFormat("ru-RU").format(v instanceof Date?v:new Date(v))}
+
 export default async function DealsPage(){
- // AI reconciliation must not block opening the deals screen.
+ reconcileDeals();
  const rows=db.select({id:deals.id,title:deals.title,value:deals.value,createdAt:deals.createdAt,updatedAt:deals.updatedAt,contactName:contacts.name,contactSource:contacts.source,qualification:contacts.qualification,stageName:pipelineStages.name,stageColor:pipelineStages.color,isLost:pipelineStages.isLost,notes:deals.notes})
  .from(deals).leftJoin(contacts,eq(deals.contactId,contacts.id)).leftJoin(pipelineStages,eq(deals.stageId,pipelineStages.id)).orderBy(desc(deals.updatedAt)).all().filter(d=>{
    if(d.contactSource==="need_number"||["spam","unqualified","ignore"].includes(String(d.qualification||"").toLowerCase())) return false;
