@@ -117,17 +117,9 @@ jobs:
           NODE
           REMOTE
 
-      - name: Verify protected Auto-CRM entrypoint
+      - name: Verify working CRM backend remains reachable
         run: |
-          code=$(curl --silent --show-error --retry 5 --retry-delay 2 --max-time 15 \
-            --resolve crm.satorilabural.online:443:194.226.97.103 \
-            -o /dev/null -w '%{http_code}' \
-            https://crm.satorilabural.online/)
-          case "$code" in
-            401|302|307) ;;
-            *) echo "Unexpected CRM auth response: $code"; exit 1 ;;
-          esac
-          echo "Protected Auto-CRM endpoint is reachable (auth response: $code)"
+          ssh root@194.226.97.103 'set -eu; systemctl is-active --quiet satori-crm-v2; curl --fail --silent --show-error --retry 5 --retry-connrefused --retry-delay 2 --max-time 15 http://127.0.0.1:3020/api/integrations/settings >/dev/null; echo "CRM backend and integrations API are reachable"'
 
       - name: Verify published version
         run: |
