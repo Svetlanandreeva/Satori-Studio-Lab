@@ -14,6 +14,10 @@ type AiDecision = {
   disposition?: "active" | "unprocessed" | "lost" | "won" | "production" | "unknown";
   reason?: string | null;
   nextStep?: string | null;
+  hasApplication?: boolean;
+  lossReason?: string | null;
+  suggestedStage?: string | null;
+  followUpHours?: number | null;
   confidence?: number;
   documentFacts?: Record<string, unknown>;
 };
@@ -44,7 +48,7 @@ async function callOpenAI(input: unknown): Promise<AiDecision | null> {
   if (!key) return null;
   const model = openAiSettings().model;
   const baseUrl = getOpenAiBaseUrl();
-  const system = "Ты AI-менеджер SATORI CRM. Анализируй только предоставленные факты. Верни ТОЛЬКО JSON: summary, disposition(active|unprocessed|lost|won|production|unknown), reason, nextStep, confidence(0..1), documentFacts. Не выдумывай. lost ставь только при явном отказе клиента. unprocessed — новый лид без содержательной обработки менеджером. Краткое summary должно сохранять суть запроса, цену/КП, сроки и причину отказа, если они известны.";
+  const system = "Ты AI-менеджер SATORI CRM. Анализируй только предоставленные факты. Верни ТОЛЬКО JSON: summary, disposition(active|unprocessed|lost|won|production|unknown), reason, nextStep, hasApplication, lossReason, suggestedStage, followUpHours, confidence(0..1), documentFacts. Не выдумывай. hasApplication=true только если клиент реально сформулировал запрос/заявку на товар, производство, расчёт, КП или заказ; сам факт попадания из Need Number заявкой не является. lost ставь только при явном отказе клиента и обязательно заполни lossReason. suggestedStage выбирай по фактическому состоянию диалога. followUpHours укажи, если из контекста следует, когда уместно мягко напомнить клиенту; иначе null. Краткое summary сохраняет суть запроса, цену/КП, сроки и причину отказа.";
   const official = baseUrl.includes("api.openai.com");
   const response = await fetch(official ? `${baseUrl}/responses` : `${baseUrl}/chat/completions`, {
     method: "POST",
@@ -119,9 +123,14 @@ export async function analyzeContactWithAi(contactId: string, options: { documen
           VALUES(?,?,?,1,1) ON CONFLICT(contact_id) DO UPDATE SET summary=excluded.summary,extracted_at=excluded.extracted_at,auto_updates=contact_intelligence.auto_updates+1`)
           .run(contactId, decision.summary, Date.now());
       }
+      if (decision.hasApplication === true) {
+        sqlite.prepare("UPDATE contacts SET qualification='qualified',updated_at=? WHERE id=?").run(Date.now(), contactId);
+      }
       if (decision.disposition === "lost") {
         const stageId = lostStageId();
-        if (stageId) sqlite.prepare("UPDATE deals SET stage_id=?,updated_at=? WHERE contact_id=?").run(stageId, Date.now(), contactId);
+        if (stageId) sqlite.prepare("UPDATE deals SET stage_id=?,loss_reason=?,updated_at=? WHERE contact_id=?")
+          .run(stageId, decision.lossReason || decision.reason || "Отказ клиента", Date.now(), contactId);
+        sqlite.prepare("UPDATE contacts SET qualification='unqualified',updated_at=? WHERE id=?").run(Date.now(), contactId);
       }
       if (tableExists("activities")) {
         sqlite.prepare("INSERT INTO activities(id,contact_id,type,description,created_at) VALUES(?,?,?,?,?)")
