@@ -221,6 +221,43 @@ async function notifySanitizedState() {
   sqlite.prepare(`INSERT INTO crm_settings(key,value) VALUES('satori_assistant_last_alert_hash',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value`).run(hash);
 }
 
+function moveSilentChatsToIgnore() {
+  if (!tableExists("contacts") || !tableExists("activities")) return;
+  const ignoreAfterMs = 7 * 24 * 3600000;
+  const now = Date.now();
+  const contacts = sqlite.prepare(`
+    SELECT c.id, c.name, c.qualification
+    FROM contacts c
+    WHERE COALESCE(c.qualification,'new') NOT IN ('spam','ignore','unqualified')
+  `).all() as Array<{id:string;name?:string;qualification?:string}>;
+
+  for (const contact of contacts) {
+    const active = activeDealsFor(contact.id);
+    if (active.some((deal) => isPostSaleStage(deal.stageName))) continue;
+
+    const comm = sqlite.prepare(`
+      SELECT id,type,description,created_at AS createdAt
+      FROM activities
+      WHERE contact_id=? AND (lower(type) LIKE '%telegram%' OR lower(type) LIKE '%email%')
+      ORDER BY created_at DESC LIMIT 1
+    `).get(contact.id) as {id?:string;type?:string;description?:string;createdAt?:unknown}|undefined;
+    if (!comm?.id || !/outgoing|sent/i.test(String(comm.type || ""))) continue;
+
+    const lastAt = epochMs(comm.createdAt);
+    if (!lastAt || now - lastAt < ignoreAfterMs) continue;
+
+    // Если после нашего последнего сообщения прошло 7+ дней и клиент так и не ответил,
+    // AI-менеджер убирает диалог из активной работы в «Игнор». История сохраняется.
+    sqlite.prepare("UPDATE contacts SET qualification='ignore',updated_at=? WHERE id=?").run(now, contact.id);
+    sqlite.prepare(`
+      UPDATE activities SET completed_at=COALESCE(completed_at,?)
+      WHERE contact_id=? AND type='ai_followup' AND completed_at IS NULL
+    `).run(now, contact.id);
+    sqlite.prepare("INSERT INTO activities(id,contact_id,type,description,created_at) VALUES(?,?,?,?,?)")
+      .run(crypto.randomUUID(), contact.id, "ai_manager", "AI: нет ответа клиента 7 дней после последнего исходящего сообщения — перенесено в «Игнор».", now);
+  }
+}
+
 async function runAiConversationSweep() {
   if (!tableExists("contacts") || !tableExists("activities")) return;
   const cutoff = Date.now() - 14 * 24 * 3600000;
@@ -242,6 +279,7 @@ export async function runAssistantSafely(options: { notify?: boolean } = {}) {
   // Это не даёт старым интеграциям снова разнести «Доставка» и «Отправлен клиенту».
   runCrmConsistencyRepair();
   await runAiConversationSweep();
+  moveSilentChatsToIgnore();
   await runAssistantAudit({ notify: false });
   runCrmConsistencyRepair();
   sanitizeAssistantInsights();
