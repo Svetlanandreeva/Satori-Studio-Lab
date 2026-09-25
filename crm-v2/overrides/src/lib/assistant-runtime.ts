@@ -5,6 +5,7 @@ import { createHash } from "node:crypto";
 import { getAssistantState, runAssistantAudit } from "@/lib/assistant";
 import { sendTelegramMessage } from "@/lib/satori-integrations";
 import { runCrmConsistencyRepair } from "@/lib/crm-consistency";
+import { analyzeContactWithAi } from "@/lib/ai-manager";
 
 const DB_PATH = process.env.CRM_DB_PATH || path.join(process.cwd(), "data", "crm.db");
 const dataDir = path.dirname(DB_PATH);
@@ -220,10 +221,27 @@ async function notifySanitizedState() {
   sqlite.prepare(`INSERT INTO crm_settings(key,value) VALUES('satori_assistant_last_alert_hash',?) ON CONFLICT(key) DO UPDATE SET value=excluded.value`).run(hash);
 }
 
+async function runAiConversationSweep() {
+  if (!tableExists("contacts") || !tableExists("activities")) return;
+  const cutoff = Date.now() - 14 * 24 * 3600000;
+  const rows = sqlite.prepare(`
+    SELECT DISTINCT c.id
+    FROM contacts c
+    JOIN activities a ON a.contact_id=c.id
+    WHERE a.created_at>=? AND (lower(a.type) LIKE '%telegram%' OR lower(a.type) LIKE '%email%')
+    ORDER BY a.created_at DESC LIMIT 30
+  `).all(cutoff) as Array<{id:string}>;
+  for (const row of rows) {
+    try { await analyzeContactWithAi(row.id, { apply: true }); }
+    catch (error) { console.error("AI manager sweep failed", row.id, error); }
+  }
+}
+
 export async function runAssistantSafely(options: { notify?: boolean } = {}) {
   // Сначала выравниваем структуру CRM, затем строим управленческие сигналы.
   // Это не даёт старым интеграциям снова разнести «Доставка» и «Отправлен клиенту».
   runCrmConsistencyRepair();
+  await runAiConversationSweep();
   await runAssistantAudit({ notify: false });
   runCrmConsistencyRepair();
   sanitizeAssistantInsights();
