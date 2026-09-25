@@ -123,6 +123,8 @@ export default function SettingsPage() {
   const [busy, setBusy] = useState<string | null>(null);
   const [origin, setOrigin] = useState("");
   const [openAiKey, setOpenAiKey] = useState("");
+  const [openAiModels, setOpenAiModels] = useState<string[]>([]);
+  const [openAiModelsError, setOpenAiModelsError] = useState("");
   const [openAi, setOpenAi] = useState<{configured:boolean;masked:string;model:string;baseUrl:string}>({configured:false,masked:"",model:"gpt-5.4-mini",baseUrl:"https://api.openai.com/v1"});
 
   const loadIntegration = async () => {
@@ -336,6 +338,19 @@ export default function SettingsPage() {
       setOpenAi(data); setOpenAiKey(""); toast.success("OpenAI подключён");
     } catch(error){ toast.error(error instanceof Error ? error.message : "Ошибка OpenAI"); } finally { setBusy(null); }
   };
+  const loadOpenAiModels = async () => {
+    setBusy("openai-models");
+    try {
+      const response=await fetch("/api/integrations/openai?models=1",{cache:"no-store"});
+      const data=await response.json();
+      setOpenAiModels(Array.isArray(data.models)?data.models:[]);
+      setOpenAiModelsError(data.modelsError||"");
+      if(data.models?.length) toast.success(`Доступно моделей: ${data.models.length}`);
+      else toast.error(data.modelsError||"API не вернул список моделей");
+    } catch(error){toast.error(error instanceof Error?error.message:"Не удалось получить модели");}
+    finally{setBusy(null);}
+  };
+
   const testOpenAi = async () => {
     setBusy("openai-test");
     try {
@@ -557,7 +572,16 @@ export default function SettingsPage() {
               </div>
               <div className="space-y-2">
                 <Label>Модель AI-менеджера</Label>
-                <Input value={openAi.model} onChange={e=>setOpenAi(v=>({...v,model:e.target.value}))} />
+                {openAiModels.length ? (
+                  <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={openAi.model} onChange={e=>setOpenAi(v=>({...v,model:e.target.value}))}>
+                    {!openAiModels.includes(openAi.model) && <option value={openAi.model}>{openAi.model} — недоступна</option>}
+                    {openAiModels.map(model=><option key={model} value={model}>{model}</option>)}
+                  </select>
+                ) : <Input value={openAi.model} onChange={e=>setOpenAi(v=>({...v,model:e.target.value}))} />}
+                <Button type="button" variant="outline" size="sm" onClick={loadOpenAiModels} disabled={busy!==null}>
+                  {busy==="openai-models" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Получить доступные модели
+                </Button>
+                {openAiModelsError && <p className="text-[11px] text-destructive">{openAiModelsError}</p>}
               </div>
               <div className="space-y-2">
                 <Label>Base URL</Label>
