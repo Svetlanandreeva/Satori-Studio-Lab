@@ -103,6 +103,10 @@ function looksServiceMail(mail: ParsedMail, remoteEmail: string, config: EmailIn
   const autoResponse = headerText(mail, "x-auto-response-suppress");
   if (autoSubmitted && autoSubmitted !== "no") return true;
   if (/bulk|list|junk/.test(precedence) || listId || autoResponse) return true;
+  // Transactional/system mail should never pollute the working inbox.
+  // Keep it accessible only under "Сервисные".
+  if (/чек|кассов(ый|ого) чек|receipt|payment receipt|оплат[аы]|списани[ея]|уведомлени[ея]|notification|ticket|тикет|код подтверждения|verification|подтверждение входа|security alert|отчет|report|счет[- ]?фактур/i.test(subject)) return true;
+  if (/(check\.yandex\.ru|noreply|no-reply|mailer-daemon|postmaster)/i.test(remoteEmail)) return true;
   return /^(delivery status notification|undelivered mail returned|mail delivery failed|automatic reply|автоматический ответ|не удалось доставить)/i.test(subject);
 }
 
