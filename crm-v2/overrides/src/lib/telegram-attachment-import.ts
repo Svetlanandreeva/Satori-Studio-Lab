@@ -1,5 +1,6 @@
 import { detectClientDocumentKind, saveClientDocument } from "@/lib/client-documents";
 import { INTEGRATION_KEYS, getSetting, telegramApiRequest } from "@/lib/satori-integrations";
+import { analyzeContactWithAi } from "@/lib/ai-manager";
 
 type TelegramFileRef = {
   file_id: string;
@@ -97,6 +98,7 @@ export async function importTelegramAttachmentsFromUpdate(
       sourceDirection: direction,
       createdAt: message.date ? new Date(message.date * 1000) : new Date(),
     });
+    if (saved) void analyzeContactWithAi(contactId, { documentId: saved.id, apply: true }).catch((error)=>console.warn("AI Telegram document analysis skipped", attachment.name, error instanceof Error ? error.message : error));
     return saved ? 1 : 0;
   } catch (error) {
     console.warn("Telegram attachment skipped", attachment.name, error instanceof Error ? error.message : error);
