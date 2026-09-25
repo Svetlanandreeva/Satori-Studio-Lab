@@ -45,7 +45,7 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
   const { id } = await params;
 
   try {
-    if (dealAiNeedsRefresh(id)) await analyzeDealWithAi(id, true);
+    if (process.env.CRM_REFRESH_AI_ON_VIEW === "true" && dealAiNeedsRefresh(id)) await analyzeDealWithAi(id, true);
   } catch (error) {
     console.error("Deal AI refresh failed", id, error);
   }
