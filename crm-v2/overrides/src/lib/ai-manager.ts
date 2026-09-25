@@ -36,11 +36,9 @@ function lostStageId(): string | null {
 }
 
 function conversation(contactId: string) {
-  return sqlite.prepare(`
-    SELECT type,description,created_at AS createdAt FROM activities
-    WHERE contact_id=? AND (lower(type) LIKE '%telegram%' OR lower(type) LIKE '%email%')
-    ORDER BY created_at ASC LIMIT 160
-  `).all(contactId);
+  const activities=sqlite.prepare(`SELECT type,description,created_at AS createdAt FROM activities WHERE contact_id=? AND (lower(type) LIKE '%telegram%' OR lower(type) LIKE '%email%') ORDER BY created_at DESC LIMIT 160`).all(contactId).reverse();
+  const emails=tableExists("email_threads")&&tableExists("email_messages")?sqlite.prepare(`SELECT 'email' type,em.body_text description,em.received_at createdAt FROM email_messages em JOIN email_threads et ON et.id=em.thread_id WHERE et.contact_id=? ORDER BY em.received_at DESC LIMIT 160`).all(contactId).reverse():[];
+  return [...activities,...emails].sort((a:any,b:any)=>Number(a.createdAt)-Number(b.createdAt)).slice(-240);
 }
 
 async function callOpenAI(input: unknown): Promise<AiDecision | null> {
