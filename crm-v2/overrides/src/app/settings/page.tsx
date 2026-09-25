@@ -379,22 +379,57 @@ export default function SettingsPage() {
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Настройки</h1>
         <p className="text-muted-foreground">
-          Воронка, уведомления и подключения SATORI CRM
+          Подключения, автоматизация и системные параметры
         </p>
       </div>
 
-      <Card className="border-dashed">
-        <CardHeader>
-          <CardTitle className="text-base flex items-center gap-2"><Activity className="h-4 w-4"/> AI-менеджер Satori</CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-4 md:grid-cols-3">
-          <div className="rounded-lg border p-4"><div className="text-sm font-medium">Режим</div><div className="mt-1 text-sm text-muted-foreground">Автономный контроль CRM</div><Badge className="mt-3" variant={openAi.configured?"default":"outline"}>{openAi.configured?"Готов к работе":"Нужен AI API"}</Badge></div>
-          <div className="rounded-lg border p-4"><div className="text-sm font-medium">Что контролирует</div><div className="mt-1 text-sm text-muted-foreground">Клиенты, переписки, КП и документы, статусы сделок, отказы, следующие действия и порядок в CRM.</div></div>
-          <div className="rounded-lg border p-4"><div className="text-sm font-medium">Безопасность</div><div className="mt-1 text-sm text-muted-foreground">Рутинные изменения — автоматически. Финансы, удаление данных, юридические изменения и внешние отправки — только после подтверждения.</div></div>
-        </CardContent>
-      </Card>
-
-      <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
+      <div className="grid grid-cols-1 gap-3">
+        <CardTitle className="text-base flex items-center justify-between gap-3">
+              <span className="flex items-center gap-2"><Bot className="h-4 w-4" /> AI-менеджер Satori</span>
+              <span className="flex items-center gap-2">{statusBadge(health.ai,openAi.configured)}<ChevronDown className={`h-4 w-4 transition-transform ${openSections.ai?"rotate-180":""}`}/></span>
+            </CardTitle>
+          </CardHeader>
+          {openSections.ai && <CardContent className="space-y-4">
+            <div className="grid gap-3 md:grid-cols-3">
+              <div className="rounded-lg bg-muted/50 p-3"><div className="text-xs text-muted-foreground">Режим</div><div className="text-sm font-medium mt-1">Автономный контроль CRM</div></div>
+              <div className="rounded-lg bg-muted/50 p-3"><div className="text-xs text-muted-foreground">Контролирует</div><div className="text-sm mt-1">Клиентов, переписки, КП, документы и статусы</div></div>
+              <div className="rounded-lg bg-muted/50 p-3"><div className="text-xs text-muted-foreground">Безопасность</div><div className="text-sm mt-1">Рутинное — сам; критичное — с подтверждением</div></div>
+            </div>
+            <div className="grid gap-4 lg:grid-cols-3">
+              <div className="space-y-2">
+                <Label>OpenAI API key</Label>
+                <Input type="password" autoComplete="new-password" placeholder={openAi.configured ? openAi.masked + " — вставь новый только для замены" : "sk-..."} value={openAiKey} onChange={e=>setOpenAiKey(e.target.value)} />
+              </div>
+              <div className="space-y-2">
+                <Label>Модель AI-менеджера</Label>
+                {openAiModels.length ? (
+                  <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={openAi.model} onChange={e=>setOpenAi(v=>({...v,model:e.target.value}))}>
+                    {!openAiModels.includes(openAi.model) && <option value={openAi.model}>{openAi.model} — недоступна</option>}
+                    {openAiModels.map(model=><option key={model} value={model}>{model}</option>)}
+                  </select>
+                ) : <Input value={openAi.model} onChange={e=>setOpenAi(v=>({...v,model:e.target.value}))} />}
+                <Button type="button" variant="outline" size="sm" onClick={loadOpenAiModels} disabled={busy!==null}>
+                  {busy==="openai-models" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Получить доступные модели
+                </Button>
+                {openAiModelsError && <p className="text-[11px] text-destructive">{openAiModelsError}</p>}
+              </div>
+              <div className="space-y-2">
+                <Label>Base URL</Label>
+                <Input placeholder="https://api.openai.com/v1" value={openAi.baseUrl} onChange={e=>setOpenAi(v=>({...v,baseUrl:e.target.value}))} />
+                <p className="text-[11px] text-muted-foreground">Для стороннего API вставь адрес из инструкции продавца, обязательно с /v1.</p>
+              </div>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Button onClick={saveOpenAi} disabled={busy!==null || (!openAiKey && !openAi.configured)}>
+                {busy==="openai-save" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} {openAi.configured ? "Сохранить / заменить" : "Подключить"}
+              </Button>
+              <Button variant="outline" onClick={testOpenAi} disabled={busy!==null || !openAi.configured}>
+                {busy==="openai-test" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ShieldCheck className="mr-2 h-4 w-4" />} Проверить соединение
+              </Button>
+            </div>
+            <p className="text-xs text-muted-foreground">Ключ используется сервером для разбора переписок, КП и документов. В браузер сохранённый ключ не возвращается.</p>
+          </CardContent>}
+        </Card>
         <Card className="overflow-hidden">
           <CardHeader className="cursor-pointer" onClick={()=>toggleSection("pipeline")}><CardTitle className="text-base flex items-center justify-between"><span className="flex items-center gap-2"><Kanban className="h-4 w-4"/>Этапы воронки</span><ChevronDown className={`h-4 w-4 transition-transform ${openSections.pipeline?"rotate-180":""}`}/></CardTitle></CardHeader>
           {openSections.pipeline && <CardContent>
@@ -571,52 +606,11 @@ export default function SettingsPage() {
           </CardContent>}
         </Card>
 
-        <Card className="xl:col-span-2 overflow-hidden">
+        <Card className="overflow-hidden">
           <CardHeader className="cursor-pointer" onClick={()=>toggleSection("ai")}>
-            <CardTitle className="text-base flex items-center justify-between gap-3">
-              <span className="flex items-center gap-2"><Bot className="h-4 w-4" /> ИИ-ассистент / OpenAI</span>
-              <span className="flex items-center gap-2">{statusBadge(health.ai,openAi.configured)}<ChevronDown className={`h-4 w-4 transition-transform ${openSections.ai?"rotate-180":""}`}/></span>
-            </CardTitle>
-          </CardHeader>
-          {openSections.ai && <CardContent className="space-y-4">
-            <div className="rounded-lg bg-muted/50 p-3 text-sm">Вставь API key один раз. Он сохраняется на сервере CRM в зашифрованном виде и после сохранения полностью больше не показывается.</div>
-            <div className="grid gap-4 lg:grid-cols-3">
-              <div className="space-y-2">
-                <Label>OpenAI API key</Label>
-                <Input type="password" autoComplete="new-password" placeholder={openAi.configured ? openAi.masked + " — вставь новый только для замены" : "sk-..."} value={openAiKey} onChange={e=>setOpenAiKey(e.target.value)} />
-              </div>
-              <div className="space-y-2">
-                <Label>Модель AI-менеджера</Label>
-                {openAiModels.length ? (
-                  <select className="flex h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm" value={openAi.model} onChange={e=>setOpenAi(v=>({...v,model:e.target.value}))}>
-                    {!openAiModels.includes(openAi.model) && <option value={openAi.model}>{openAi.model} — недоступна</option>}
-                    {openAiModels.map(model=><option key={model} value={model}>{model}</option>)}
-                  </select>
-                ) : <Input value={openAi.model} onChange={e=>setOpenAi(v=>({...v,model:e.target.value}))} />}
-                <Button type="button" variant="outline" size="sm" onClick={loadOpenAiModels} disabled={busy!==null}>
-                  {busy==="openai-models" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} Получить доступные модели
-                </Button>
-                {openAiModelsError && <p className="text-[11px] text-destructive">{openAiModelsError}</p>}
-              </div>
-              <div className="space-y-2">
-                <Label>Base URL</Label>
-                <Input placeholder="https://api.openai.com/v1" value={openAi.baseUrl} onChange={e=>setOpenAi(v=>({...v,baseUrl:e.target.value}))} />
-                <p className="text-[11px] text-muted-foreground">Для стороннего API вставь адрес из инструкции продавца, обязательно с /v1.</p>
-              </div>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <Button onClick={saveOpenAi} disabled={busy!==null || (!openAiKey && !openAi.configured)}>
-                {busy==="openai-save" && <Loader2 className="mr-2 h-4 w-4 animate-spin" />} {openAi.configured ? "Сохранить / заменить" : "Подключить"}
-              </Button>
-              <Button variant="outline" onClick={testOpenAi} disabled={busy!==null || !openAi.configured}>
-                {busy==="openai-test" ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ShieldCheck className="mr-2 h-4 w-4" />} Проверить соединение
-              </Button>
-            </div>
-            <p className="text-xs text-muted-foreground">Ключ используется сервером для разбора переписок, КП и документов. В браузер сохранённый ключ не возвращается.</p>
-          </CardContent>}
-        </Card>
+    
 
-        <Card className="xl:col-span-2 overflow-hidden">
+        <Card className="overflow-hidden">
           <CardHeader className="cursor-pointer" onClick={()=>toggleSection("email")}>
             <CardTitle className="text-base flex items-center justify-between gap-3">
               <span className="flex items-center gap-2"><Mail className="h-4 w-4" /> Почта → CRM-чат</span>
