@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { db } from "@/db";
-import { contacts, deals, activities, pipelineStages } from "@/db/schema";
+import { contacts, deals, activities, pipelineStages, dealEconomics } from "@/db/schema";
 import { eq, asc, desc } from "drizzle-orm";
 import { PipelineChart } from "@/components/dashboard/PipelineChart";
 import { RecentActivity } from "@/components/dashboard/RecentActivity";
@@ -17,7 +17,7 @@ function greeting() {
   return "Добрый вечер";
 }
 
-export default function DashboardPage() {
+export default function DashboardPage({ searchParams }: { searchParams?: { period?: string } }) {
   const visibleContacts = db.select().from(contacts).all().filter((contact) => contact.qualification !== "spam");
   const visibleContactIds = new Set(visibleContacts.map((contact) => contact.id));
   const stages = db.select().from(pipelineStages).orderBy(asc(pipelineStages.order)).all().filter((stage) => stage.name !== SPAM_STAGE_NAME);
@@ -43,12 +43,20 @@ export default function DashboardPage() {
     .slice(0, 6);
 
   const startOfToday = new Date(); startOfToday.setHours(0,0,0,0);
-  const todayActivities = db.select().from(activities).all().filter(a => a.createdAt.getTime() >= startOfToday.getTime());
+  const now=new Date();
+  const monthStart=new Date(now.getFullYear(),now.getMonth(),1);
+  const period=searchParams?.period==="month"?"month":"today";
+  const periodStart=period==="month"?monthStart:startOfToday;
+  const todayActivities = db.select().from(activities).all().filter(a => a.createdAt.getTime() >= periodStart.getTime());
   const todayContactIds = new Set(todayActivities.filter(a => visibleContactIds.has(a.contactId) && /email|telegram|call|звон|message|сообщ/i.test(String(a.type))).map(a => a.contactId));
   const sentOffers = todayActivities.filter(a => /кп|коммерческ/i.test(a.description) && /отправ/i.test(a.description)).length;
-  const refusals = allDeals.filter(d => stages.find(s => s.id===d.stageId)?.isLost && d.updatedAt.getTime() >= startOfToday.getTime()).length;
+  const refusals = allDeals.filter(d => stages.find(s => s.id===d.stageId)?.isLost && d.updatedAt.getTime() >= periodStart.getTime()).length;
   const calls = todayActivities.filter(a => /call|звон/i.test(a.type+" "+a.description)).length;
-  const received = allDeals.filter(d => stages.find(s => s.id===d.stageId)?.isWon && d.updatedAt.getTime() >= startOfToday.getTime()).reduce((n,d)=>n+d.value,0);
+  const economics=db.select().from(dealEconomics).all();
+  const economicsByDeal=new Map(economics.map(e=>[e.dealId,e]));
+  const periodDeals=allDeals.filter(d=>d.updatedAt.getTime()>=periodStart.getTime());
+  const received=periodDeals.reduce((sum,d)=>sum+(economicsByDeal.get(d.id)?.receivedAmount||0),0);
+  const earned=periodDeals.reduce((sum,d)=>{const e=economicsByDeal.get(d.id);if(!e)return sum;return sum+Math.max(0,e.receivedAmount-e.productionCost-e.paymentCommission-e.deliveryCost-e.packagingCost-e.contractorCost-e.taxCost-e.otherCost)},0);
 
   const today = new Intl.DateTimeFormat("ru-RU", { timeZone: "Europe/Moscow", weekday: "long", day: "numeric", month: "long" }).format(new Date());
 
@@ -74,12 +82,13 @@ export default function DashboardPage() {
         </div>
       </section>
 
-      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+      <div className="flex justify-end gap-2"><Link href="/" className={`rounded-xl border px-3 py-2 text-xs ${period==="today"?"bg-slate-950 text-white":"bg-white text-slate-600"}`}>Сегодня</Link><Link href="/?period=month" className={`rounded-xl border px-3 py-2 text-xs ${period==="month"?"bg-slate-950 text-white":"bg-white text-slate-600"}`}>Этот месяц</Link></div>
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-6">
         <HomeMetric label="Контактов сегодня" value={String(todayContactIds.size)} />
         <HomeMetric label="Отправлено КП" value={String(sentOffers)} />
         <HomeMetric label="Отказов" value={String(refusals)} />
         <HomeMetric label="Звонков / входящих" value={String(calls)} />
-        <HomeMetric label="Заработано" value={new Intl.NumberFormat("ru-RU",{style:"currency",currency:"RUB",maximumFractionDigits:0}).format(received/100)} />
+        <HomeMetric label="Получено оплат" value={new Intl.NumberFormat("ru-RU",{style:"currency",currency:"RUB",maximumFractionDigits:0}).format(received/100)} />\n        <HomeMetric label="Заработано" value={new Intl.NumberFormat("ru-RU",{style:"currency",currency:"RUB",maximumFractionDigits:0}).format(earned/100)} />
       </section>
 
       <DailyBriefPanel />
