@@ -3,7 +3,7 @@ import path from "path";
 import { getOpenAiKey, openAiSettings, getOpenAiBaseUrl } from "@/lib/ai-settings";
 import { analyzeContactWithAi } from "@/lib/ai-manager";
 
-const sqlite=new Database(process.env.DB_PATH||path.join(process.cwd(),"data","crm.db"));
+const sqlite=new Database(process.env.CRM_DB_PATH||process.env.DB_PATH||path.join(process.cwd(),"data","crm.db"));
 
 function crmContext(){
  const contacts=sqlite.prepare("SELECT id,name,email,phone,source,qualification FROM contacts ORDER BY updated_at DESC LIMIT 80").all();
@@ -16,10 +16,20 @@ export async function chatWithCrmManager(message:string){
  const settings=openAiSettings(); const base=getOpenAiBaseUrl();
  const context=crmContext();
  const system=`Ты AI-менеджер SATORI CRM. Отвечай по-русски кратко и по делу. Ты можешь анализировать CRM и предлагать действия. Если пользователь просит проверить/разобрать конкретного клиента, верни JSON {"reply":"...","contactId":"...","runAnalysis":true}. Не утверждай, что отправил файл, письмо, изменил оплату или удалил данные, если действие реально не выполнено. Отправка клиенту и финансовые изменения требуют подтверждения пользователя. Контекст CRM: ${JSON.stringify(context)}`;
- const response=await fetch(`${base}/chat/completions`,{method:"POST",headers:{Authorization:`Bearer ${key}`,"Content-Type":"application/json"},body:JSON.stringify({model:settings.model,messages:[{role:"system",content:system},{role:"user",content:message}],temperature:0.2})});
+ const official=base.includes("api.openai.com");
+ const response=await fetch(official?`${base}/responses`:`${base}/chat/completions`,{
+  method:"POST",
+  headers:{Authorization:`Bearer ${key}`,"Content-Type":"application/json"},
+  body:JSON.stringify(official
+   ? {model:settings.model,input:[{role:"system",content:[{type:"input_text",text:system}]},{role:"user",content:[{type:"input_text",text:message}]}],max_output_tokens:1200}
+   : {model:settings.model,messages:[{role:"system",content:system},{role:"user",content:message}],temperature:0.2}
+  )
+ });
  if(!response.ok) throw new Error(`AI HTTP ${response.status}`);
- const data=await response.json() as {choices?:Array<{message?:{content?:string}}>};
- const raw=String(data.choices?.[0]?.message?.content||"").trim();
+ const data=await response.json() as any;
+ const raw=official
+  ? String(data.output_text||data.output?.flatMap((item:any)=>item.content||[]).map((part:any)=>part.text||"").join("")||"").trim()
+  : String(data.choices?.[0]?.message?.content||"").trim();
  let parsed:any=null; try{parsed=JSON.parse(raw.replace(/^\`\`\`json\s*/,"").replace(/\`\`\`$/,""));}catch{}
  if(parsed?.runAnalysis&&parsed.contactId) await analyzeContactWithAi(String(parsed.contactId),{apply:true});
  return {reply:String(parsed?.reply||raw||"Готово.")};
