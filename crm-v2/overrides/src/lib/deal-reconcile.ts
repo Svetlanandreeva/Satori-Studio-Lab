@@ -1,7 +1,6 @@
 import Database from "better-sqlite3";
 import path from "path";
-import { analyzeContactWithAi } from "@/lib/ai-manager";
-import { dealConversationContext } from "@/lib/deal-intelligence";
+import { analyzeDealWithAi, dealAiNeedsRefresh } from "@/lib/deal-ai";
 
 const sqlite = new Database(process.env.CRM_DB_PATH || path.join(process.cwd(), "data", "crm.db"), { timeout: 15000 });
 
@@ -29,7 +28,6 @@ function repairEmailOwnership(): number {
     repaired += 1;
   }
 
-  // Attach email-origin documents back to the contact that owns the source email thread.
   try {
     sqlite.exec(`
       UPDATE client_documents
@@ -58,14 +56,9 @@ function repairEmailOwnership(): number {
 export async function reconcileDeals() {
   const repairedThreads = repairEmailOwnership();
 
-  const rows = sqlite.prepare(`
-    SELECT d.id,d.title,d.contact_id AS contactId,d.value,d.updated_at AS updatedAt
-    FROM deals d
-    ORDER BY d.updated_at DESC
-  `).all() as any[];
+  const rows = sqlite.prepare(`SELECT d.id,d.title,d.contact_id AS contactId,d.value,d.updated_at AS updatedAt FROM deals d ORDER BY d.updated_at DESC`).all() as any[];
 
-  // Only merge exact duplicate deals that already belong to the SAME contact.
-  // Never merge different clients because their email text happens to look similar.
+  // Merge only exact duplicate deal titles inside the same contact.
   const groups = new Map<string, any[]>();
   for (const row of rows) {
     const title = normalizedTitle(row.title);
@@ -79,26 +72,26 @@ export async function reconcileDeals() {
   let merged = 0;
   for (const group of groups.values()) {
     if (group.length < 2) continue;
-    const primary = group.sort((a, b) => (Number(b.value > 0) - Number(a.value > 0)) || Number(b.updatedAt) - Number(a.updatedAt))[0];
+    const primary = group.sort((a, b) => Number(b.updatedAt) - Number(a.updatedAt))[0];
     for (const duplicate of group) {
       if (duplicate.id === primary.id) continue;
-      if (!primary.value && duplicate.value) {
-        sqlite.prepare("UPDATE deals SET value=? WHERE id=?").run(duplicate.value, primary.id);
-        primary.value = duplicate.value;
-      }
       sqlite.prepare("DELETE FROM deals WHERE id=?").run(duplicate.id);
       merged += 1;
     }
   }
 
-  const currentDeals = sqlite.prepare(`SELECT id,contact_id AS contactId FROM deals ORDER BY updated_at DESC`).all() as any[];
-  const analyzedContacts = new Set<string>();
+  // AI is now strictly deal-scoped. Never re-analyze an entire contact from this page.
+  const currentDeals = sqlite.prepare(`SELECT id FROM deals ORDER BY updated_at DESC LIMIT 60`).all() as Array<{ id: string }>;
+  let analyzed = 0;
   for (const row of currentDeals) {
-    try { dealConversationContext(row.id); } catch {}
-    if (analyzedContacts.has(row.contactId)) continue;
-    analyzedContacts.add(row.contactId);
-    try { await analyzeContactWithAi(row.contactId, { apply: true }); } catch {}
+    try {
+      if (!dealAiNeedsRefresh(row.id)) continue;
+      await analyzeDealWithAi(row.id, true);
+      analyzed += 1;
+    } catch (error) {
+      console.error("Deal AI reconcile failed", row.id, error);
+    }
   }
 
-  return { merged, repairedThreads };
+  return { merged, repairedThreads, analyzed };
 }
