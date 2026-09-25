@@ -82,7 +82,7 @@ jobs:
           systemctl enable satori-crm-ui >/dev/null 2>&1 || true
           systemctl restart satori-crm-ui
           systemctl is-active --quiet satori-crm-ui
-          if ! curl --fail --silent --show-error --retry 12 --retry-connrefused --retry-delay 2 http://127.0.0.1:3030/ | grep -qi '<html'; then
+          if ! curl --fail --silent --show-error --retry 12 --retry-connrefused --retry-delay 2 http://127.0.0.1:3030/health >/dev/null; then
             systemctl status satori-crm-ui --no-pager || true
             journalctl -u satori-crm-ui -n 80 --no-pager || true
             exit 1
@@ -99,7 +99,7 @@ jobs:
           systemctl is-active --quiet satori-crm-ui
           curl --fail --silent http://127.0.0.1:3020/api/deals >/dev/null
           curl --fail --silent http://127.0.0.1:3020/api/integrations/settings >/dev/null
-          curl --fail --silent http://127.0.0.1:3030/ >/dev/null
+          curl --fail --silent http://127.0.0.1:3030/health >/dev/null
 
           stamp=$(date +%Y%m%d-%H%M%S)
           mkdir -p /var/backups/satori-crm-ui-$stamp
@@ -136,11 +136,16 @@ jobs:
           nginx -t
           systemctl reload nginx
 
-          code=$(curl -sS -o /dev/null -w '%{http_code}' https://crm.satorilabural.online/)
-          case "$code" in 200|307|401) ;; *) echo "Unexpected CRM response: $code"; exit 1;; esac
+          login_code=$(curl -sS -o /dev/null -w '%{http_code}' https://crm.satorilabural.online/login)
+          test "$login_code" = '200'
+          headers=$(mktemp)
+          code=$(curl -sS -D "$headers" -o /dev/null -w '%{http_code}' https://crm.satorilabural.online/)
+          location=$(awk 'BEGIN{IGNORECASE=1} /^location:/ {sub(/\r$/,""); sub(/^location:[[:space:]]*/,""); print; exit}' "$headers")
+          case "$code" in 302|303|307|308) ;; *) echo "Unexpected anonymous CRM response: $code"; exit 1;; esac
+          case "$location" in *"/login"*) ;; *) echo "CRM did not redirect to login: $location"; exit 1;; esac
 
-          curl --fail --silent http://127.0.0.1:3030/ | grep -qi 'Satori'
+          curl --fail --silent http://127.0.0.1:3030/health >/dev/null
           curl --fail --silent http://127.0.0.1:3020/api/deals >/dev/null
           curl --fail --silent http://127.0.0.1:3020/api/integrations/settings >/dev/null
-          echo 'New Satori CRM interface is live; email, Telegram, Need Number, AI and store-order API remain on the working CRM backend.'
+          echo 'New Satori CRM interface is live and session-protected; email, Telegram, Need Number, AI and store-order API remain on the working CRM backend.'
           REMOTE
