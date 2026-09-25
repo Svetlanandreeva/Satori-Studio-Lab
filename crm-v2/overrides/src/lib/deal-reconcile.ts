@@ -1,6 +1,7 @@
 import Database from "better-sqlite3";
 import path from "path";
 import { analyzeContactWithAi } from "@/lib/ai-manager";
+import { dealConversationContext } from "@/lib/deal-intelligence";
 const sqlite=new Database(process.env.CRM_DB_PATH||path.join(process.cwd(),"data","crm.db"),{timeout:15000});
 function norm(v:unknown){return String(v||"").toLowerCase().replace(/^\s*(re|fw|fwd):\s*/gi,"").replace(/\[ticket[^\]]*\]/gi,"").replace(/коммерческ(?:ое|ого)? предложение/gi,"").replace(/[^a-zа-яё0-9]+/gi," ").replace(/\s+/g," ").trim()}
 function key(row:any){const title=norm(row.title);const notes=norm(row.notes);const email=norm(row.email);const company=norm(row.company);return company||title||notes.slice(0,80)||email}
@@ -15,7 +16,7 @@ export async function reconcileDeals(){
    if(!primary.value&&dup.value){sqlite.prepare("UPDATE deals SET value=? WHERE id=?").run(dup.value,primary.id);primary.value=dup.value}
    sqlite.prepare("DELETE FROM deals WHERE id=?").run(dup.id); merged++;
  }
- try{await analyzeContactWithAi(primary.contactId,{apply:true})}catch{}
+ try{dealConversationContext(primary.id)}catch{}\n try{await analyzeContactWithAi(primary.contactId,{apply:true})}catch{}
  }
- return {merged};
+ // Re-evaluate every visible deal, not only duplicate groups. Old rows may contain stale inferred values/stages.\n for(const row of rows){try{dealConversationContext(row.id)}catch{} try{await analyzeContactWithAi(row.contactId,{apply:true})}catch{}}\n return {merged};
 }
