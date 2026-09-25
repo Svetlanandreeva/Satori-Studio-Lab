@@ -44,7 +44,6 @@ function purchaseStatus(status: string) {
 export default async function DealPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
 
-  // Refresh only THIS deal from only THIS deal's email thread.
   try {
     if (dealAiNeedsRefresh(id)) await analyzeDealWithAi(id, true);
   } catch (error) {
@@ -131,7 +130,7 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
             </CardContent>
           </Card>
         </div>
-        {deal.contactId ? <DealConversation contactId={deal.contactId}/> : <div className="rounded-[24px] border bg-white p-8 text-sm text-slate-400">К сделке не привязан клиент.</div>}
+        {deal.contactId ? <DealConversation contactId={deal.contactId} threadId={ai?.sourceThreadId || null}/> : <div className="rounded-[24px] border bg-white p-8 text-sm text-slate-400">К сделке не привязан клиент.</div>}
       </div>
 
       <Card className="rounded-[24px] border-slate-200/80 shadow-sm">
