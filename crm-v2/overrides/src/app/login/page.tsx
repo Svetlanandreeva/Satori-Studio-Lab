@@ -1,38 +1,21 @@
 "use client";
 
-import { FormEvent, useState } from "react";
-import { Eye, EyeOff, Loader2, LockKeyhole, ShieldCheck, UserRound } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Eye, EyeOff, LockKeyhole, ShieldCheck, UserRound } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
 export default function LoginPage() {
-  const [login, setLogin] = useState("");
-  const [password, setPassword] = useState("");
   const [show, setShow] = useState(false);
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [next, setNext] = useState("/");
 
-  async function submit(event: FormEvent) {
-    event.preventDefault();
-    if (!password || loading) return;
-    setLoading(true);
-    setError("");
-    try {
-      const response = await fetch("/api/auth/login", {
-        method: "POST",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ login: login.trim() || undefined, password }),
-      });
-      const data = await response.json().catch(() => ({}));
-      if (!response.ok) throw new Error(data.error || "Не удалось войти");
-      const params = new URLSearchParams(window.location.search);
-      const next = params.get("next");
-      window.location.replace(next && next.startsWith("/") ? next : "/");
-    } catch (caught) {
-      setError(caught instanceof Error ? caught.message : "Не удалось войти");
-      setLoading(false);
-    }
-  }
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    setError(params.get("error") || "");
+    const target = params.get("next") || "/";
+    setNext(target.startsWith("/") && !target.startsWith("//") ? target : "/");
+  }, []);
 
   return (
     <div className="min-h-dvh bg-[#f4f5f7] px-4 py-8 sm:grid sm:place-items-center">
@@ -49,35 +32,36 @@ export default function LoginPage() {
             <div className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600"><LockKeyhole className="h-[18px] w-[18px]" /></div>
             <div>
               <h1 className="text-[24px] font-semibold tracking-[-.025em] text-slate-950">Вход в CRM</h1>
-              <p className="mt-1.5 text-[13px] leading-5 text-slate-500">Владелец может оставить логин пустым и использовать основной пароль. Для сотрудников используется логин из раздела «Контроль».</p>
+              <p className="mt-1.5 text-[13px] leading-5 text-slate-500">Владелец оставляет логин пустым и вводит основной пароль. Для сотрудников используется логин из раздела «Контроль».</p>
             </div>
           </div>
         </div>
 
-        <form onSubmit={submit} className="space-y-5 px-7 py-7">
+        <form action="/api/auth/login" method="post" className="space-y-5 px-7 py-7">
+          <input type="hidden" name="next" value={next} />
           <div>
             <label htmlFor="login" className="mb-2 block text-[12px] font-medium text-slate-600">Логин сотрудника <span className="font-normal text-slate-400">необязательно для владельца</span></label>
             <div className="relative">
               <UserRound className="absolute left-4 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" />
-              <Input id="login" value={login} onChange={(event) => setLogin(event.target.value)} autoComplete="username" className="h-12 rounded-2xl border-slate-200 bg-slate-50/70 pl-11 shadow-none focus-visible:bg-white" placeholder="например, manager" />
+              <Input id="login" name="login" autoComplete="username" className="h-12 rounded-2xl border-slate-200 bg-slate-50/70 pl-11 shadow-none focus-visible:bg-white" placeholder="например, manager" />
             </div>
           </div>
 
           <div>
             <label htmlFor="password" className="mb-2 block text-[12px] font-medium text-slate-600">Пароль</label>
             <div className="relative">
-              <Input id="password" type={show ? "text" : "password"} value={password} onChange={(event) => setPassword(event.target.value)} autoComplete="current-password" autoFocus className="h-12 rounded-2xl border-slate-200 bg-slate-50/70 pr-12 text-[16px] shadow-none focus-visible:bg-white" placeholder="Введите пароль" />
+              <Input id="password" name="password" type={show ? "text" : "password"} required autoComplete="current-password" autoFocus className="h-12 rounded-2xl border-slate-200 bg-slate-50/70 pr-12 text-[16px] shadow-none focus-visible:bg-white" placeholder="Введите пароль" />
               <button type="button" onClick={() => setShow((value) => !value)} className="absolute inset-y-0 right-1 flex w-10 items-center justify-center rounded-xl text-slate-400 hover:text-slate-700" aria-label={show ? "Скрыть пароль" : "Показать пароль"}>{show ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}</button>
             </div>
             {error && <p className="mt-2 text-[12px] font-medium text-rose-600">{error}</p>}
           </div>
 
-          <Button type="submit" disabled={!password || loading} className="h-12 w-full rounded-2xl bg-slate-950 text-[14px] font-medium shadow-sm hover:bg-slate-800">
-            {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ShieldCheck className="mr-2 h-4 w-4" />}
-            {loading ? "Входим…" : "Войти и запомнить устройство"}
+          <Button type="submit" className="h-12 w-full rounded-2xl bg-slate-950 text-[14px] font-medium shadow-sm hover:bg-slate-800">
+            <ShieldCheck className="mr-2 h-4 w-4" />
+            Войти и запомнить устройство
           </Button>
 
-          <div className="rounded-2xl bg-emerald-50/70 px-4 py-3 text-[11px] leading-5 text-emerald-800">Сессия хранится в защищённой HttpOnly-cookie. Роль сотрудника применяется на сервере: «Просмотр» не может изменять данные, менеджер не управляет пользователями и восстановлением резервных копий.</div>
+          <div className="rounded-2xl bg-emerald-50/70 px-4 py-3 text-[11px] leading-5 text-emerald-800">Сессия хранится в защищённой HttpOnly-cookie. Роль сотрудника применяется на сервере: «Просмотр» не может изменять данные CRM, менеджер не управляет пользователями и восстановлением резервных копий.</div>
         </form>
       </div>
     </div>
