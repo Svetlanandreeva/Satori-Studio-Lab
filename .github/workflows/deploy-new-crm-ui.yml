@@ -1,0 +1,143 @@
+name: Deploy new Satori CRM interface
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/deploy-new-crm-ui.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: new-satori-crm-ui
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Fetch new CRM interface
+        run: |
+          git clone --depth=1 https://github.com/Svetlanandreeva/CRM.git /tmp/satori-new-crm
+          cd /tmp/satori-new-crm
+          git rev-parse HEAD | tee /tmp/new-crm-sha
+
+      - name: Build new CRM
+        working-directory: /tmp/satori-new-crm
+        run: |
+          npm install --no-audit --no-fund
+          npm run build
+          npx esbuild server.ts --bundle --platform=node --format=esm --packages=external --outfile=server.js
+          test -f dist/index.html
+          test -f server.js
+
+      - uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.DEPLOY_SSH_KEY }}
+
+      - name: Trust production server
+        run: ssh-keyscan -H 194.226.97.103 >> ~/.ssh/known_hosts
+
+      - name: Upload new CRM application
+        run: |
+          ssh root@194.226.97.103 'mkdir -p /var/www/satori/crm-new-ui'
+          rsync -az --delete \
+            --exclude node_modules/ \
+            --exclude src/ \
+            --exclude .git/ \
+            /tmp/satori-new-crm/dist/ root@194.226.97.103:/var/www/satori/crm-new-ui/dist/
+          rsync -az /tmp/satori-new-crm/server.js /tmp/satori-new-crm/package.json root@194.226.97.103:/var/www/satori/crm-new-ui/
+          scp /tmp/new-crm-sha root@194.226.97.103:/var/www/satori/crm-new-ui/VERSION
+
+      - name: Install production dependencies and start new UI
+        run: |
+          ssh root@194.226.97.103 'bash -se' <<'REMOTE'
+          set -eu
+          cd /var/www/satori/crm-new-ui
+          npm install --omit=dev --no-audit --no-fund
+
+          cat >/etc/systemd/system/satori-crm-ui.service <<'UNIT'
+          [Unit]
+          Description=Satori CRM new interface
+          After=network.target satori-crm-v2.service
+
+          [Service]
+          Type=simple
+          WorkingDirectory=/var/www/satori/crm-new-ui
+          ExecStart=/opt/node22/bin/node /var/www/satori/crm-new-ui/server.js
+          Restart=always
+          RestartSec=3
+          Environment=NODE_ENV=production
+          Environment=PORT=3030
+          Environment=HOST=127.0.0.1
+          EnvironmentFile=-/var/www/satori/.env
+
+          [Install]
+          WantedBy=multi-user.target
+          UNIT
+
+          systemctl daemon-reload
+          systemctl enable satori-crm-ui >/dev/null 2>&1 || true
+          systemctl restart satori-crm-ui
+          systemctl is-active --quiet satori-crm-ui
+          curl --fail --silent --show-error --retry 15 --retry-connrefused --retry-delay 2 http://127.0.0.1:3030/ | grep -qi '<html'
+          REMOTE
+
+      - name: Switch Satori CRM domain to new interface and preserve old API
+        run: |
+          ssh root@194.226.97.103 'bash -se' <<'REMOTE'
+          set -eu
+          cfg=/etc/nginx/conf.d/satori-crm.conf
+          test -f "$cfg"
+          systemctl is-active --quiet satori-crm-v2
+          curl --fail --silent http://127.0.0.1:3020/api/deals >/dev/null
+
+          stamp=$(date +%Y%m%d-%H%M%S)
+          mkdir -p /var/backups/satori-crm-ui-$stamp
+          cp -a "$cfg" /var/backups/satori-crm-ui-$stamp/satori-crm.conf
+
+          CFG="$cfg" python3 - <<'PY'
+          import os,re
+          from pathlib import Path
+          p=Path(os.environ['CFG'])
+          s=p.read_text()
+
+          start='# SATORI NEW CRM UI ROUTING BEGIN'
+          end='# SATORI NEW CRM UI ROUTING END'
+          s=re.sub(r'\n?\s*'+re.escape(start)+r'.*?'+re.escape(end)+r'\s*\n?', '\n', s, flags=re.S)
+
+          marker='    location / {\n'
+          if marker not in s:
+              raise SystemExit('CRM root location not found')
+
+          routing='''    # SATORI NEW CRM UI ROUTING BEGIN\n    location = /api/next-best-action {\n        proxy_pass http://127.0.0.1:3030;\n        proxy_http_version 1.1;\n        proxy_set_header Host $host;\n        proxy_set_header X-Forwarded-Proto $scheme;\n        proxy_set_header X-Real-IP $remote_addr;\n        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n    }\n\n    location ^~ /api/ {\n        proxy_pass http://127.0.0.1:3020;\n        proxy_http_version 1.1;\n        proxy_set_header Host $host;\n        proxy_set_header X-Forwarded-Proto $scheme;\n        proxy_set_header X-Real-IP $remote_addr;\n        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;\n    }\n    # SATORI NEW CRM UI ROUTING END\n\n'''
+          s=s.replace(marker, routing+marker, 1)
+
+          root_match=re.search(r'(?ms)^\s*location / \{.*?^\s*\}', s)
+          if not root_match:
+              raise SystemExit('CRM root location block not found')
+          block=root_match.group(0)
+          if 'proxy_pass http://127.0.0.1:3020;' in block:
+              block=block.replace('proxy_pass http://127.0.0.1:3020;','proxy_pass http://127.0.0.1:3030;',1)
+          elif 'proxy_pass http://127.0.0.1:3010;' in block:
+              block=block.replace('proxy_pass http://127.0.0.1:3010;','proxy_pass http://127.0.0.1:3030;',1)
+          elif 'proxy_pass http://127.0.0.1:3030;' not in block:
+              raise SystemExit('Expected root proxy_pass not found')
+          s=s[:root_match.start()]+block+s[root_match.end():]
+          p.write_text(s)
+          PY
+
+          nginx -t
+          systemctl reload nginx
+
+          code=$(curl -sS -o /dev/null -w '%{http_code}' https://crm.satorilabural.online/)
+          case "$code" in 401|200) ;; *) echo "Unexpected CRM response: $code"; exit 1;; esac
+
+          curl --fail --silent http://127.0.0.1:3030/ | grep -qi 'Satori'
+          curl --fail --silent http://127.0.0.1:3020/api/deals >/dev/null
+          echo 'New Satori CRM interface is live on 3030; existing CRM API remains on 3020.'
+          REMOTE
