@@ -44,6 +44,7 @@ export default function DashboardPage() {
 
   const startOfToday = new Date(); startOfToday.setHours(0,0,0,0);
   const todayActivities = db.select().from(activities).all().filter(a => a.createdAt.getTime() >= startOfToday.getTime());
+  const todayContactIds = new Set(todayActivities.filter(a => visibleContactIds.has(a.contactId) && /email|telegram|call|звон|message|сообщ/i.test(String(a.type))).map(a => a.contactId));
   const sentOffers = todayActivities.filter(a => /кп|коммерческ/i.test(a.description) && /отправ/i.test(a.description)).length;
   const refusals = allDeals.filter(d => stages.find(s => s.id===d.stageId)?.isLost && d.updatedAt.getTime() >= startOfToday.getTime()).length;
   const calls = todayActivities.filter(a => /call|звон/i.test(a.type+" "+a.description)).length;
@@ -74,7 +75,7 @@ export default function DashboardPage() {
       </section>
 
       <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
-        <HomeMetric label="Контактов сегодня" value={String(todayActivities.length)} />
+        <HomeMetric label="Контактов сегодня" value={String(todayContactIds.size)} />
         <HomeMetric label="Отправлено КП" value={String(sentOffers)} />
         <HomeMetric label="Отказов" value={String(refusals)} />
         <HomeMetric label="Звонков / входящих" value={String(calls)} />
