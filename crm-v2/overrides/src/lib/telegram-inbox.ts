@@ -118,6 +118,7 @@ export function getTelegramThread(contactId: string) {
     .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())
     .map((item) => ({
       id: item.id,
+      sourceMessageId: item.id.startsWith("tg:") ? item.id.slice(3) : null,
       direction: direction(item.type),
       bodyText: bodyFromDescription(item.description),
       receivedAt: item.createdAt.toISOString(),
