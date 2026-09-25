@@ -384,7 +384,9 @@ export default function SettingsPage() {
       </div>
 
       <div className="grid grid-cols-1 gap-3">
-        <CardTitle className="text-base flex items-center justify-between gap-3">
+        <Card>
+          <CardHeader className="cursor-pointer" onClick={()=>toggleSection("ai")}>
+            <CardTitle className="text-base flex items-center justify-between gap-3">
               <span className="flex items-center gap-2"><Bot className="h-4 w-4" /> AI-менеджер Satori</span>
               <span className="flex items-center gap-2">{statusBadge(health.ai,openAi.configured)}<ChevronDown className={`h-4 w-4 transition-transform ${openSections.ai?"rotate-180":""}`}/></span>
             </CardTitle>
