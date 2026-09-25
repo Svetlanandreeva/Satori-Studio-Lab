@@ -122,8 +122,21 @@ export async function analyzeDealWithAi(dealId: string, apply = true) {
     const allText = conversation.map((m) => `${m.subject}\n${m.text}`).join("\n");
     const title = String(decision.dealTitle || "").trim();
     if (!locks.titleLocked && title.length >= 3) sqlite.prepare(`UPDATE deals SET title=?,updated_at=? WHERE id=?`).run(title.slice(0, 120), Date.now(), dealId);
+
     const amount = Number(decision.quotedAmountRub || 0);
-    if (!locks.valueLocked && amount > 0 && amount <= 10_000_000 && amountHasEvidence(allText, amount)) sqlite.prepare(`UPDATE deals SET value=?,updated_at=? WHERE id=?`).run(Math.round(amount * 100), Date.now(), dealId);
+    if (!locks.valueLocked) {
+      if (amount > 0 && amount <= 10_000_000 && amountHasEvidence(allText, amount)) {
+        sqlite.prepare(`UPDATE deals SET value=?,updated_at=? WHERE id=?`).run(Math.round(amount * 100), Date.now(), dealId);
+      } else {
+        const currentRub = Math.round(Number(deal.value || 0) / 100);
+        // Clean only the known stale 1M/2M artifacts from the previous buggy extractor,
+        // and only when this exact deal thread contains no evidence for that amount.
+        if ([1_000_000, 2_000_000].includes(currentRub) && !amountHasEvidence(allText, currentRub)) {
+          sqlite.prepare(`UPDATE deals SET value=0,updated_at=? WHERE id=?`).run(Date.now(), dealId);
+        }
+      }
+    }
+
     const stage = String(decision.suggestedStage || "").trim();
     if (!locks.stageLocked && stage) {
       const target = sqlite.prepare(`SELECT id FROM pipeline_stages WHERE lower(name)=lower(?) LIMIT 1`).get(stage) as any;
