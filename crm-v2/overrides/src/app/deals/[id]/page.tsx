@@ -71,7 +71,7 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
   const members = listTeamMembers() as Array<any>;
   const documents = deal.contactId ? listClientDocuments(deal.contactId) : [];
   const ai = getDealAiSummary(deal.id);
-  const economicsRaw = getDealEconomics(deal.id);
+  const economicsRaw = (getDealEconomics(deal.id) || { receivedAmount: 0 }) as { receivedAmount: number };
 
   return (
     <div className="mx-auto max-w-[1280px] space-y-5 pb-10">
