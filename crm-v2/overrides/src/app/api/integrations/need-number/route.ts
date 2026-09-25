@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
-import { asc, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { db } from "@/db";
-import { activities, contacts, deals, pipelineStages } from "@/db/schema";
+import { activities, contacts } from "@/db/schema";
 import { importTelegramAttachmentsFromUpdate } from "@/lib/telegram-attachment-import";
 import {
   INTEGRATION_KEYS,
@@ -257,8 +257,9 @@ export async function POST(request: NextRequest) {
         phone,
         company: null,
         source: "need_number",
-        temperature: "warm",
-        score: 55,
+        temperature: "cold",
+        qualification: "new",
+        score: 20,
         notes: noteText,
         createdAt: now,
         updatedAt: now,
@@ -275,32 +276,9 @@ export async function POST(request: NextRequest) {
       })
       .run();
 
-    if (getBooleanSetting(INTEGRATION_KEYS.needNumberCreateDeal, true)) {
-      const stage = db
-        .select()
-        .from(pipelineStages)
-        .orderBy(asc(pipelineStages.order))
-        .all()
-        .find((item) => !item.isWon && !item.isLost);
-
-      if (stage) {
-        const createdDeal = db
-          .insert(deals)
-          .values({
-            title: niche ? `Need Number · ${niche}` : `Need Number · ${phone}`,
-            value: 0,
-            stageId: stage.id,
-            contactId: contact.id,
-            probability: 20,
-            notes: noteText,
-            createdAt: now,
-            updatedAt: now,
-          })
-          .returning()
-          .get();
-        dealId = createdDeal.id;
-      }
-    }
+    // Need Number is a prospecting source, not a client application.
+    // Keep the record in the call list. A deal is created only after a real request is confirmed.
+    dealId = null;
   }
 
   if (!contact) {
@@ -316,6 +294,7 @@ export async function POST(request: NextRequest) {
     interest ? `💬 ${escapeTelegramHtml(interest)}` : null,
     source ? `🔗 Источник: ${escapeTelegramHtml(source)}` : null,
     `Проект: ${escapeTelegramHtml(project)}`,
+    "📋 Добавлен в список обзвона — не в клиентскую базу",
   ].filter(Boolean) as string[];
 
   const telegram = await sendTelegramMessage({
