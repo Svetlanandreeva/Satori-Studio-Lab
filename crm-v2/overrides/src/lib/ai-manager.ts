@@ -20,6 +20,9 @@ type AiDecision = {
   followUpHours?: number | null;
   confidence?: number;
   documentFacts?: Record<string, unknown>;
+  dealTitle?: string | null;
+  quotedAmountRub?: number | null;
+  paymentStatus?: "not_discussed" | "awaiting_payment" | "paid" | "partial" | null;
 };
 
 function tableExists(name: string) {
@@ -46,7 +49,7 @@ async function callOpenAI(input: unknown): Promise<AiDecision | null> {
   if (!key) return null;
   const model = openAiSettings().model;
   const baseUrl = getOpenAiBaseUrl();
-  const system = "Ты AI-менеджер SATORI CRM. Анализируй только предоставленные факты. Верни ТОЛЬКО JSON: summary, disposition(active|unprocessed|lost|won|production|unknown), reason, nextStep, hasApplication, lossReason, suggestedStage, followUpHours, confidence(0..1), documentFacts. Не выдумывай. hasApplication=true только если клиент реально сформулировал запрос/заявку на товар, производство, расчёт, КП или заказ; сам факт попадания из Need Number заявкой не является. lost ставь только при явном отказе клиента и обязательно заполни lossReason. suggestedStage выбирай по фактическому состоянию диалога. followUpHours укажи, если из контекста следует, когда уместно мягко напомнить клиенту; иначе null. Краткое summary сохраняет суть запроса, цену/КП, сроки и причину отказа.";
+  const system = "Ты AI-менеджер SATORI CRM. Анализируй только предоставленные факты. Верни ТОЛЬКО JSON: summary, disposition(active|unprocessed|lost|won|production|unknown), reason, nextStep, hasApplication, lossReason, suggestedStage, followUpHours, confidence(0..1), documentFacts. Не выдумывай. hasApplication=true только если клиент реально сформулировал запрос/заявку на товар, производство, расчёт, КП или заказ; сам факт попадания из Need Number заявкой не является. lost ставь только при явном отказе клиента и обязательно заполни lossReason. suggestedStage выбирай по фактическому состоянию диалога. followUpHours укажи, если из контекста следует, когда уместно мягко напомнить клиенту; иначе null. summary пиши СВОИМИ СЛОВАМИ, без цитат, HTML, email-заголовков и технических идентификаторов. Формат summary: 4 короткие строки: "Хочет: ...", "Предложено: ...", "Сумма: ...", "Стадия: ...". Верни также dealTitle — короткое человеческое название предмета сделки; quotedAmountRub — только явно согласованная/предложенная итоговая сумма в рублях, иначе null; paymentStatus. suggestedStage обязан отражать последнюю фактическую стадию переговоров, а не исходный статус CRM. Если КП уже отправлено — это не "Новый запрос"; если ждём оплату — укажи соответствующую стадию из смысла диалога.";
   const official = baseUrl.includes("api.openai.com");
   const response = await fetch(official ? `${baseUrl}/responses` : `${baseUrl}/chat/completions`, {
     method: "POST",
@@ -122,6 +125,14 @@ export async function analyzeContactWithAi(contactId: string, options: { documen
           .run(contactId, decision.summary, Date.now());
       }
       if (decision.hasApplication === true) {
+        const currentDeal=sqlite.prepare("SELECT id,value,title FROM deals WHERE contact_id=? ORDER BY updated_at DESC LIMIT 1").get(contactId) as any;
+        if(currentDeal?.id){
+          const amount=Number(decision.quotedAmountRub||0);
+          const title=String(decision.dealTitle||"").trim();
+          if(amount>0&&amount<=10000000) sqlite.prepare("UPDATE deals SET value=?,updated_at=? WHERE id=?").run(Math.round(amount*100),Date.now(),currentDeal.id);
+          if(title.length>=3) sqlite.prepare("UPDATE deals SET title=?,updated_at=? WHERE id=?").run(title.slice(0,120),Date.now(),currentDeal.id);
+          if(decision.summary) sqlite.prepare("UPDATE deals SET notes=?,updated_at=? WHERE id=?").run(decision.summary,Date.now(),currentDeal.id);
+        }
         sqlite.prepare("UPDATE contacts SET qualification='qualified',updated_at=? WHERE id=?").run(Date.now(), contactId);
         const activeDeal = sqlite.prepare(`SELECT d.id FROM deals d JOIN pipeline_stages ps ON ps.id=d.stage_id WHERE d.contact_id=? AND COALESCE(ps.is_won,0)=0 AND COALESCE(ps.is_lost,0)=0 LIMIT 1`).get(contactId) as {id?:string}|undefined;
         if (!activeDeal?.id) {
