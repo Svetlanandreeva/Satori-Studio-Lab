@@ -43,25 +43,32 @@ async function callOpenAI(input: unknown): Promise<AiDecision | null> {
   const key = getOpenAiKey();
   if (!key) return null;
   const model = openAiSettings().model;
-  const response = await fetch(`${getOpenAiBaseUrl()}/responses`, {
+  const baseUrl = getOpenAiBaseUrl();
+  const system = "Ты AI-менеджер SATORI CRM. Анализируй только предоставленные факты. Верни ТОЛЬКО JSON: summary, disposition(active|unprocessed|lost|won|production|unknown), reason, nextStep, confidence(0..1), documentFacts. Не выдумывай. lost ставь только при явном отказе клиента. unprocessed — новый лид без содержательной обработки менеджером. Краткое summary должно сохранять суть запроса, цену/КП, сроки и причину отказа, если они известны.";
+  const official = baseUrl.includes("api.openai.com");
+  const response = await fetch(official ? `${baseUrl}/responses` : `${baseUrl}/chat/completions`, {
     method: "POST",
     headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-    body: JSON.stringify({
+    body: JSON.stringify(official ? {
       model,
       input: [
-        { role: "system", content: [{ type: "input_text", text:
-          "Ты AI-менеджер SATORI CRM. Анализируй только предоставленные факты. Верни ТОЛЬКО JSON: summary, disposition(active|unprocessed|lost|won|production|unknown), reason, nextStep, confidence(0..1), documentFacts. Не выдумывай. lost ставь только при явном отказе клиента. unprocessed — новый лид без содержательной обработки менеджером. Краткое summary должно сохранять суть запроса, цену/КП, сроки и причину отказа, если они известны." }] },
+        { role: "system", content: [{ type: "input_text", text: system }] },
         { role: "user", content: [{ type: "input_text", text: JSON.stringify(input) }] },
       ],
       text: { format: { type: "json_object" } },
+    } : {
+      model,
+      messages: [{role:"system",content:system},{role:"user",content:JSON.stringify(input)}],
+      response_format:{type:"json_object"}
     }),
   });
-  if (!response.ok) throw new Error(`OpenAI: ${response.status} ${(await response.text()).slice(0,300)}`);
+  if (!response.ok) throw new Error(`AI API: ${response.status} ${(await response.text()).slice(0,300)}`);
   const json = await response.json() as Record<string, any>;
-  const text = json.output_text || json.output?.flatMap((x:any)=>x.content||[]).find((x:any)=>x.type==="output_text")?.text;
+  const text = official
+    ? json.output_text || json.output?.flatMap((x:any)=>x.content||[]).find((x:any)=>x.type==="output_text")?.text
+    : json.choices?.[0]?.message?.content;
   return text ? JSON.parse(text) as AiDecision : null;
 }
-
 async function documentInput(documentId: string, contactId: string) {
   const doc = getClientDocument(documentId, contactId);
   if (!doc) return null;
