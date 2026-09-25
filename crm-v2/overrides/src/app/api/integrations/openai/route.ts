@@ -2,7 +2,19 @@ import { NextRequest, NextResponse } from "next/server";
 import { clearOpenAiKey, getOpenAiBaseUrl, getOpenAiKey, openAiSettings, saveOpenAiSettings } from "@/lib/ai-settings";
 export const dynamic="force-dynamic";
 
-export async function GET(){return NextResponse.json(openAiSettings())}
+export async function GET(req:NextRequest){
+  const settings=openAiSettings();
+  if(req.nextUrl.searchParams.get("models")!=="1") return NextResponse.json(settings);
+  const key=getOpenAiKey();
+  if(!key) return NextResponse.json({...settings,models:[],modelsError:"Сначала сохраните API key"});
+  try{
+    const response=await fetch(`${getOpenAiBaseUrl()}/models`,{headers:{Authorization:`Bearer ${key}`},cache:"no-store"});
+    if(!response.ok){const e=await openAiError(response);return NextResponse.json({...settings,models:[],modelsError:e.message});}
+    const data=await response.json() as {data?:Array<{id?:string}>};
+    const models=(data.data||[]).map(x=>x.id).filter((x):x is string=>Boolean(x)).sort();
+    return NextResponse.json({...settings,models});
+  }catch(e){return NextResponse.json({...settings,models:[],modelsError:e instanceof Error?e.message:"Не удалось получить модели"});}
+}
 
 async function openAiError(r: Response) {
   let message = `OpenAI вернул ошибку ${r.status}`;
