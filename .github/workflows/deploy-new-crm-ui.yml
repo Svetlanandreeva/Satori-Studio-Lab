@@ -22,14 +22,14 @@ jobs:
 
       - name: Fetch new CRM interface
         run: |
-          git clone --depth=1 https://github.com/Svetlanandreeva/CRM.git /tmp/satori-new-crm
+          git clone --depth=1 --branch main https://github.com/Svetlanandreeva/CRM.git /tmp/satori-new-crm
           cd /tmp/satori-new-crm
           git rev-parse HEAD | tee /tmp/new-crm-sha
 
       - name: Build new CRM
         working-directory: /tmp/satori-new-crm
         run: |
-          npm install --no-audit --no-fund
+          npm install --legacy-peer-deps --no-audit --no-fund
           npm run build
           npx esbuild server.ts --bundle --platform=node --format=esm --packages=external --outfile=server.js
           test -f dist/index.html
@@ -58,7 +58,7 @@ jobs:
           ssh root@194.226.97.103 'bash -se' <<'REMOTE'
           set -eu
           cd /var/www/satori/crm-new-ui
-          npm install --omit=dev --no-audit --no-fund
+          npm install --omit=dev --legacy-peer-deps --no-audit --no-fund
 
           cat >/etc/systemd/system/satori-crm-ui.service <<'UNIT'
           [Unit]
