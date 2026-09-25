@@ -4,6 +4,7 @@ import { enrichContactsFromDialogs } from "@/lib/contact-intelligence";
 import { getDailyManagementBrief } from "@/lib/assistant-daily";
 import { getSanitizedAssistantState, runAssistantSafely } from "@/lib/assistant-runtime";
 import { chatWithCrmManager } from "@/lib/assistant-chat";
+import { prepareDocumentDelivery, confirmDocumentDelivery, preparePaymentConfirmation, confirmPayment } from "@/lib/assistant-actions";
 
 export const dynamic = "force-dynamic";
 
@@ -36,6 +37,10 @@ export async function POST(request: NextRequest) {
     let body: Record<string, unknown> = {};
     try { body = (await request.json()) as Record<string, unknown>; } catch {}
     const action = String(body.action || "run");
+    if (action === "prepare_document_send") return NextResponse.json(prepareDocumentDelivery(String(body.contactId||""),String(body.documentId||"")));
+    if (action === "confirm_document_send") return NextResponse.json(await confirmDocumentDelivery({contactId:String(body.contactId||""),documentId:String(body.documentId||""),channel:body.channel==="email"?"email":"telegram",threadId:body.threadId?String(body.threadId):undefined,caption:body.caption?String(body.caption):undefined}));
+    if (action === "prepare_payment") return NextResponse.json(preparePaymentConfirmation(String(body.dealId||""),Number(body.amount||0),String(body.evidence||"")));
+    if (action === "confirm_payment") return NextResponse.json(confirmPayment(String(body.dealId||""),Number(body.amount||0),String(body.evidence||"")));
     if (action === "chat") {
       const message=String(body.message||"").trim();
       if(!message) return NextResponse.json({error:"Напишите задачу для AI-менеджера"},{status:400});
