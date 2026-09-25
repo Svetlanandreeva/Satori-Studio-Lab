@@ -21,11 +21,15 @@ jobs:
           ssh root@194.226.97.103 'bash -se' <<'REMOTE'
           set -eu
           echo '=== enabled files ==='
-          find /etc/nginx -maxdepth 3 -type f -o -type l | sort | grep -E 'sites|conf.d' || true
+          find /etc/nginx -maxdepth 3 \( -type f -o -type l \) | sort | grep -E 'sites|conf.d' || true
           echo '=== domain matches ==='
           grep -RIn 'crm.satorilabural.online' /etc/nginx 2>/dev/null || true
-          echo '=== port 3010 matches ==='
-          grep -RIn '3010' /etc/nginx 2>/dev/null || true
+          echo '=== CRM upstream matches ==='
+          grep -RInE '127\.0\.0\.1:(3010|3020|3030)' /etc/nginx 2>/dev/null || true
           echo '=== relevant nginx -T ==='
-          nginx -T 2>/dev/null | grep -B8 -A18 -E 'crm\.satorilabural\.online|127\.0\.0\.1:3010|localhost:3010' || true
+          nginx -T 2>/dev/null | grep -B10 -A30 -E 'crm\.satorilabural\.online|127\.0\.0\.1:(3010|3020|3030)' || true
+          echo '=== local responses ==='
+          curl -sS -o /dev/null -w '3020 root: %{http_code}\n' http://127.0.0.1:3020/ || true
+          curl -sS -o /dev/null -w '3030 root: %{http_code}\n' http://127.0.0.1:3030/ || true
+          curl -k -sS -o /dev/null -w 'public root: %{http_code}\n' https://crm.satorilabural.online/ || true
           REMOTE
