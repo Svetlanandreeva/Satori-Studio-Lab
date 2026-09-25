@@ -12,6 +12,8 @@ import { getDealEconomics } from "@/lib/economics";
 import { calculateDealFinancials } from "@/lib/deal-financials";
 import { listDealHistory, listTeamMembers } from "@/lib/operations";
 import { getDealProcurementSummary, listDealPurchases } from "@/lib/procurement";
+import { DealConversation } from "@/components/deals/DealConversation";
+import { listClientDocuments } from "@/lib/client-documents";
 
 export const dynamic = "force-dynamic";
 
@@ -57,6 +59,7 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
   const procurementSummary = getDealProcurementSummary(id);
   const history = listDealHistory(id) as Array<any>;
   const members = listTeamMembers() as Array<any>;
+  const documents = deal.contactId ? listClientDocuments(deal.contactId) : [];
 
   return (
     <div className="mx-auto max-w-[1280px] space-y-5 pb-10">
@@ -81,6 +84,15 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
         <Metric label="Перерасход" value={signedMoney(procurementSummary.variance)} tone={procurementSummary.variance > 0 ? "text-rose-600" : procurementSummary.variance < 0 ? "text-emerald-700" : undefined} />
         <Metric label="Прибыль компании" value={money(economics.profit)} />
         <Metric label="Маржа" value={economics.receivedAmount ? `${economics.margin.toFixed(1)}%` : "—"} />
+      </div>
+
+      <div className="grid gap-5 xl:grid-cols-[minmax(0,.82fr)_minmax(420px,1.18fr)]">
+        <div className="space-y-4">
+          <Card className="rounded-[24px] border-slate-200/80 shadow-sm"><CardHeader><CardTitle className="text-base">Заказ и оплата</CardTitle></CardHeader><CardContent className="space-y-3 text-sm"><Info label="Название" value={deal.title}/><Info label="Статус" value={deal.stageName||"—"}/><Info label="Сумма" value={money(deal.value)}/><Info label="Получено оплат" value={money(economics.receivedAmount)}/><Info label="Предоплата" value={deal.value ? `${Math.min(100,Math.round(economics.receivedAmount/deal.value*100))}%`:"—"}/><Info label="Дата сделки" value={date(deal.createdAt)}/><Info label="Источник" value={deal.contactName||"—"}/></CardContent></Card>
+          <Card className="rounded-[24px] border-slate-200/80 shadow-sm"><CardHeader><CardTitle className="text-base">Файлы и КП</CardTitle></CardHeader><CardContent>{!documents.length?<div className="text-sm text-slate-400">Файлов пока нет.</div>:<div className="space-y-2">{documents.slice(0,8).map((d:any)=><a key={d.id} href={`/api/contacts/${deal.contactId}/documents/${d.id}`} target="_blank" className="block rounded-xl border bg-slate-50 px-3 py-2 text-sm hover:bg-white"><div className="font-medium text-slate-800">{d.name}</div><div className="text-[11px] text-slate-400">{d.kind}</div></a>)}</div>}</CardContent></Card>
+          <Card className="rounded-[24px] border-slate-200/80 shadow-sm"><CardHeader><CardTitle className="text-base">Описание от AI</CardTitle></CardHeader><CardContent><div className="whitespace-pre-wrap text-sm leading-6 text-slate-600">{deal.notes||"AI ещё не сформировал выжимку по этой сделке."}</div></CardContent></Card>
+        </div>
+        {deal.contactId ? <DealConversation contactId={deal.contactId}/> : <div className="rounded-[24px] border bg-white p-8 text-sm text-slate-400">К сделке не привязан клиент.</div>}
       </div>
 
       <Card className="rounded-[24px] border-slate-200/80 shadow-sm">
@@ -123,6 +135,8 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
     </div>
   );
 }
+
+function Info({label,value}:{label:string;value:string}){return <div className="flex items-start justify-between gap-4 border-b border-slate-100 pb-2 last:border-0"><span className="text-slate-400">{label}</span><span className="text-right font-medium text-slate-800">{value}</span></div>}
 
 function Metric({ label, value, tone = "text-slate-950" }: { label: string; value: string; tone?: string }) {
   return <div className="rounded-[22px] border border-slate-200/80 bg-white p-4 shadow-sm"><div className="flex items-center gap-2 text-[11px] text-slate-400"><WalletCards className="h-3.5 w-3.5" />{label}</div><div className={`mt-2 text-xl font-semibold tracking-tight ${tone}`}>{value}</div></div>;
