@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { getEmailThread } from "@/lib/email-integration";
+import { listClientDocuments } from "@/lib/client-documents";
 import {
   cleanEmailDisplayBody,
   cleanupLegacyAutoEmailContacts,
@@ -22,7 +23,9 @@ export async function GET(
     bodyText: cleanEmailDisplayBody(message.bodyText),
   }));
   const deal = getContactPipelineContext(result.contact?.id || result.thread.contactId);
-  return NextResponse.json({ ...result, messages, deal });
+  const contactId=result.contact?.id || result.thread.contactId;
+  const documents=contactId ? listClientDocuments(contactId).filter((d)=>d.sourceChannel==="email") : [];
+  return NextResponse.json({ ...result, messages, deal, documents });
 }
 
 export async function PATCH(
