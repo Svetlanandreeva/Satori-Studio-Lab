@@ -14,6 +14,8 @@ export type DealEconomicsLike = {
   taxCost?: unknown;
   otherCost?: unknown;
   dealValue?: unknown;
+  managerCommissionEnabled?: unknown;
+  managerCommissionRate?: unknown;
 };
 
 function amount(value: unknown): number {
@@ -42,16 +44,16 @@ export function directCostFromEconomics(row: DealEconomicsLike): number {
 export function calculateFinancialsFromDirectCost(
   receivedInput: unknown,
   directCostInput: unknown,
-  dealValueInput: unknown = 0
+  dealValueInput: unknown = 0,
+  managerCommissionEnabled: unknown = false,
+  managerCommissionRateInput: unknown = MANAGER_COMMISSION_RATE
 ) {
   const receivedAmount = amount(receivedInput);
   const directCost = amount(directCostInput);
   const dealValue = amount(dealValueInput);
   const profitBeforeManager = receivedAmount - directCost;
-  const managerCommission = Math.max(
-    0,
-    Math.round((profitBeforeManager * MANAGER_COMMISSION_RATE) / 100)
-  );
+  const managerCommissionRate = managerCommissionEnabled === true || managerCommissionEnabled === 1 || managerCommissionEnabled === "1" ? amount(managerCommissionRateInput || MANAGER_COMMISSION_RATE) : 0;
+  const managerCommission = Math.max(0, Math.round((profitBeforeManager * managerCommissionRate) / 100));
   const totalCost = directCost + managerCommission;
   const profit = receivedAmount - totalCost;
   const margin = receivedAmount > 0 ? (profit / receivedAmount) * 100 : 0;
@@ -62,7 +64,7 @@ export function calculateFinancialsFromDirectCost(
     directCost,
     profitBeforeManager,
     managerCommission,
-    managerCommissionRate: MANAGER_COMMISSION_RATE,
+    managerCommissionRate,
     totalCost,
     profit,
     margin,
@@ -74,6 +76,8 @@ export function calculateDealFinancials(row: DealEconomicsLike) {
   return calculateFinancialsFromDirectCost(
     row.receivedAmount,
     directCostFromEconomics(row),
-    row.dealValue
+    row.dealValue,
+    row.managerCommissionEnabled,
+    row.managerCommissionRate
   );
 }
