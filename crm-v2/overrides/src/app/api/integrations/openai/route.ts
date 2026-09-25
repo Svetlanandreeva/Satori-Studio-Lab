@@ -14,7 +14,7 @@ async function openAiError(r: Response) {
   } catch {}
   if (r.status === 401) message = "Ключ недействителен, отозван или введён не полностью. Создай новый API key и замени его в CRM.";
   else if (r.status === 429 && (code.includes("quota") || code.includes("balance") || code.includes("limit"))) message = "Ключ рабочий, но у API нет доступного баланса или достигнут лимит расходов.";
-  else if (r.status === 403) message = "Ключ распознан, но у него недостаточно прав для этого API-проекта.";
+  else if (r.status === 403) message = "API вернул 403: " + message;
   return { message, code, status: r.status };
 }
 
