@@ -12,6 +12,7 @@ import {
   Kanban,
   LayoutDashboard,
   MessageCircle,
+  PhoneCall,
   Settings,
   ShieldCheck,
   Sparkles,
@@ -36,6 +37,7 @@ const workItems: NavItem[] = [
   { href: "/pipeline", label: "Воронка", icon: Kanban, iconBg: "bg-violet-50", iconText: "text-violet-600", dot: "bg-violet-500" },
   { href: "/projects", label: "Проекты", icon: FolderKanban, iconBg: "bg-amber-50", iconText: "text-amber-600", dot: "bg-amber-500" },
   { href: "/production", label: "Производство", icon: Factory, iconBg: "bg-orange-50", iconText: "text-orange-600", dot: "bg-orange-500" },
+  { href: "/call-list", label: "Обзвон", icon: PhoneCall, iconBg: "bg-amber-50", iconText: "text-amber-700", dot: "bg-amber-500" },
   { href: "/contacts", label: "Клиенты", icon: Users, iconBg: "bg-teal-50", iconText: "text-teal-600", dot: "bg-teal-500" },
 ];
 
