@@ -100,7 +100,8 @@ jobs:
           cp -a crm-v2/overrides/src/. /tmp/satori-auto-crm/src/
           grep -q 'Need Number' /tmp/satori-auto-crm/src/app/settings/page.tsx
           grep -q 'sendTelegramMessage' /tmp/satori-auto-crm/src/app/api/integrations/need-number/route.ts
-          grep -q 'Поиск клиентов и сделок' /tmp/satori-auto-crm/src/components/layout/Header.tsx
+          grep -q 'Satori Studio' /tmp/satori-auto-crm/src/components/layout/Header.tsx
+          grep -q 'studio-gradient' /tmp/satori-auto-crm/src/app/globals.css
 
       - name: Install and build Auto-CRM
         working-directory: /tmp/satori-auto-crm
@@ -263,7 +264,7 @@ jobs:
         run: |
           ssh root@194.226.97.103 'bash -se' <<'REMOTE'
           set -eu
-          curl --fail --silent http://127.0.0.1:3020/ | grep -q 'Главная'
+          curl --fail --silent http://127.0.0.1:3020/ | grep -q 'Satori Studio'
           curl --fail --silent http://127.0.0.1:3020/settings | grep -q 'Need Number'
           curl --fail --silent http://127.0.0.1:3020/api/integrations/settings >/tmp/satori-integrations.json
           python3 - <<'PY'
