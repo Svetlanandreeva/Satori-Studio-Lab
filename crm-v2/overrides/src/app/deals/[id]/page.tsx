@@ -14,6 +14,7 @@ import { listDealHistory, listTeamMembers } from "@/lib/operations";
 import { getDealProcurementSummary, listDealPurchases } from "@/lib/procurement";
 import { DealConversation } from "@/components/deals/DealConversation";
 import { listClientDocuments } from "@/lib/client-documents";
+import { dealConversationContext } from "@/lib/deal-intelligence";
 
 export const dynamic = "force-dynamic";
 
@@ -60,6 +61,7 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
   const history = listDealHistory(id) as Array<any>;
   const members = listTeamMembers() as Array<any>;
   const documents = deal.contactId ? listClientDocuments(deal.contactId) : [];
+  const intelligence = dealConversationContext(deal.id);
 
   return (
     <div className="mx-auto max-w-[1280px] space-y-5 pb-10">
@@ -88,9 +90,9 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
 
       <div className="grid gap-5 xl:grid-cols-[minmax(0,.82fr)_minmax(420px,1.18fr)]">
         <div className="space-y-4">
-          <Card className="rounded-[24px] border-slate-200/80 shadow-sm"><CardHeader><CardTitle className="text-base">Заказ и оплата</CardTitle></CardHeader><CardContent className="space-y-3 text-sm"><Info label="Название" value={deal.title}/><Info label="Статус" value={deal.stageName||"—"}/><Info label="Сумма" value={money(deal.value)}/><Info label="Получено оплат" value={money(economics.receivedAmount)}/><Info label="Предоплата" value={deal.value ? `${Math.min(100,Math.round(economics.receivedAmount/deal.value*100))}%`:"—"}/><Info label="Дата сделки" value={date(deal.createdAt)}/><Info label="Источник" value={deal.contactName||"—"}/></CardContent></Card>
+          <Card className="rounded-[24px] border-slate-200/80 shadow-sm"><CardHeader><CardTitle className="text-base">Заказ и оплата</CardTitle></CardHeader><CardContent className="space-y-3 text-sm"><Info label="Название" value={deal.title}/><Info label="Статус" value={deal.stageName||"—"}/><Info label="Сумма" value={money(deal.value)}/><Info label="Получено оплат" value={money(economics.receivedAmount)}/><Info label="Предоплата" value={deal.value ? `${Math.min(100,Math.round(economics.receivedAmount/deal.value*100))}%`:"—"}/><Info label="Дата сделки" value={date(deal.createdAt)}/>{intelligence?.paymentEvidence && <><Info label="Оплата найдена в диалоге" value={date(new Date(intelligence.paymentEvidence.date))}/><div className="rounded-xl border border-amber-200 bg-amber-50 p-3 text-xs text-amber-900">AI нашёл подтверждение оплаты в переписке, но финансовые данные сделки ещё не заполнены. Проверь и подтверди оплату.</div></>}<Info label="Источник" value={deal.contactName||"—"}/></CardContent></Card>
           <Card className="rounded-[24px] border-slate-200/80 shadow-sm"><CardHeader><CardTitle className="text-base">Файлы и КП</CardTitle></CardHeader><CardContent>{!documents.length?<div className="text-sm text-slate-400">Файлов пока нет.</div>:<div className="space-y-2">{documents.slice(0,8).map((d:any)=><a key={d.id} href={`/api/contacts/${deal.contactId}/documents/${d.id}`} target="_blank" className="block rounded-xl border bg-slate-50 px-3 py-2 text-sm hover:bg-white"><div className="font-medium text-slate-800">{d.name}</div><div className="text-[11px] text-slate-400">{d.kind}</div></a>)}</div>}</CardContent></Card>
-          <Card className="rounded-[24px] border-slate-200/80 shadow-sm"><CardHeader><CardTitle className="text-base">Описание от AI</CardTitle></CardHeader><CardContent><div className="whitespace-pre-wrap text-sm leading-6 text-slate-600">{deal.notes||"AI ещё не сформировал выжимку по этой сделке."}</div></CardContent></Card>
+          <Card className="rounded-[24px] border-slate-200/80 shadow-sm"><CardHeader><CardTitle className="text-base">Описание от AI</CardTitle></CardHeader><CardContent><div className="whitespace-pre-wrap text-sm leading-6 text-slate-600">{intelligence ? [deal.notes||"","Контекст переписки: "+intelligence.relatedMessages.length+" сообщений.",intelligence.duplicateContactIds.length?`Похоже, эта заявка размножилась между ${intelligence.duplicateContactIds.length+1} карточками из-за разных email. Их нужно объединить в одну сделку.`:"",intelligence.paymentEvidence?`В переписке найдено подтверждение оплаты от ${date(new Date(intelligence.paymentEvidence.date))}: ${intelligence.paymentEvidence.text}`:""].filter(Boolean).join("\n\n") : deal.notes||"AI ещё не сформировал выжимку по этой сделке."}</div></CardContent></Card>
         </div>
         {deal.contactId ? <DealConversation contactId={deal.contactId}/> : <div className="rounded-[24px] border bg-white p-8 text-sm text-slate-400">К сделке не привязан клиент.</div>}
       </div>
