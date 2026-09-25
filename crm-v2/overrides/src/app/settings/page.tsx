@@ -609,10 +609,6 @@ export default function SettingsPage() {
         </Card>
 
         <Card className="overflow-hidden">
-          <CardHeader className="cursor-pointer" onClick={()=>toggleSection("ai")}>
-    
-
-        <Card className="overflow-hidden">
           <CardHeader className="cursor-pointer" onClick={()=>toggleSection("email")}>
             <CardTitle className="text-base flex items-center justify-between gap-3">
               <span className="flex items-center gap-2"><Mail className="h-4 w-4" /> Почта → CRM-чат</span>
