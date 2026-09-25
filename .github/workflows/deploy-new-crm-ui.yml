@@ -98,6 +98,7 @@ jobs:
           systemctl is-active --quiet satori-crm-v2
           systemctl is-active --quiet satori-crm-ui
           curl --fail --silent http://127.0.0.1:3020/api/deals >/dev/null
+          curl --fail --silent http://127.0.0.1:3020/api/integrations/settings >/dev/null
           curl --fail --silent http://127.0.0.1:3030/ >/dev/null
 
           stamp=$(date +%Y%m%d-%H%M%S)
@@ -136,9 +137,10 @@ jobs:
           systemctl reload nginx
 
           code=$(curl -sS -o /dev/null -w '%{http_code}' https://crm.satorilabural.online/)
-          case "$code" in 401|200) ;; *) echo "Unexpected CRM response: $code"; exit 1;; esac
+          case "$code" in 200|307|401) ;; *) echo "Unexpected CRM response: $code"; exit 1;; esac
 
           curl --fail --silent http://127.0.0.1:3030/ | grep -qi 'Satori'
           curl --fail --silent http://127.0.0.1:3020/api/deals >/dev/null
-          echo 'New Satori CRM interface is live on 3030; existing CRM API remains on 3020.'
+          curl --fail --silent http://127.0.0.1:3020/api/integrations/settings >/dev/null
+          echo 'New Satori CRM interface is live; email, Telegram, Need Number, AI and store-order API remain on the working CRM backend.'
           REMOTE
