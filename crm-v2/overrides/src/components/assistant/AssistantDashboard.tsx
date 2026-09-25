@@ -38,6 +38,9 @@ export function AssistantDashboard() {
   const [busy, setBusy] = useState(false);
   const [channel, setChannel] = useState("need_number");
   const [spend, setSpend] = useState("");
+  const [chatInput,setChatInput]=useState("");
+  const [chatBusy,setChatBusy]=useState(false);
+  const [chat,setChat]=useState<Array<{role:"user"|"assistant";text:string}>>([{role:"assistant",text:"Я AI-менеджер Satori. Дай мне задачу по CRM: клиентам, перепискам, воронке, документам, КП или счетам."}]);
 
   const load = async () => {
     const res = await fetch("/api/assistant", { cache: "no-store" });
@@ -71,6 +74,13 @@ export function AssistantDashboard() {
     finally { setBusy(false); }
   };
 
+  async function sendChat(){
+    const message=chatInput.trim(); if(!message||chatBusy)return;
+    setChat(v=>[...v,{role:"user",text:message}]); setChatInput(""); setChatBusy(true);
+    try{const res=await fetch("/api/assistant",{method:"POST",headers:{"content-type":"application/json"},body:JSON.stringify({action:"chat",message})});const data=await res.json();if(!res.ok)throw new Error(data.error||"Ошибка AI");setChat(v=>[...v,{role:"assistant",text:data.reply||"Готово."}]);}
+    catch(e){setChat(v=>[...v,{role:"assistant",text:e instanceof Error?e.message:"Ошибка AI"}]);}finally{setChatBusy(false);}
+  }
+
   useEffect(() => { load().catch((e) => toast.error(e.message)); }, []);
   const urgent = useMemo(() => state?.insights.filter(x => x.severity === "critical") || [], [state]);
   const attention = useMemo(() => state?.insights.filter(x => x.severity === "warning") || [], [state]);
@@ -92,6 +102,12 @@ export function AssistantDashboard() {
           </Button>
         </div>
       </div>
+
+      <section className="rounded-[24px] border border-slate-200/80 bg-white p-5 shadow-sm">
+        <div className="mb-3"><h2 className="text-[16px] font-semibold text-slate-950">Чат с AI-менеджером</h2><p className="mt-1 text-[12px] text-slate-400">Давай задания обычным языком. Отправку клиенту и изменения оплаты AI сначала показывает на подтверждение.</p></div>
+        <div className="mb-3 max-h-[340px] space-y-2 overflow-y-auto rounded-2xl bg-slate-50 p-3">{chat.map((m,i)=><div key={i} className={`flex ${m.role==="user"?"justify-end":"justify-start"}`}><div className={`max-w-[85%] whitespace-pre-wrap rounded-2xl px-4 py-2.5 text-sm ${m.role==="user"?"bg-slate-900 text-white":"border bg-white text-slate-700"}`}>{m.text}</div></div>)}</div>
+        <div className="flex gap-2"><Input className="h-11 rounded-xl" value={chatInput} onChange={e=>setChatInput(e.target.value)} onKeyDown={e=>{if(e.key==="Enter"){e.preventDefault();void sendChat();}}} placeholder="Например: проверь клиентов, которым пора напомнить о себе" /><Button className="h-11 rounded-xl" onClick={()=>void sendChat()} disabled={chatBusy||!chatInput.trim()}>{chatBusy?<RefreshCw className="h-4 w-4 animate-spin"/>:"Отправить"}</Button></div>
+      </section>
 
       <div className="grid gap-3 md:grid-cols-3">
         <SummaryCard icon={AlertCircle} label="Сделать сейчас" value={urgent.length} note="срочные ответы, сроки и проблемы" tone="critical" />
