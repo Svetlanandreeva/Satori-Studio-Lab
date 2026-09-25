@@ -6,6 +6,7 @@ import { pushDealStageToStorefront } from "@/lib/store-orders";
 import { annotateLatestStageHistory, writeAuditLog } from "@/lib/operations";
 import { getRequestActor } from "@/lib/request-actor";
 import { lockDealFields } from "@/lib/deal-overrides";
+import { getDealEconomics, saveDealEconomics } from "@/lib/economics";
 
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -20,7 +21,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     .leftJoin(teamMembers, eq(deals.ownerId, teamMembers.id))
     .where(eq(deals.id, id)).get();
   if (!deal) return NextResponse.json({ error: "Сделка не найдена" }, { status: 404 });
-  return NextResponse.json(deal);
+  return NextResponse.json({ ...deal, economics: getDealEconomics(id) });
 }
 
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -50,7 +51,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
   if (body.notes !== undefined) updateData.notes = body.notes ? String(body.notes) : null;
   if (body.lossReason !== undefined && body.stageId === undefined) updateData.lossReason = body.lossReason ? String(body.lossReason).trim() : null;
 
-  let stage = null as ReturnType<typeof db.select> extends never ? never : any;
+  let stage = null as any;
   if (body.stageId !== undefined) {
     stage = db.select().from(pipelineStages).where(eq(pipelineStages.id, String(body.stageId))).get();
     if (!stage) return NextResponse.json({ error: "Этап не найден" }, { status: 400 });
@@ -62,7 +63,24 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
   const result = db.update(deals).set(updateData).where(eq(deals.id, id)).returning().get();
 
-  // Any manual edit wins over future AI automation until explicitly unlocked.
+  if (body.receivedAmount !== undefined) {
+    const current = (getDealEconomics(id) || {}) as any;
+    saveDealEconomics({
+      dealId: id,
+      receivedAmount: Math.max(0, Number(body.receivedAmount) || 0),
+      productionCost: Number(current.productionCost || 0),
+      paymentCommission: Number(current.paymentCommission || 0),
+      paymentCommissionRate: Number(current.paymentCommissionRate || 0),
+      deliveryCost: Number(current.deliveryCost || 0),
+      packagingCost: Number(current.packagingCost || 0),
+      contractorCost: Number(current.contractorCost || 0),
+      taxCost: Number(current.taxCost || 0),
+      otherCost: Number(current.otherCost || 0),
+      notes: current.notes || null,
+    });
+  }
+
+  // Status, agreed amount and title entered by a person must never be overwritten by AI.
   lockDealFields(id, {
     value: body.value !== undefined ? true : undefined,
     stage: body.stageId !== undefined ? true : undefined,
@@ -81,11 +99,12 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
   writeAuditLog(actor, "update_deal", "deal", id, {
     title: body.title !== undefined ? body.title : undefined,
     value: body.value !== undefined ? body.value : undefined,
+    receivedAmount: body.receivedAmount !== undefined ? body.receivedAmount : undefined,
     stageId: body.stageId !== undefined ? body.stageId : undefined,
     ownerId: body.ownerId !== undefined ? body.ownerId : undefined,
     lossReason: body.lossReason !== undefined ? body.lossReason : undefined,
   });
-  return NextResponse.json(result);
+  return NextResponse.json({ ...result, economics: getDealEconomics(id) });
 }
 
 export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
