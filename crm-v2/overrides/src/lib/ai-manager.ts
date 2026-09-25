@@ -125,6 +125,22 @@ export async function analyzeContactWithAi(contactId: string, options: { documen
       }
       if (decision.hasApplication === true) {
         sqlite.prepare("UPDATE contacts SET qualification='qualified',updated_at=? WHERE id=?").run(Date.now(), contactId);
+        const activeDeal = sqlite.prepare(`SELECT d.id FROM deals d JOIN pipeline_stages ps ON ps.id=d.stage_id WHERE d.contact_id=? AND COALESCE(ps.is_won,0)=0 AND COALESCE(ps.is_lost,0)=0 LIMIT 1`).get(contactId) as {id?:string}|undefined;
+        if (!activeDeal?.id) {
+          const firstStage = sqlite.prepare("SELECT id FROM pipeline_stages WHERE COALESCE(is_won,0)=0 AND COALESCE(is_lost,0)=0 ORDER BY position ASC LIMIT 1").get() as {id?:string}|undefined;
+          if (firstStage?.id) sqlite.prepare("INSERT INTO deals(id,title,value,stage_id,contact_id,probability,notes,created_at,updated_at) VALUES(?,?,?,?,?,?,?,?,?)")
+            .run(crypto.randomUUID(), decision.summary?.slice(0,100) || "Новая заявка", 0, firstStage.id, contactId, 20, decision.nextStep || null, Date.now(), Date.now());
+        }
+      }
+      if (decision.suggestedStage && decision.disposition !== "lost") {
+        const target = sqlite.prepare("SELECT id FROM pipeline_stages WHERE lower(name)=lower(?) AND COALESCE(is_lost,0)=0 LIMIT 1").get(decision.suggestedStage) as {id?:string}|undefined;
+        if (target?.id) sqlite.prepare(`UPDATE deals SET stage_id=?,updated_at=? WHERE contact_id=? AND id IN (SELECT d.id FROM deals d JOIN pipeline_stages ps ON ps.id=d.stage_id WHERE d.contact_id=? AND COALESCE(ps.is_won,0)=0 AND COALESCE(ps.is_lost,0)=0)`).run(target.id, Date.now(), contactId, contactId);
+      }
+      if (decision.nextStep && Number(decision.followUpHours || 0) > 0) {
+        const scheduledAt = Date.now() + Math.min(24*14, Math.max(1, Number(decision.followUpHours))) * 3600000;
+        const exists = sqlite.prepare("SELECT 1 FROM activities WHERE contact_id=? AND type='ai_followup' AND completed_at IS NULL AND scheduled_at>? LIMIT 1").get(contactId, Date.now());
+        if (!exists) sqlite.prepare("INSERT INTO activities(id,contact_id,type,description,priority,scheduled_at,created_at) VALUES(?,?,?,?,?,?,?)")
+          .run(crypto.randomUUID(), contactId, "ai_followup", decision.nextStep, "normal", scheduledAt, Date.now());
       }
       if (decision.disposition === "lost") {
         const stageId = lostStageId();
