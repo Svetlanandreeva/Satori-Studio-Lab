@@ -234,12 +234,13 @@ jobs:
         run: |
           ssh root@194.226.97.103 'bash -se' <<'REMOTE'
           set -eu
-          contacts=$(curl -fsS http://127.0.0.1:3020/api/contacts)
-          deals=$(curl -fsS http://127.0.0.1:3020/api/deals)
-          state=$(python3 - "$contacts" "$deals" <<'PY'
-          import json, sys
-          has_data = bool(len(json.loads(sys.argv[1])) or len(json.loads(sys.argv[2])))
-          print('existing' if has_data else 'empty')
+          curl -fsS http://127.0.0.1:3020/api/contacts > /tmp/satori-auto-contacts.json
+          curl -fsS http://127.0.0.1:3020/api/deals > /tmp/satori-auto-deals.json
+          state=$(python3 - <<'PY'
+          import json
+          contacts=json.load(open('/tmp/satori-auto-contacts.json'))
+          deals=json.load(open('/tmp/satori-auto-deals.json'))
+          print('existing' if contacts or deals else 'empty')
           PY
           )
           if [ "$state" = 'existing' ]; then
