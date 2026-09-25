@@ -383,6 +383,17 @@ export default function SettingsPage() {
         </p>
       </div>
 
+      <Card className="border-dashed">
+        <CardHeader>
+          <CardTitle className="text-base flex items-center gap-2"><Activity className="h-4 w-4"/> AI-менеджер Satori</CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-4 md:grid-cols-3">
+          <div className="rounded-lg border p-4"><div className="text-sm font-medium">Режим</div><div className="mt-1 text-sm text-muted-foreground">Автономный контроль CRM</div><Badge className="mt-3" variant={openAi.configured?"default":"outline"}>{openAi.configured?"Готов к работе":"Нужен AI API"}</Badge></div>
+          <div className="rounded-lg border p-4"><div className="text-sm font-medium">Что контролирует</div><div className="mt-1 text-sm text-muted-foreground">Клиенты, переписки, КП и документы, статусы сделок, отказы, следующие действия и порядок в CRM.</div></div>
+          <div className="rounded-lg border p-4"><div className="text-sm font-medium">Безопасность</div><div className="mt-1 text-sm text-muted-foreground">Рутинные изменения — автоматически. Финансы, удаление данных, юридические изменения и внешние отправки — только после подтверждения.</div></div>
+        </CardContent>
+      </Card>
+
       <div className="grid grid-cols-1 xl:grid-cols-2 gap-6">
         <Card className="overflow-hidden">
           <CardHeader className="cursor-pointer" onClick={()=>toggleSection("pipeline")}><CardTitle className="text-base flex items-center justify-between"><span className="flex items-center gap-2"><Kanban className="h-4 w-4"/>Этапы воронки</span><ChevronDown className={`h-4 w-4 transition-transform ${openSections.pipeline?"rotate-180":""}`}/></CardTitle></CardHeader>
