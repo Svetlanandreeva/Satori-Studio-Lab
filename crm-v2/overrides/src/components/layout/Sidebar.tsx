@@ -11,6 +11,7 @@ import {
   FolderKanban,
   Kanban,
   LayoutDashboard,
+  Handshake,
   MessageCircle,
   PhoneCall,
   Settings,
@@ -31,7 +32,8 @@ type NavItem = {
 };
 
 const workItems: NavItem[] = [
-  { href: "/", label: "Сегодня", icon: LayoutDashboard, iconBg: "bg-blue-50", iconText: "text-blue-600", dot: "bg-blue-500" },
+  { href: "/", label: "Главная", icon: LayoutDashboard, iconBg: "bg-blue-50", iconText: "text-blue-600", dot: "bg-blue-500" },
+  { href: "/deals", label: "Сделки", icon: Handshake, iconBg: "bg-emerald-50", iconText: "text-emerald-700", dot: "bg-emerald-500" },
   { href: "/inbox", label: "Сообщения", icon: MessageCircle, iconBg: "bg-sky-50", iconText: "text-sky-600", dot: "bg-sky-500" },
   { href: "/tasks", label: "Задачи", icon: CalendarClock, iconBg: "bg-blue-50", iconText: "text-blue-700", dot: "bg-blue-600" },
   { href: "/pipeline", label: "Воронка", icon: Kanban, iconBg: "bg-violet-50", iconText: "text-violet-600", dot: "bg-violet-500" },
