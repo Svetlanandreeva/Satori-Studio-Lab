@@ -6,7 +6,7 @@ import { PipelineChart } from "@/components/dashboard/PipelineChart";
 import { RecentActivity } from "@/components/dashboard/RecentActivity";
 import { DailyBriefPanel } from "@/components/assistant/DailyBriefPanel";
 import { SPAM_STAGE_NAME } from "@/lib/lead-qualification";
-import { ArrowRight, FolderKanban, MessageCircle, Sparkles, Users } from "lucide-react";
+import { ArrowRight, FolderKanban, MessageCircle, Sparkles, Users, FileText, PhoneCall, Banknote, CalendarClock } from "lucide-react";
 
 export const dynamic = "force-dynamic";
 
@@ -42,6 +42,13 @@ export default function DashboardPage() {
     .filter((activity) => visibleContactIds.has(activity.contactId))
     .slice(0, 6);
 
+  const startOfToday = new Date(); startOfToday.setHours(0,0,0,0);
+  const todayActivities = db.select().from(activities).all().filter(a => a.createdAt.getTime() >= startOfToday.getTime());
+  const sentOffers = todayActivities.filter(a => /кп|коммерческ/i.test(a.description) && /отправ/i.test(a.description)).length;
+  const refusals = allDeals.filter(d => stages.find(s => s.id===d.stageId)?.isLost && d.updatedAt.getTime() >= startOfToday.getTime()).length;
+  const calls = todayActivities.filter(a => /call|звон/i.test(a.type+" "+a.description)).length;
+  const received = allDeals.filter(d => stages.find(s => s.id===d.stageId)?.isWon && d.updatedAt.getTime() >= startOfToday.getTime()).reduce((n,d)=>n+d.value,0);
+
   const today = new Intl.DateTimeFormat("ru-RU", { timeZone: "Europe/Moscow", weekday: "long", day: "numeric", month: "long" }).format(new Date());
 
   return (
@@ -57,12 +64,21 @@ export default function DashboardPage() {
             <p className="mt-2 max-w-xl text-[15px] leading-6 text-slate-500">Здесь только то, что нужно для работы сегодня: кому ответить, что горит по проектам и что происходит с деньгами.</p>
           </div>
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-4 xl:flex">
+            <QuickLink href="/deals" icon={FileText} label="Сделки" />
             <QuickLink href="/inbox" icon={MessageCircle} label="Сообщения" />
             <QuickLink href="/projects" icon={FolderKanban} label="Проекты" />
             <QuickLink href="/contacts" icon={Users} label="Клиенты" />
             <QuickLink href="/assistant" icon={Sparkles} label="Помощник" accent />
           </div>
         </div>
+      </section>
+
+      <section className="grid gap-3 sm:grid-cols-2 xl:grid-cols-5">
+        <HomeMetric label="Контактов сегодня" value={String(todayActivities.length)} />
+        <HomeMetric label="Отправлено КП" value={String(sentOffers)} />
+        <HomeMetric label="Отказов" value={String(refusals)} />
+        <HomeMetric label="Звонков / входящих" value={String(calls)} />
+        <HomeMetric label="Заработано" value={new Intl.NumberFormat("ru-RU",{style:"currency",currency:"RUB",maximumFractionDigits:0}).format(received/100)} />
       </section>
 
       <DailyBriefPanel />
@@ -89,6 +105,10 @@ export default function DashboardPage() {
       </section>
     </div>
   );
+}
+
+function HomeMetric({label,value}:{label:string;value:string}) {
+ return <div className="rounded-[22px] border border-slate-200/80 bg-white p-4 shadow-sm"><div className="text-[11px] text-slate-400">{label}</div><div className="mt-2 text-2xl font-semibold tracking-tight text-slate-950">{value}</div></div>;
 }
 
 function QuickLink({ href, icon: Icon, label, accent = false }: { href: string; icon: typeof MessageCircle; label: string; accent?: boolean }) {
