@@ -1,0 +1,62 @@
+name: Deploy current CRM UI
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/deploy-current-crm-ui.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: current-satori-crm-ui
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Fetch and build CRM UI
+        run: |
+          git clone --depth=1 --branch main https://github.com/Svetlanandreeva/CRM.git /tmp/satori-crm
+          cd /tmp/satori-crm
+          git rev-parse HEAD | tee /tmp/crm-version
+          npm install --legacy-peer-deps --no-audit --no-fund
+          npm run build
+          npx esbuild server.ts --bundle --platform=node --format=esm --packages=external --outfile=server.js
+          test -f dist/index.html
+          test -f server.js
+
+      - uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.DEPLOY_SSH_KEY }}
+
+      - name: Trust production server
+        run: ssh-keyscan -H 194.226.97.103 >> ~/.ssh/known_hosts
+
+      - name: Deploy UI without touching backend or nginx
+        run: |
+          ssh root@194.226.97.103 'mkdir -p /var/www/satori/crm-new-ui'
+          rsync -az --delete /tmp/satori-crm/dist/ root@194.226.97.103:/var/www/satori/crm-new-ui/dist/
+          rsync -az /tmp/satori-crm/server.js /tmp/satori-crm/package.json root@194.226.97.103:/var/www/satori/crm-new-ui/
+          scp /tmp/crm-version root@194.226.97.103:/var/www/satori/crm-new-ui/VERSION
+          ssh root@194.226.97.103 'bash -se' <<'REMOTE'
+          set -eu
+          export PATH=/opt/node22/bin:$PATH
+          cd /var/www/satori/crm-new-ui
+          /opt/node22/bin/npm install --omit=dev --legacy-peer-deps --no-audit --no-fund
+          systemctl restart satori-crm-ui
+          systemctl is-active --quiet satori-crm-ui
+          curl --fail --silent --retry 12 --retry-connrefused --retry-delay 2 http://127.0.0.1:3030/health >/dev/null
+          curl --fail --silent http://127.0.0.1:3020/api/deals >/dev/null
+          REMOTE
+
+      - name: Verify current public CRM host
+        run: |
+          code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 20 https://crm.crmsatori.ru/login)
+          test "$code" = '200'
+          echo "crm.crmsatori.ru/login -> $code"
