@@ -1,0 +1,100 @@
+name: Cut over CRM to crm.satorilabural.ru
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/cutover-crm-ru.yml'
+  workflow_dispatch:
+
+jobs:
+  cutover:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Check DNS readiness
+        id: dns
+        run: |
+          set +e
+          ip=$(getent ahostsv4 crm.satorilabural.ru | awk 'NR==1{print $1}')
+          echo "resolved=$ip"
+          if [ "$ip" = "194.226.97.103" ]; then
+            echo 'ready=true' >> "$GITHUB_OUTPUT"
+          else
+            echo 'ready=false' >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Stop cleanly until REG.RU A record is ready
+        if: steps.dns.outputs.ready != 'true'
+        run: |
+          echo 'crm.satorilabural.ru does not yet resolve to 194.226.97.103.'
+          echo 'Waiting for REG.RU DNS A record: crm -> 194.226.97.103'
+
+      - uses: webfactory/ssh-agent@v0.9.0
+        if: steps.dns.outputs.ready == 'true'
+        with:
+          ssh-private-key: ${{ secrets.DEPLOY_SSH_KEY }}
+
+      - name: Trust production server
+        if: steps.dns.outputs.ready == 'true'
+        run: ssh-keyscan -H 194.226.97.103 >> ~/.ssh/known_hosts
+
+      - name: Configure new CRM hostname and certificate
+        if: steps.dns.outputs.ready == 'true'
+        run: |
+          ssh root@194.226.97.103 'bash -se' <<'REMOTE'
+          set -eu
+          old=/etc/nginx/conf.d/satori-crm.conf
+          new=/etc/nginx/conf.d/satori-crm-ru.conf
+          tmp=/etc/nginx/conf.d/satori-crm-ru-acme.conf
+          stamp=$(date +%Y%m%d-%H%M%S)
+          mkdir -p /var/backups/satori-crm-hostname-$stamp
+          cp -a "$old" /var/backups/satori-crm-hostname-$stamp/satori-crm.conf
+
+          cat >"$tmp" <<'NGINX'
+          server {
+              listen 192.168.0.38:80;
+              server_name crm.satorilabural.ru;
+              location ^~ /.well-known/acme-challenge/ {
+                  root /var/www/letsencrypt;
+                  default_type text/plain;
+                  try_files $uri =404;
+              }
+              location / { return 301 https://$host$request_uri; }
+          }
+          NGINX
+
+          nginx -t
+          systemctl reload nginx
+          mkdir -p /var/www/letsencrypt
+
+          if [ ! -f /etc/letsencrypt/live/crm.satorilabural.ru/fullchain.pem ]; then
+            certbot certonly --webroot -w /var/www/letsencrypt \
+              -d crm.satorilabural.ru \
+              --non-interactive --agree-tos --register-unsafely-without-email
+          fi
+
+          python3 - <<'PY'
+          from pathlib import Path
+          src=Path('/etc/nginx/conf.d/satori-crm.conf').read_text()
+          src=src.replace('crm.satorilabural.online','crm.satorilabural.ru')
+          Path('/etc/nginx/conf.d/satori-crm-ru.conf').write_text(src)
+          PY
+
+          rm -f "$tmp"
+          nginx -t
+          systemctl reload nginx
+
+          curl --fail --silent --show-error --resolve crm.satorilabural.ru:443:127.0.0.1 \
+            https://crm.satorilabural.ru/login >/dev/null
+          curl --fail --silent --show-error http://127.0.0.1:3030/health >/dev/null
+          curl --fail --silent --show-error http://127.0.0.1:3020/api/deals >/dev/null
+          echo 'crm.satorilabural.ru is configured and healthy.'
+          REMOTE
+
+      - name: Verify new hostname externally
+        if: steps.dns.outputs.ready == 'true'
+        run: |
+          curl -4 --fail --silent --show-error --connect-timeout 10 --max-time 20 \
+            https://crm.satorilabural.ru/login >/dev/null
+          echo 'New CRM hostname is externally reachable.'
