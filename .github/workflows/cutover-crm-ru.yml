@@ -6,62 +6,43 @@ on:
     paths:
       - '.github/workflows/cutover-crm-ru.yml'
   workflow_dispatch:
-  schedule:
-    - cron: '*/30 * * * *'
 
 jobs:
   cutover:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
     steps:
-      - name: Check DNS readiness
-        id: dns
+      - name: Check authoritative DNS
         run: |
           set -eu
-          echo '=== crm.crmsatori.ru DNS ==='
           auth=$(dig +short @ns1.hosting.reg.ru crm.crmsatori.ru A | tail -1)
-          cf=$(dig +short @1.1.1.1 crm.crmsatori.ru A | tail -1)
-          gg=$(dig +short @8.8.8.8 crm.crmsatori.ru A | tail -1)
           echo "authoritative=$auth"
-          echo "cloudflare=$cf"
-          echo "google=$gg"
-
-          if [ "$auth" != "194.226.97.103" ]; then
-            echo 'ready=false' >> "$GITHUB_OUTPUT"
-            echo 'REG.RU hosting DNS does not currently expose the expected CRM record.'
-            exit 0
-          fi
-
-          if [ "$cf" = "194.226.97.103" ] && [ "$gg" = "194.226.97.103" ]; then
-            echo 'ready=true' >> "$GITHUB_OUTPUT"
-            echo 'Public DNS is ready. Continuing cutover.'
-          else
-            echo 'ready=false' >> "$GITHUB_OUTPUT"
-            echo 'Record is correct at REG.RU but public DNS propagation is still pending. The scheduled workflow will retry automatically.'
-          fi
+          test "$auth" = "194.226.97.103"
+          echo "Public spot checks (non-blocking):"
+          echo "cloudflare=$(dig +short @1.1.1.1 crm.crmsatori.ru A | tail -1)"
+          echo "google=$(dig +short @8.8.8.8 crm.crmsatori.ru A | tail -1)"
 
       - uses: webfactory/ssh-agent@v0.9.0
-        if: steps.dns.outputs.ready == 'true'
         with:
           ssh-private-key: ${{ secrets.DEPLOY_SSH_KEY }}
 
       - name: Trust production server
-        if: steps.dns.outputs.ready == 'true'
         run: ssh-keyscan -H 194.226.97.103 >> ~/.ssh/known_hosts
 
-      - name: Configure crm.crmsatori.ru and certificate
-        if: steps.dns.outputs.ready == 'true'
+      - name: Configure HTTP host, SSL and CRM proxy
         run: |
           ssh root@194.226.97.103 'bash -se' <<'REMOTE'
           set -eu
           old=/etc/nginx/conf.d/satori-crm.conf
           new=/etc/nginx/conf.d/crm-crmsatori.conf
-          tmp=/etc/nginx/conf.d/crm-crmsatori-acme.conf
+          acme=/etc/nginx/conf.d/crm-crmsatori-acme.conf
           stamp=$(date +%Y%m%d-%H%M%S)
-          mkdir -p /var/backups/satori-crm-hostname-$stamp
+          mkdir -p /var/backups/satori-crm-hostname-$stamp /var/www/letsencrypt
+          test -f "$old"
           cp -a "$old" /var/backups/satori-crm-hostname-$stamp/satori-crm.conf
 
-          cat >"$tmp" <<'NGINX'
+          # Make the hostname answer on plain HTTP immediately and expose ACME.
+          cat >"$acme" <<'NGINX'
           server {
               listen 192.168.0.38:80;
               server_name crm.crmsatori.ru;
@@ -70,48 +51,65 @@ jobs:
                   default_type text/plain;
                   try_files $uri =404;
               }
-              location / { return 301 https://$host$request_uri; }
+              location / {
+                  proxy_pass http://127.0.0.1:3030;
+                  proxy_http_version 1.1;
+                  proxy_set_header Host $host;
+                  proxy_set_header X-Forwarded-Proto http;
+                  proxy_set_header X-Real-IP $remote_addr;
+                  proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+              }
           }
           NGINX
 
           nginx -t
           systemctl reload nginx
-          mkdir -p /var/www/letsencrypt
+          curl --fail --silent --show-error -H 'Host: crm.crmsatori.ru' http://192.168.0.38/ >/dev/null
 
+          # Retry certificate issuance because public DNS caches may converge at different times.
           if [ ! -f /etc/letsencrypt/live/crm.crmsatori.ru/fullchain.pem ]; then
-            certbot certonly --webroot -w /var/www/letsencrypt \
-              -d crm.crmsatori.ru \
-              --non-interactive --agree-tos --register-unsafely-without-email
+            ok=0
+            for i in 1 2 3 4 5 6; do
+              echo "certbot attempt $i"
+              if certbot certonly --webroot -w /var/www/letsencrypt \
+                -d crm.crmsatori.ru \
+                --non-interactive --agree-tos --register-unsafely-without-email; then
+                ok=1
+                break
+              fi
+              sleep 20
+            done
+            test "$ok" = 1
           fi
 
-          python3 - <<'PY'
+          # Reuse the proven CRM routing from the previous hostname, only changing host/certificate.
+          OLD="$old" NEW="$new" python3 - <<'PY'
+          import os
           from pathlib import Path
-          src=Path('/etc/nginx/conf.d/satori-crm.conf').read_text()
+          src=Path(os.environ['OLD']).read_text()
           src=src.replace('crm.satorilabural.online','crm.crmsatori.ru')
           src=src.replace('/etc/letsencrypt/live/crm.satorilabural.online/fullchain.pem','/etc/letsencrypt/live/crm.crmsatori.ru/fullchain.pem')
           src=src.replace('/etc/letsencrypt/live/crm.satorilabural.online/privkey.pem','/etc/letsencrypt/live/crm.crmsatori.ru/privkey.pem')
-          Path('/etc/nginx/conf.d/crm-crmsatori.conf').write_text(src)
+          Path(os.environ['NEW']).write_text(src)
           PY
 
-          rm -f "$tmp"
+          rm -f "$acme"
           nginx -t
           systemctl reload nginx
 
-          curl --fail --silent --show-error --resolve crm.crmsatori.ru:443:192.168.0.38 \
-            https://crm.crmsatori.ru/login >/dev/null
+          curl --fail --silent --show-error --resolve crm.crmsatori.ru:443:192.168.0.38 https://crm.crmsatori.ru/login >/dev/null
           curl --fail --silent --show-error http://127.0.0.1:3030/health >/dev/null
           curl --fail --silent --show-error http://127.0.0.1:3020/api/deals >/dev/null
-          echo 'crm.crmsatori.ru is configured and healthy.'
+          echo 'crm.crmsatori.ru configured with SSL and live CRM routing.'
           REMOTE
 
-      - name: Verify crm.crmsatori.ru externally
-        if: steps.dns.outputs.ready == 'true'
+      - name: Verify public hostname
         run: |
-          curl -4 --fail --silent --show-error --connect-timeout 10 --max-time 20 \
-            https://crm.crmsatori.ru/login >/dev/null
-          echo 'crm.crmsatori.ru is externally reachable.'
-
-      - name: DNS still propagating
-        if: steps.dns.outputs.ready != 'true'
-        run: |
-          echo 'No action required. DNS is still propagating; this workflow will retry automatically every 30 minutes.'
+          for i in $(seq 1 12); do
+            if curl -4 --fail --silent --show-error --connect-timeout 8 --max-time 15 https://crm.crmsatori.ru/login >/dev/null; then
+              echo 'crm.crmsatori.ru is externally reachable over HTTPS.'
+              exit 0
+            fi
+            sleep 10
+          done
+          exit 1
