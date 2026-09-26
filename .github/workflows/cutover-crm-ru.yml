@@ -6,6 +6,8 @@ on:
     paths:
       - '.github/workflows/cutover-crm-ru.yml'
   workflow_dispatch:
+  schedule:
+    - cron: '*/30 * * * *'
 
 jobs:
   cutover:
@@ -18,38 +20,37 @@ jobs:
           set -eu
           echo '=== crm.crmsatori.ru DNS ==='
           auth=$(dig +short @ns1.hosting.reg.ru crm.crmsatori.ru A | tail -1)
+          cf=$(dig +short @1.1.1.1 crm.crmsatori.ru A | tail -1)
+          gg=$(dig +short @8.8.8.8 crm.crmsatori.ru A | tail -1)
           echo "authoritative=$auth"
+          echo "cloudflare=$cf"
+          echo "google=$gg"
+
           if [ "$auth" != "194.226.97.103" ]; then
-            echo "crm.crmsatori.ru currently resolves to '$auth' on ns1.hosting.reg.ru; expected 194.226.97.103."
-            echo 'The hosting DNS zone is not yet publicly delegated or the record has not propagated.'
-            exit 1
+            echo 'ready=false' >> "$GITHUB_OUTPUT"
+            echo 'REG.RU hosting DNS does not currently expose the expected CRM record.'
+            exit 0
           fi
 
-          ready=false
-          for i in $(seq 1 30); do
-            cf=$(dig +short @1.1.1.1 crm.crmsatori.ru A | tail -1)
-            gg=$(dig +short @8.8.8.8 crm.crmsatori.ru A | tail -1)
-            echo "attempt=$i cloudflare=$cf google=$gg"
-            if [ "$cf" = "194.226.97.103" ] && [ "$gg" = "194.226.97.103" ]; then
-              ready=true
-              break
-            fi
-            sleep 10
-          done
-          if [ "$ready" != "true" ]; then
-            echo 'crm.crmsatori.ru exists in the REG.RU hosting zone but has not propagated to public resolvers yet.'
-            exit 1
+          if [ "$cf" = "194.226.97.103" ] && [ "$gg" = "194.226.97.103" ]; then
+            echo 'ready=true' >> "$GITHUB_OUTPUT"
+            echo 'Public DNS is ready. Continuing cutover.'
+          else
+            echo 'ready=false' >> "$GITHUB_OUTPUT"
+            echo 'Record is correct at REG.RU but public DNS propagation is still pending. The scheduled workflow will retry automatically.'
           fi
-          echo 'ready=true' >> "$GITHUB_OUTPUT"
 
       - uses: webfactory/ssh-agent@v0.9.0
+        if: steps.dns.outputs.ready == 'true'
         with:
           ssh-private-key: ${{ secrets.DEPLOY_SSH_KEY }}
 
       - name: Trust production server
+        if: steps.dns.outputs.ready == 'true'
         run: ssh-keyscan -H 194.226.97.103 >> ~/.ssh/known_hosts
 
       - name: Configure crm.crmsatori.ru and certificate
+        if: steps.dns.outputs.ready == 'true'
         run: |
           ssh root@194.226.97.103 'bash -se' <<'REMOTE'
           set -eu
@@ -104,7 +105,13 @@ jobs:
           REMOTE
 
       - name: Verify crm.crmsatori.ru externally
+        if: steps.dns.outputs.ready == 'true'
         run: |
           curl -4 --fail --silent --show-error --connect-timeout 10 --max-time 20 \
             https://crm.crmsatori.ru/login >/dev/null
           echo 'crm.crmsatori.ru is externally reachable.'
+
+      - name: DNS still propagating
+        if: steps.dns.outputs.ready != 'true'
+        run: |
+          echo 'No action required. DNS is still propagating; this workflow will retry automatically every 30 minutes.'
