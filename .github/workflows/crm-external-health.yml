@@ -45,16 +45,13 @@ jobs:
           test "$code" = '200'
 
       - uses: webfactory/ssh-agent@v0.9.0
-        if: steps.public.outcome != 'success' || steps.direct.outcome != 'success'
         with:
           ssh-private-key: ${{ secrets.DEPLOY_SSH_KEY }}
 
       - name: Trust production server
-        if: steps.public.outcome != 'success' || steps.direct.outcome != 'success'
         run: ssh-keyscan -H 194.226.97.103 >> ~/.ssh/known_hosts
 
       - name: Diagnose production network and services
-        if: steps.public.outcome != 'success' || steps.direct.outcome != 'success'
         run: |
           ssh root@194.226.97.103 'bash -se' <<'REMOTE'
           set +e
@@ -63,13 +60,27 @@ jobs:
           echo '=== LISTENERS ==='
           ss -ltnp | grep -E ':(22|80|443|3020|3030)\b' || true
           echo '=== LOCAL HEALTH ==='
-          curl -sS -o /dev/null -w 'nginx-login=%{http_code}\n' --resolve crm.satorilabural.online:443:127.0.0.1 https://crm.satorilabural.online/login || true
+          curl -k -sS -o /dev/null -w 'nginx-login=%{http_code}\n' --resolve crm.satorilabural.online:443:127.0.0.1 https://crm.satorilabural.online/login || true
           curl -sS -o /dev/null -w 'ui=%{http_code}\n' http://127.0.0.1:3030/health || true
           curl -sS -o /dev/null -w 'backend=%{http_code}\n' http://127.0.0.1:3020/api/deals || true
           echo '=== UFW ==='
           ufw status verbose 2>/dev/null || true
+          echo '=== IPTABLES ==='
+          iptables -S 2>/dev/null | head -120 || true
           echo '=== NFTABLES INPUT SUMMARY ==='
-          nft list ruleset 2>/dev/null | grep -E 'hook input|tcp dport (22|80|443)|policy (accept|drop|reject)' | head -80 || true
+          nft list ruleset 2>/dev/null | grep -E 'hook input|tcp dport (22|80|443)|policy (accept|drop|reject)|blacklist|ban' | head -160 || true
+          echo '=== FAIL2BAN ==='
+          fail2ban-client status 2>/dev/null || true
+          for jail in $(fail2ban-client status 2>/dev/null | sed -n 's/.*Jail list:[[:space:]]*//p' | tr ',' ' '); do
+            echo "--- jail: $jail ---"
+            fail2ban-client status "$jail" 2>/dev/null || true
+          done
+          echo '=== NGINX RECENT ERRORS ==='
+          tail -n 80 /var/log/nginx/error.log 2>/dev/null || true
+          echo '=== NGINX RECENT CRM ACCESS ==='
+          tail -n 80 /var/log/nginx/access.log 2>/dev/null | grep -E 'crm\.satorilabural\.online|/login|/api/' || true
+          echo '=== ROUTES ==='
+          ip -4 route || true
           REMOTE
 
       - name: Fail if CRM is not externally reachable
