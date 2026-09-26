@@ -61,4 +61,4 @@ jobs:
           test "$code" = '200'
           echo "crm.crmsatori.ru/login -> $code"
 
-# redeploy CRM commit 82b4e5aced8d5e770ac0d1c85d5c4395262a120c
+# redeploy CRM commit adcb9f701fc95cd966cb159fa344b3d698df2e41
