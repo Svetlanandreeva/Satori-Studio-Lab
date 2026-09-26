@@ -1,4 +1,4 @@
-name: Cut over CRM to crm.satorilabural.ru
+name: Cut over CRM to crmsatori.ru
 
 on:
   push:
@@ -16,19 +16,22 @@ jobs:
         id: dns
         run: |
           set -eu
-          auth=$(dig +short @ns1.reg.ru crm.satorilabural.ru A | tail -1)
-          echo "authoritative=$auth"
+          echo '=== crmsatori.ru DNS ==='
+          auth=$(dig +short crmsatori.ru A | tail -1)
+          ns=$(dig +short NS crmsatori.ru | tr '\n' ' ')
+          echo "nameservers=$ns"
+          echo "resolved=$auth"
           if [ "$auth" != "194.226.97.103" ]; then
-            echo 'REG.RU authoritative DNS does not yet contain crm -> 194.226.97.103.'
+            echo "crmsatori.ru currently resolves to '$auth', expected 194.226.97.103."
+            echo 'Point the root A record (@) of crmsatori.ru to 194.226.97.103 before cutover.'
             exit 1
           fi
 
           ready=false
           for i in $(seq 1 30); do
-            cf=$(dig +short @1.1.1.1 crm.satorilabural.ru A | tail -1)
-            gg=$(dig +short @8.8.8.8 crm.satorilabural.ru A | tail -1)
-            sys=$(getent ahostsv4 crm.satorilabural.ru | awk 'NR==1{print $1}' || true)
-            echo "attempt=$i cloudflare=$cf google=$gg system=$sys"
+            cf=$(dig +short @1.1.1.1 crmsatori.ru A | tail -1)
+            gg=$(dig +short @8.8.8.8 crmsatori.ru A | tail -1)
+            echo "attempt=$i cloudflare=$cf google=$gg"
             if [ "$cf" = "194.226.97.103" ] && [ "$gg" = "194.226.97.103" ]; then
               ready=true
               break
@@ -36,7 +39,7 @@ jobs:
             sleep 10
           done
           if [ "$ready" != "true" ]; then
-            echo 'DNS record exists at REG.RU but has not propagated to public resolvers yet.'
+            echo 'crmsatori.ru has not propagated to public resolvers yet.'
             exit 1
           fi
           echo 'ready=true' >> "$GITHUB_OUTPUT"
@@ -48,13 +51,13 @@ jobs:
       - name: Trust production server
         run: ssh-keyscan -H 194.226.97.103 >> ~/.ssh/known_hosts
 
-      - name: Configure new CRM hostname and certificate
+      - name: Configure crmsatori.ru and certificate
         run: |
           ssh root@194.226.97.103 'bash -se' <<'REMOTE'
           set -eu
           old=/etc/nginx/conf.d/satori-crm.conf
-          new=/etc/nginx/conf.d/satori-crm-ru.conf
-          tmp=/etc/nginx/conf.d/satori-crm-ru-acme.conf
+          new=/etc/nginx/conf.d/crmsatori-ru.conf
+          tmp=/etc/nginx/conf.d/crmsatori-ru-acme.conf
           stamp=$(date +%Y%m%d-%H%M%S)
           mkdir -p /var/backups/satori-crm-hostname-$stamp
           cp -a "$old" /var/backups/satori-crm-hostname-$stamp/satori-crm.conf
@@ -62,7 +65,7 @@ jobs:
           cat >"$tmp" <<'NGINX'
           server {
               listen 192.168.0.38:80;
-              server_name crm.satorilabural.ru;
+              server_name crmsatori.ru;
               location ^~ /.well-known/acme-challenge/ {
                   root /var/www/letsencrypt;
                   default_type text/plain;
@@ -76,32 +79,33 @@ jobs:
           systemctl reload nginx
           mkdir -p /var/www/letsencrypt
 
-          if [ ! -f /etc/letsencrypt/live/crm.satorilabural.ru/fullchain.pem ]; then
+          if [ ! -f /etc/letsencrypt/live/crmsatori.ru/fullchain.pem ]; then
             certbot certonly --webroot -w /var/www/letsencrypt \
-              -d crm.satorilabural.ru \
+              -d crmsatori.ru \
               --non-interactive --agree-tos --register-unsafely-without-email
           fi
 
           python3 - <<'PY'
           from pathlib import Path
           src=Path('/etc/nginx/conf.d/satori-crm.conf').read_text()
-          src=src.replace('crm.satorilabural.online','crm.satorilabural.ru')
-          Path('/etc/nginx/conf.d/satori-crm-ru.conf').write_text(src)
+          src=src.replace('crm.satorilabural.online','crmsatori.ru')
+          src=src.replace('/etc/letsencrypt/live/crm.satorilabural.online/','/etc/letsencrypt/live/crmsatori.ru/')
+          Path('/etc/nginx/conf.d/crmsatori-ru.conf').write_text(src)
           PY
 
           rm -f "$tmp"
           nginx -t
           systemctl reload nginx
 
-          curl --fail --silent --show-error --resolve crm.satorilabural.ru:443:192.168.0.38 \
-            https://crm.satorilabural.ru/login >/dev/null
+          curl --fail --silent --show-error --resolve crmsatori.ru:443:192.168.0.38 \
+            https://crmsatori.ru/login >/dev/null
           curl --fail --silent --show-error http://127.0.0.1:3030/health >/dev/null
           curl --fail --silent --show-error http://127.0.0.1:3020/api/deals >/dev/null
-          echo 'crm.satorilabural.ru is configured and healthy.'
+          echo 'crmsatori.ru is configured and healthy.'
           REMOTE
 
-      - name: Verify new hostname externally
+      - name: Verify crmsatori.ru externally
         run: |
           curl -4 --fail --silent --show-error --connect-timeout 10 --max-time 20 \
-            https://crm.satorilabural.ru/login >/dev/null
-          echo 'New CRM hostname is externally reachable.'
+            https://crmsatori.ru/login >/dev/null
+          echo 'crmsatori.ru is externally reachable.'
