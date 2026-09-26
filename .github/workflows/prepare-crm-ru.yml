@@ -1,0 +1,51 @@
+name: Prepare CRM RU hostname
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/prepare-crm-ru.yml'
+  workflow_dispatch:
+
+jobs:
+  prepare:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Inspect public DNS
+        run: |
+          set +e
+          echo '=== A crm.satorilabural.ru ==='
+          getent ahostsv4 crm.satorilabural.ru || true
+          echo '=== A satorilabural.ru ==='
+          getent ahostsv4 satorilabural.ru || true
+          echo '=== NS satorilabural.ru ==='
+          dig +short NS satorilabural.ru || true
+          echo '=== SOA satorilabural.ru ==='
+          dig +short SOA satorilabural.ru || true
+
+      - uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.DEPLOY_SSH_KEY }}
+
+      - run: ssh-keyscan -H 194.226.97.103 >> ~/.ssh/known_hosts
+
+      - name: Inspect server DNS capabilities
+        run: |
+          ssh root@194.226.97.103 'bash -se' <<'REMOTE'
+          set +e
+          echo '=== hostname resolution on server ==='
+          getent ahostsv4 crm.satorilabural.ru || true
+          echo '=== bind/named services ==='
+          systemctl is-active named 2>/dev/null || true
+          systemctl is-active bind9 2>/dev/null || true
+          echo '=== zone files mentioning satorilabural.ru ==='
+          grep -RIl 'satorilabural.ru' /etc/bind /var/named /etc/named* 2>/dev/null | head -40 || true
+          echo '=== ISPmanager DNS modules ==='
+          command -v mgrctl || true
+          if command -v mgrctl >/dev/null 2>&1; then
+            mgrctl -m dnsdomain 2>/dev/null | head -80 || true
+          fi
+          echo '=== current CRM nginx ==='
+          grep -nE 'server_name|listen .*443|ssl_certificate ' /etc/nginx/conf.d/satori-crm.conf || true
+          REMOTE
