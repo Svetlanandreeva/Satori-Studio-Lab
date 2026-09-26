@@ -15,32 +15,40 @@ jobs:
       - name: Check DNS readiness
         id: dns
         run: |
-          set +e
-          ip=$(getent ahostsv4 crm.satorilabural.ru | awk 'NR==1{print $1}')
-          echo "resolved=$ip"
-          if [ "$ip" = "194.226.97.103" ]; then
-            echo 'ready=true' >> "$GITHUB_OUTPUT"
-          else
-            echo 'ready=false' >> "$GITHUB_OUTPUT"
+          set -eu
+          auth=$(dig +short @ns1.reg.ru crm.satorilabural.ru A | tail -1)
+          echo "authoritative=$auth"
+          if [ "$auth" != "194.226.97.103" ]; then
+            echo 'REG.RU authoritative DNS does not yet contain crm -> 194.226.97.103.'
+            exit 1
           fi
 
-      - name: Stop cleanly until REG.RU A record is ready
-        if: steps.dns.outputs.ready != 'true'
-        run: |
-          echo 'crm.satorilabural.ru does not yet resolve to 194.226.97.103.'
-          echo 'Waiting for REG.RU DNS A record: crm -> 194.226.97.103'
+          ready=false
+          for i in $(seq 1 30); do
+            cf=$(dig +short @1.1.1.1 crm.satorilabural.ru A | tail -1)
+            gg=$(dig +short @8.8.8.8 crm.satorilabural.ru A | tail -1)
+            sys=$(getent ahostsv4 crm.satorilabural.ru | awk 'NR==1{print $1}' || true)
+            echo "attempt=$i cloudflare=$cf google=$gg system=$sys"
+            if [ "$cf" = "194.226.97.103" ] && [ "$gg" = "194.226.97.103" ]; then
+              ready=true
+              break
+            fi
+            sleep 10
+          done
+          if [ "$ready" != "true" ]; then
+            echo 'DNS record exists at REG.RU but has not propagated to public resolvers yet.'
+            exit 1
+          fi
+          echo 'ready=true' >> "$GITHUB_OUTPUT"
 
       - uses: webfactory/ssh-agent@v0.9.0
-        if: steps.dns.outputs.ready == 'true'
         with:
           ssh-private-key: ${{ secrets.DEPLOY_SSH_KEY }}
 
       - name: Trust production server
-        if: steps.dns.outputs.ready == 'true'
         run: ssh-keyscan -H 194.226.97.103 >> ~/.ssh/known_hosts
 
       - name: Configure new CRM hostname and certificate
-        if: steps.dns.outputs.ready == 'true'
         run: |
           ssh root@194.226.97.103 'bash -se' <<'REMOTE'
           set -eu
@@ -93,7 +101,6 @@ jobs:
           REMOTE
 
       - name: Verify new hostname externally
-        if: steps.dns.outputs.ready == 'true'
         run: |
           curl -4 --fail --silent --show-error --connect-timeout 10 --max-time 20 \
             https://crm.satorilabural.ru/login >/dev/null
