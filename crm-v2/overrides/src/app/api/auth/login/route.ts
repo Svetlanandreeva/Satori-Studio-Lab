@@ -9,8 +9,31 @@ import { authenticateTeamMember, type SessionActor } from "@/lib/operations";
 
 export const dynamic = "force-dynamic";
 
+function publicOrigin(request: NextRequest) {
+  const forwardedHost = String(request.headers.get("x-forwarded-host") || "").split(",")[0]?.trim();
+  const host = forwardedHost || String(request.headers.get("host") || "").split(",")[0]?.trim();
+  const forwardedProto = String(request.headers.get("x-forwarded-proto") || "").split(",")[0]?.trim();
+  const protocol = forwardedProto || (request.nextUrl.protocol ? request.nextUrl.protocol.replace(":", "") : "https");
+
+  if (host && !/^localhost(?::\d+)?$/i.test(host) && !/^127\.0\.0\.1(?::\d+)?$/.test(host)) {
+    return `${protocol}://${host}`;
+  }
+
+  // Production requests arrive at this route through nginx on port 3020.
+  // Never leak the internal localhost origin back to a browser redirect.
+  if (process.env.NODE_ENV === "production") {
+    return String(process.env.CRM_PUBLIC_ORIGIN || "https://crm.crmsatori.ru").replace(/\/$/, "");
+  }
+
+  return request.nextUrl.origin;
+}
+
+function publicUrl(request: NextRequest, pathname: string) {
+  return new URL(pathname, `${publicOrigin(request)}/`);
+}
+
 function loginErrorRedirect(request: NextRequest, message: string) {
-  const url = new URL("/login", request.url);
+  const url = publicUrl(request, "/login");
   url.searchParams.set("error", message);
   return NextResponse.redirect(url, 303);
 }
@@ -56,7 +79,7 @@ export async function POST(request: NextRequest) {
     }
 
     const response = isNativeForm
-      ? NextResponse.redirect(new URL(next, request.url), 303)
+      ? NextResponse.redirect(publicUrl(request, next), 303)
       : NextResponse.json({ ok: true, actor });
 
     response.cookies.set(CRM_SESSION_COOKIE, createCrmSessionToken(actor), {
