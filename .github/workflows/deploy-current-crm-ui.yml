@@ -60,3 +60,5 @@ jobs:
           code=$(curl -sS -o /dev/null -w '%{http_code}' --max-time 20 https://crm.crmsatori.ru/login)
           test "$code" = '200'
           echo "crm.crmsatori.ru/login -> $code"
+
+# redeploy CRM commit 82b4e5aced8d5e770ac0d1c85d5c4395262a120c
