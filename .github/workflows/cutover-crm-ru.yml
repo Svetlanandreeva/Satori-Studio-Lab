@@ -85,7 +85,7 @@ jobs:
           nginx -t
           systemctl reload nginx
 
-          curl --fail --silent --show-error --resolve crm.satorilabural.ru:443:127.0.0.1 \
+          curl --fail --silent --show-error --resolve crm.satorilabural.ru:443:192.168.0.38 \
             https://crm.satorilabural.ru/login >/dev/null
           curl --fail --silent --show-error http://127.0.0.1:3030/health >/dev/null
           curl --fail --silent --show-error http://127.0.0.1:3020/api/deals >/dev/null
