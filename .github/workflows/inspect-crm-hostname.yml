@@ -1,0 +1,41 @@
+name: Inspect CRM hostname routing
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/inspect-crm-hostname.yml'
+  workflow_dispatch:
+
+jobs:
+  inspect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.DEPLOY_SSH_KEY }}
+      - run: ssh-keyscan -H 194.226.97.103 >> ~/.ssh/known_hosts
+      - name: Inspect production nginx and CRM services
+        run: |
+          ssh root@194.226.97.103 'bash -se' <<'REMOTE'
+          set +e
+          echo '=== nginx includes ==='
+          grep -RIn "include .*conf.d\|include .*sites-enabled" /etc/nginx/nginx.conf /etc/nginx 2>/dev/null | head -40
+          echo '=== crm hostname files ==='
+          ls -l /etc/nginx/conf.d/*crm* /etc/nginx/sites-enabled/*crm* 2>/dev/null || true
+          echo '=== crm hostname in nginx -T ==='
+          nginx -T 2>&1 | grep -n -B8 -A28 'crm.crmsatori.ru' || true
+          echo '=== listeners ==='
+          ss -ltnp | grep -E ':(80|443|3020|3030) ' || true
+          echo '=== local UI ==='
+          curl -si --max-time 5 http://127.0.0.1:3030/ | head -20 || true
+          echo '=== local UI health ==='
+          curl -si --max-time 5 http://127.0.0.1:3030/health | head -20 || true
+          echo '=== internal nginx host test ==='
+          curl -si --max-time 5 -H 'Host: crm.crmsatori.ru' http://192.168.0.38/ | head -30 || true
+          echo '=== internal nginx login test ==='
+          curl -si --max-time 5 -H 'Host: crm.crmsatori.ru' http://192.168.0.38/login | head -30 || true
+          echo '=== current cert ==='
+          ls -l /etc/letsencrypt/live/crm.crmsatori.ru 2>/dev/null || true
+          REMOTE
