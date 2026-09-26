@@ -1,0 +1,50 @@
+name: Unblock CRM web access
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/crm-unblock-web.yml'
+  workflow_dispatch:
+
+jobs:
+  unblock:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.DEPLOY_SSH_KEY }}
+
+      - name: Trust production server
+        run: ssh-keyscan -H 194.226.97.103 >> ~/.ssh/known_hosts
+
+      - name: Clear transient web rate-limit blocks
+        run: |
+          ssh root@194.226.97.103 'bash -se' <<'REMOTE'
+          set -eu
+          echo '=== ISPmanager temporary rate-limit set before ==='
+          ipset list ispmgr_limit_req 2>/dev/null || true
+
+          if ipset list ispmgr_limit_req >/dev/null 2>&1; then
+            ipset flush ispmgr_limit_req
+            echo 'Flushed ispmgr_limit_req temporary block list.'
+          fi
+
+          echo '=== ISPmanager temporary rate-limit set after ==='
+          ipset list ispmgr_limit_req 2>/dev/null || true
+
+          systemctl reload nginx
+          systemctl is-active --quiet nginx
+          systemctl is-active --quiet satori-crm-ui
+          systemctl is-active --quiet satori-crm-v2
+          curl --fail --silent --show-error http://127.0.0.1:3030/health >/dev/null
+          curl --fail --silent --show-error http://127.0.0.1:3020/api/deals >/dev/null
+          echo 'CRM services are healthy and temporary web IP blocks are cleared.'
+          REMOTE
+
+      - name: Verify CRM externally
+        run: |
+          curl -4 --fail --silent --show-error --connect-timeout 10 --max-time 20 \
+            https://crm.satorilabural.online/login >/dev/null
+          echo 'CRM login is externally reachable.'
