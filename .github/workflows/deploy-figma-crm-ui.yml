@@ -66,3 +66,5 @@ jobs:
           test "$code" = '200'
           grep -qi 'SATORI CRM' /tmp/login.html
           echo 'Redesigned CRM UI is deployed; existing CRM backend and integrations remain on port 3020.'
+
+# Redeploy marker: Figma chats and navigation refresh.
