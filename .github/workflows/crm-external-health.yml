@@ -1,0 +1,77 @@
+name: Check CRM external availability
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/crm-external-health.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: crm-external-health
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Check CRM through public DNS
+        id: public
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          echo '=== DNS ==='
+          getent ahostsv4 crm.satorilabural.online || true
+          echo '=== HTTPS /login via public DNS ==='
+          curl -4 -v --connect-timeout 10 --max-time 20 \
+            -o /tmp/login-body -D /tmp/login-headers \
+            https://crm.satorilabural.online/login
+          code=$(awk 'toupper($1) ~ /^HTTP\// {c=$2} END{print c}' /tmp/login-headers)
+          echo "HTTP code: $code"
+          test "$code" = '200'
+
+      - name: Check CRM directly against production IP
+        id: direct
+        continue-on-error: true
+        run: |
+          set -o pipefail
+          curl -4 -v --connect-timeout 10 --max-time 20 \
+            --resolve crm.satorilabural.online:443:194.226.97.103 \
+            -o /tmp/direct-body -D /tmp/direct-headers \
+            https://crm.satorilabural.online/login
+          code=$(awk 'toupper($1) ~ /^HTTP\// {c=$2} END{print c}' /tmp/direct-headers)
+          echo "HTTP code: $code"
+          test "$code" = '200'
+
+      - uses: webfactory/ssh-agent@v0.9.0
+        if: steps.public.outcome != 'success' || steps.direct.outcome != 'success'
+        with:
+          ssh-private-key: ${{ secrets.DEPLOY_SSH_KEY }}
+
+      - name: Trust production server
+        if: steps.public.outcome != 'success' || steps.direct.outcome != 'success'
+        run: ssh-keyscan -H 194.226.97.103 >> ~/.ssh/known_hosts
+
+      - name: Diagnose production network and services
+        if: steps.public.outcome != 'success' || steps.direct.outcome != 'success'
+        run: |
+          ssh root@194.226.97.103 'bash -se' <<'REMOTE'
+          set +e
+          echo '=== SERVICES ==='
+          systemctl is-active nginx satori-crm-v2 satori-crm-ui
+          echo '=== LISTENERS ==='
+          ss -ltnp | grep -E ':(22|80|443|3020|3030)\b' || true
+          echo '=== LOCAL HEALTH ==='
+          curl -sS -o /dev/null -w 'nginx-login=%{http_code}\n' --resolve crm.satorilabural.online:443:127.0.0.1 https://crm.satorilabural.online/login || true
+          curl -sS -o /dev/null -w 'ui=%{http_code}\n' http://127.0.0.1:3030/health || true
+          curl -sS -o /dev/null -w 'backend=%{http_code}\n' http://127.0.0.1:3020/api/deals || true
+          echo '=== UFW ==='
+          ufw status verbose 2>/dev/null || true
+          echo '=== NFTABLES INPUT SUMMARY ==='
+          nft list ruleset 2>/dev/null | grep -E 'hook input|tcp dport (22|80|443)|policy (accept|drop|reject)' | head -80 || true
+          REMOTE
+
+      - name: Fail if CRM is not externally reachable
+        if: steps.public.outcome != 'success' || steps.direct.outcome != 'success'
+        run: exit 1
