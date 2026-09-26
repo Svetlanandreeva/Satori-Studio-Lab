@@ -1,0 +1,54 @@
+name: Fix CRM login redirect
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/fix-crm-login-redirect.yml'
+  workflow_dispatch:
+
+jobs:
+  fix:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.DEPLOY_SSH_KEY }}
+      - run: ssh-keyscan -H 194.226.97.103 >> ~/.ssh/known_hosts
+      - name: Keep backend redirects on crm.crmsatori.ru
+        run: |
+          ssh root@194.226.97.103 'bash -se' <<'REMOTE'
+          set -eu
+          cfg=/etc/nginx/conf.d/crm-crmsatori.conf
+          test -f "$cfg"
+          cp -a "$cfg" "$cfg.before-login-redirect-$(date +%Y%m%d-%H%M%S)"
+          CFG="$cfg" python3 - <<'PY'
+          import os
+          from pathlib import Path
+
+          p=Path(os.environ['CFG'])
+          s=p.read_text()
+          marker='proxy_pass http://127.0.0.1:3020;'
+          redirects='''proxy_redirect http://localhost:3020/ https://crm.crmsatori.ru/;\n      proxy_redirect http://127.0.0.1:3020/ https://crm.crmsatori.ru/;'''
+          if redirects not in s:
+              needle='''location ^~ /api/ {\n      proxy_pass http://127.0.0.1:3020;'''
+              if needle not in s:
+                  needle='''location ^~ /api/ {\n        proxy_pass http://127.0.0.1:3020;'''
+              if needle not in s:
+                  raise SystemExit('CRM /api/ proxy block not found')
+              s=s.replace(marker, marker+'\n      '+redirects, 1)
+          p.write_text(s)
+          PY
+          nginx -t
+          systemctl reload nginx
+
+          # A deliberately bad password must redirect back to the public hostname, never localhost:3020.
+          headers=$(mktemp)
+          curl -ksS -D "$headers" -o /dev/null -X POST 'https://crm.crmsatori.ru/api/auth/login' \
+            -H 'Content-Type: application/x-www-form-urlencoded' \
+            --data-urlencode 'password=definitely-not-the-production-password'
+          location=$(awk 'BEGIN{IGNORECASE=1} /^location:/ {sub(/\r$/,""); sub(/^location:[[:space:]]*/,""); print; exit}' "$headers")
+          echo "bad-login redirect=$location"
+          case "$location" in https://crm.crmsatori.ru/login*) ;; *) echo 'Bad login still leaks an internal origin'; exit 1;; esac
+          REMOTE
