@@ -39,13 +39,17 @@ jobs:
           echo '=== bind/named services ==='
           systemctl is-active named 2>/dev/null || true
           systemctl is-active bind9 2>/dev/null || true
-          echo '=== zone files mentioning satorilabural.ru ==='
-          grep -RIl 'satorilabural.ru' /etc/bind /var/named /etc/named* 2>/dev/null | head -40 || true
-          echo '=== ISPmanager DNS modules ==='
-          command -v mgrctl || true
-          if command -v mgrctl >/dev/null 2>&1; then
-            mgrctl -m dnsdomain 2>/dev/null | head -80 || true
-          fi
+          echo '=== ISPmanager CLI candidates ==='
+          find /usr/local/mgr5 /opt -type f \( -name mgrctl -o -name ispmanager \) 2>/dev/null | head -30 || true
+          echo '=== possible REG.RU/DNS environment keys (names only) ==='
+          for f in /var/www/satori/.env /root/.env /etc/environment; do
+            if [ -f "$f" ]; then
+              echo "-- $f --"
+              grep -Ei '^(REG|REGRU|REG_RU|DNS|DOMAIN|NS)[A-Z0-9_]*=' "$f" 2>/dev/null | sed 's/=.*$/=<set>/' || true
+            fi
+          done
+          echo '=== local zone references ==='
+          grep -RIl 'satorilabural.ru' /etc/bind /var/named /etc/named* /usr/local/mgr5 2>/dev/null | head -40 || true
           echo '=== current CRM nginx ==='
           grep -nE 'server_name|listen .*443|ssl_certificate ' /etc/nginx/conf.d/satori-crm.conf || true
           REMOTE
