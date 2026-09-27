@@ -12,6 +12,7 @@ import {
 import { cleanEmailDisplayBody } from "@/lib/email-crm-policy";
 import { emailConversationThreadIds } from "@/lib/email-conversation";
 import { getTelegramThread } from "@/lib/telegram-inbox";
+import { isoDate } from "@/lib/date-normalization";
 
 export const dynamic = "force-dynamic";
 
@@ -23,8 +24,14 @@ const TELEGRAM_TYPES = new Set([
 ]);
 
 function iso(value: unknown): string {
-  const date = value instanceof Date ? value : new Date(String(value || ""));
-  return Number.isNaN(date.getTime()) ? new Date(0).toISOString() : date.toISOString();
+  return isoDate(value) || "";
+}
+
+function isSyntheticCrmSummary(description: unknown): boolean {
+  const text = String(description || "").trim();
+  if (!text) return false;
+  return /^AI:\s*Хочет:/i.test(text)
+    || (/Предложено:/i.test(text) && /Стадия:/i.test(text) && /Сумма:/i.test(text));
 }
 
 export async function GET(
@@ -88,7 +95,7 @@ export async function GET(
     id: `telegram:${message.id}`,
     channel: "telegram" as const,
     direction: message.direction,
-    timestamp: message.receivedAt,
+    timestamp: iso(message.receivedAt),
     body: message.bodyText,
     sender: message.direction === "outgoing" ? "Вы" : contact.name,
     address: telegram?.thread?.remoteHandle || contact.phone || "Telegram",
@@ -102,6 +109,7 @@ export async function GET(
     .where(eq(activities.contactId, id))
     .all()
     .filter((activity) => !TELEGRAM_TYPES.has(activity.type))
+    .filter((activity) => !isSyntheticCrmSummary(activity.description))
     .map((activity) => ({
       id: `activity:${activity.id}`,
       channel: "activity" as const,
@@ -142,7 +150,7 @@ export async function GET(
     });
 
   const history = [...emailHistory, ...telegramHistory, ...genericActivities]
-    .filter((item) => item.body || item.channel === "activity")
+    .filter((item) => item.timestamp && (item.body || item.channel === "activity"))
     .sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
 
   return NextResponse.json({
