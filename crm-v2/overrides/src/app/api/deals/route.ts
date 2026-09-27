@@ -2,117 +2,9 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { deals, contacts, pipelineStages } from "@/db/schema";
 import { eq, desc } from "drizzle-orm";
-import {
-  buildEmailConversationIndex,
-  sameEmailConversationForDeals,
-  type EmailConversationIndex,
-} from "@/lib/email-conversation";
+import { buildEmailConversationIndex } from "@/lib/email-conversation";
+import { deduplicateDeals, isDuplicateDealPair } from "@/lib/deal-dedup";
 import { SPAM_STAGE_NAME } from "@/lib/lead-qualification";
-
-const DAY = 24 * 60 * 60 * 1000;
-const EXACT_DUPLICATE_WINDOW = 30 * DAY;
-const SIMILAR_DUPLICATE_WINDOW = 3 * DAY;
-const SIMILARITY_THRESHOLD = 0.6;
-const TITLE_STOP_WORDS = new Set([
-  "и", "в", "во", "на", "по", "под", "для", "из", "с", "со", "к", "до", "от", "за", "шт", "штук",
-  "заказ", "заявка", "проект", "изготовление",
-]);
-
-type DealDuplicateInput = {
-  contactId: string;
-  contactSource?: unknown;
-  title: string;
-  value: number;
-  createdAt: unknown;
-  notes?: unknown;
-};
-
-function normalizeTitle(value: unknown): string {
-  return String(value || "")
-    .toLowerCase()
-    .replace(/ё/g, "е")
-    .replace(/[^a-zа-я0-9]+/gi, " ")
-    .trim()
-    .replace(/\s+/g, " ");
-}
-
-function titleTokens(value: unknown): Set<string> {
-  return new Set(
-    normalizeTitle(value)
-      .split(" ")
-      .filter((token) => token.length > 2 && !TITLE_STOP_WORDS.has(token))
-  );
-}
-
-function titleSimilarity(a: unknown, b: unknown): number {
-  const left = titleTokens(a);
-  const right = titleTokens(b);
-  if (!left.size || !right.size) return 0;
-  let intersection = 0;
-  for (const token of left) if (right.has(token)) intersection += 1;
-  const union = new Set([...left, ...right]).size;
-  return union ? intersection / union : 0;
-}
-
-function dateMs(value: unknown): number {
-  if (!value) return 0;
-  const time = value instanceof Date ? value.getTime() : new Date(String(value)).getTime();
-  return Number.isFinite(time) ? time : 0;
-}
-
-function isDuplicatePair(
-  a: DealDuplicateInput,
-  b: DealDuplicateInput,
-  emailIndex: EmailConversationIndex
-): boolean {
-  // Primary rule: an RFC email conversation is a single opportunity even if
-  // several employees wrote from different addresses.
-  if (sameEmailConversationForDeals(a, b, emailIndex)) return true;
-
-  if (!a.contactId || a.contactId !== b.contactId) return false;
-
-  // Important legacy case: the old mail importer sometimes created several deals
-  // for different messages of ONE thread but attached all of them to the SAME
-  // email contact. Those old deals have no [email-thread:*] marker, so the RFC
-  // cross-contact rule above cannot identify them. If this email contact is linked
-  // to exactly one real mailbox conversation, every legacy deal generated from it
-  // belongs to that one conversation and must appear once in CRM statistics/list.
-  const source = String(a.contactSource || b.contactSource || "").toLowerCase();
-  const contactConversations = emailIndex.conversationsByContactId.get(a.contactId);
-  if (source === "email" && contactConversations?.size === 1) return true;
-
-  const age = Math.abs(dateMs(a.createdAt) - dateMs(b.createdAt));
-  const aTitle = normalizeTitle(a.title);
-  const bTitle = normalizeTitle(b.title);
-  const sameValue = Number(a.value || 0) === Number(b.value || 0);
-
-  if (sameValue && aTitle && aTitle === bTitle && age <= EXACT_DUPLICATE_WINDOW) return true;
-
-  return sameValue && age <= SIMILAR_DUPLICATE_WINDOW && titleSimilarity(a.title, b.title) >= SIMILARITY_THRESHOLD;
-}
-
-function stageRank(deal: { stageIsWon?: boolean | null; stageIsLost?: boolean | null }): number {
-  if (deal.stageIsWon) return 3;
-  if (deal.stageIsLost) return 1;
-  return 2;
-}
-
-function preferCandidate(
-  candidate: { stageIsWon?: boolean | null; stageIsLost?: boolean | null; value?: number | null; updatedAt: unknown },
-  saved: { stageIsWon?: boolean | null; stageIsLost?: boolean | null; value?: number | null; updatedAt: unknown }
-): boolean {
-  const candidateStage = stageRank(candidate);
-  const savedStage = stageRank(saved);
-  if (candidateStage !== savedStage) return candidateStage > savedStage;
-
-  // Historical email doubles often contain one populated amount and one zero-value
-  // technical copy. Keep the meaningful commercial amount for dashboard totals.
-  const candidateValue = Number(candidate.value || 0);
-  const savedValue = Number(saved.value || 0);
-  if (candidateValue !== savedValue) return candidateValue > savedValue;
-
-  return dateMs(candidate.updatedAt) > dateMs(saved.updatedAt);
-}
 
 export async function GET(request: NextRequest) {
   const url = new URL(request.url);
@@ -151,42 +43,7 @@ export async function GET(request: NextRequest) {
     .filter((deal) => deal.contactSource !== "need_number" || deal.contactQualification === "qualified");
 
   if (includeDuplicates) return NextResponse.json(rawResults);
-
-  const emailIndex = buildEmailConversationIndex();
-  const results: typeof rawResults = [];
-  for (const deal of rawResults) {
-    const duplicateIndex = results.findIndex((saved) =>
-      isDuplicatePair(
-        {
-          contactId: deal.contactId,
-          contactSource: deal.contactSource,
-          title: deal.title,
-          value: deal.value,
-          createdAt: deal.createdAt,
-          notes: deal.notes,
-        },
-        {
-          contactId: saved.contactId,
-          contactSource: saved.contactSource,
-          title: saved.title,
-          value: saved.value,
-          createdAt: saved.createdAt,
-          notes: saved.notes,
-        },
-        emailIndex
-      )
-    );
-    if (duplicateIndex < 0) {
-      results.push(deal);
-      continue;
-    }
-    if (preferCandidate(deal, results[duplicateIndex])) {
-      results[duplicateIndex] = deal;
-    }
-  }
-  results.sort((a, b) => dateMs(b.createdAt) - dateMs(a.createdAt));
-
-  return NextResponse.json(results);
+  return NextResponse.json(deduplicateDeals(rawResults));
 }
 
 export async function POST(request: NextRequest) {
@@ -212,20 +69,22 @@ export async function POST(request: NextRequest) {
   const now = new Date();
   const notes = body.notes ? String(body.notes) : null;
   const emailIndex = buildEmailConversationIndex();
+  const contactSourceById = new Map(db.select({ id: contacts.id, source: contacts.source }).from(contacts).all().map((row) => [row.id, row.source]));
   const existingDeal = db
     .select()
     .from(deals)
     .all()
     .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
     .find((deal) =>
-      isDuplicatePair(
+      isDuplicateDealPair(
         { contactId, contactSource: contact.source, title, value, createdAt: now, notes },
         {
           contactId: deal.contactId,
-          contactSource: deal.contactId === contactId ? contact.source : undefined,
+          contactSource: contactSourceById.get(deal.contactId),
           title: deal.title,
           value: deal.value,
           createdAt: deal.createdAt,
+          updatedAt: deal.updatedAt,
           notes: deal.notes,
         },
         emailIndex
@@ -237,7 +96,7 @@ export async function POST(request: NextRequest) {
       {
         ...existingDeal,
         duplicate: true,
-        message: "Такая сделка уже существует — повтор не создан",
+        message: "Эта сделка уже существует — повтор не создан",
       },
       { status: 200 }
     );
