@@ -13,6 +13,8 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
+      - name: Install audit tools
+        run: sudo apt-get update -qq && sudo apt-get install -y -qq ripgrep
       - name: Clone current CRM UI
         run: git clone --depth=1 --branch main https://github.com/Svetlanandreeva/CRM.git /tmp/satori-crm
       - name: Audit UI and backend for placeholders, stubs and disconnected state
@@ -53,7 +55,7 @@ jobs:
           find crm-v2/overrides/src/app/api -type f -name 'route.ts' | sort || true
           echo
           echo '=== 11. UI FETCHED API PATHS ==='
-          rg -no --glob '*.{ts,tsx}' "(/api/[A-Za-z0-9_?=&./${}-]+)" /tmp/satori-crm/src /tmp/satori-crm/server.ts | sort -u || true
+          rg -no --glob '*.{ts,tsx}' '(/api/[A-Za-z0-9_?=&./${}-]+)' /tmp/satori-crm/src /tmp/satori-crm/server.ts | sort -u || true
           echo
           echo '=== 12. BUTTONS WITH NO onClick/onSubmit/href ON SAME OPENING TAG (heuristic) ==='
           python3 - <<'PY'
