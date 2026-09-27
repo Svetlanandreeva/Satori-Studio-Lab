@@ -5,6 +5,7 @@ import { desc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { contacts, emailMessages, emailThreads } from "@/db/schema";
 import { saveClientDocument } from "@/lib/client-documents";
+import { resolveEmailThreadForMessage } from "@/lib/email-conversation";
 import { INTEGRATION_KEYS, getBooleanSetting, getSetting, setSetting } from "@/lib/satori-integrations";
 
 export interface EmailIntegrationConfig {
@@ -131,9 +132,17 @@ function touchKnownContact(remoteEmail: string, isService: boolean) {
 function findOrCreateThread(input: {
   remoteEmail: string; remoteName: string; subject: string; isService: boolean; contactId: string | null;
   receivedAt: Date; bodyText: string; direction: "incoming" | "outgoing";
+  messageId: string; inReplyTo: string | null; references: string | null;
 }) {
-  const threadKey = input.remoteEmail.trim().toLowerCase();
-  let thread = db.select().from(emailThreads).where(eq(emailThreads.threadKey, threadKey)).get();
+  const resolved = resolveEmailThreadForMessage({
+    messageId: input.messageId,
+    inReplyTo: input.inReplyTo,
+    references: input.references,
+    remoteEmail: input.remoteEmail,
+    subject: input.subject,
+  });
+  let thread = resolved.thread;
+  const threadKey = resolved.threadKey;
   const now = new Date();
   if (!thread) {
     thread = db.insert(emailThreads).values({
@@ -167,13 +176,17 @@ function upsertParsedMessage(input: {
   const isService = explicitlyIgnored || (!knownContact && looksServiceMail(input.mail, remote.address, input.config));
   const contact = knownContact ? touchKnownContact(remote.address, isService) : null;
   const receivedAt = input.mail.date || input.internalDate || new Date();
-  const thread = findOrCreateThread({ remoteEmail: remote.address, remoteName: remote.name, subject, isService, contactId: contact?.id || null, receivedAt, bodyText, direction });
+  const inReplyTo = input.mail.inReplyTo ? String(input.mail.inReplyTo) : null;
+  const references = input.mail.references ? (Array.isArray(input.mail.references) ? input.mail.references.join(" ") : String(input.mail.references)) : null;
+  const thread = findOrCreateThread({
+    remoteEmail: remote.address, remoteName: remote.name, subject, isService, contactId: contact?.id || null,
+    receivedAt, bodyText, direction, messageId, inReplyTo, references,
+  });
   const now = new Date();
 
   db.insert(emailMessages).values({
     id: crypto.randomUUID(), threadId: thread.id, messageId,
-    inReplyTo: input.mail.inReplyTo ? String(input.mail.inReplyTo) : null,
-    references: input.mail.references ? (Array.isArray(input.mail.references) ? input.mail.references.join(" ") : String(input.mail.references)) : null,
+    inReplyTo, references,
     direction, folder: input.folder, remoteUid: input.uid, fromEmail: fromEmail || account,
     fromName: from?.name || null, toEmail: to.map((item) => item.address).join(", ") || account,
     subject, bodyText, isService, isRead: direction === "outgoing" || !input.unread,
@@ -184,9 +197,11 @@ function upsertParsedMessage(input: {
   const unreadIncrement = direction === "incoming" && input.unread ? 1 : 0;
   db.update(emailThreads).set({
     subject: isNewer ? subject : thread.subject,
-    remoteName: remote.name || thread.remoteName,
-    contactId: contact?.id || thread.contactId,
-    isService,
+    remoteName: isNewer && remote.name ? remote.name : thread.remoteName,
+    // A later participant in the same customer thread must not replace the deal's
+    // primary CRM contact. The per-message sender is still preserved in emailMessages.
+    contactId: thread.contactId || contact?.id || null,
+    isService: Boolean(thread.isService && isService),
     unreadCount: Math.max(0, Number(thread.unreadCount || 0) + unreadIncrement),
     lastMessageAt: isNewer ? receivedAt : thread.lastMessageAt,
     lastSnippet: isNewer ? snippet(bodyText) : thread.lastSnippet,
