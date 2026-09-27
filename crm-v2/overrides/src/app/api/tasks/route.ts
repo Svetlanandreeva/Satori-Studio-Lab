@@ -4,6 +4,7 @@ import { activities, contacts, deals, teamMembers } from "@/db/schema";
 import { desc, eq } from "drizzle-orm";
 import { getRequestActor } from "@/lib/request-actor";
 import { writeAuditLog } from "@/lib/operations";
+import { isoDate } from "@/lib/date-normalization";
 
 export const dynamic = "force-dynamic";
 
@@ -28,7 +29,13 @@ export async function GET() {
     .leftJoin(teamMembers, eq(activities.ownerId, teamMembers.id))
     .orderBy(desc(activities.scheduledAt))
     .all()
-    .filter((item) => item.scheduledAt || item.type === "task");
+    .filter((item) => item.scheduledAt || item.type === "task")
+    .map((item) => ({
+      ...item,
+      scheduledAt: isoDate(item.scheduledAt),
+      completedAt: isoDate(item.completedAt),
+      createdAt: isoDate(item.createdAt),
+    }));
   return NextResponse.json({ tasks });
 }
 
@@ -55,7 +62,12 @@ export async function POST(request: NextRequest) {
       createdAt: new Date(),
     }).returning().get();
     writeAuditLog(actor, "create_task", "activity", result.id, { description, contactId, scheduledAt: scheduledAt.toISOString(), priority, ownerId: ownerId || actor.id });
-    return NextResponse.json(result, { status: 201 });
+    return NextResponse.json({
+      ...result,
+      scheduledAt: isoDate(result.scheduledAt),
+      completedAt: isoDate(result.completedAt),
+      createdAt: isoDate(result.createdAt),
+    }, { status: 201 });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Не удалось создать задачу" }, { status: 400 });
   }
