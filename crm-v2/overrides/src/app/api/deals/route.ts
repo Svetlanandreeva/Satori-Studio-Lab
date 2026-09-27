@@ -2,7 +2,11 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { deals, contacts, pipelineStages } from "@/db/schema";
 import { eq, desc } from "drizzle-orm";
-import { sameEmailConversationFromDealNotes } from "@/lib/email-conversation";
+import {
+  buildEmailConversationIndex,
+  sameEmailConversationForDeals,
+  type EmailConversationIndex,
+} from "@/lib/email-conversation";
 import { SPAM_STAGE_NAME } from "@/lib/lead-qualification";
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -49,12 +53,14 @@ function dateMs(value: unknown): number {
 
 function isDuplicatePair(
   a: { contactId: string; title: string; value: number; createdAt: unknown; notes?: unknown },
-  b: { contactId: string; title: string; value: number; createdAt: unknown; notes?: unknown }
+  b: { contactId: string; title: string; value: number; createdAt: unknown; notes?: unknown },
+  emailIndex: EmailConversationIndex
 ): boolean {
-  // Email opportunity identity is the RFC conversation, not an individual sender.
-  // This catches a single customer thread where procurement/design/accounting staff
-  // write from several addresses and previously produced several CRM deals.
-  if (sameEmailConversationFromDealNotes(a.notes, b.notes)) return true;
+  // One RFC email conversation is one opportunity even when several employees of
+  // the same customer wrote from different addresses. The legacy importer split
+  // those participants into separate contacts, so the fallback index also links
+  // old records that do not yet have [email-thread:*] in deal notes.
+  if (sameEmailConversationForDeals(a, b, emailIndex)) return true;
 
   if (!a.contactId || a.contactId !== b.contactId) return false;
 
@@ -63,17 +69,32 @@ function isDuplicatePair(
   const bTitle = normalizeTitle(b.title);
   const sameValue = Number(a.value || 0) === Number(b.value || 0);
 
-  // Exact same opportunity: punctuation/case/spacing do not matter.
   if (sameValue && aTitle && aTitle === bTitle && age <= EXACT_DUPLICATE_WINDOW) return true;
 
-  // Repeated webhook/form submission often changes a couple of words in the title.
-  // Treat it as a duplicate only for the same client, same amount and a short time window.
   return sameValue && age <= SIMILAR_DUPLICATE_WINDOW && titleSimilarity(a.title, b.title) >= SIMILARITY_THRESHOLD;
 }
 
-function dealPriority(deal: { stageIsWon?: boolean | null; stageIsLost?: boolean | null; updatedAt: unknown }): number {
-  const stageScore = deal.stageIsWon ? 3 : deal.stageIsLost ? 1 : 2;
-  return stageScore * 10_000_000_000_000 + dateMs(deal.updatedAt);
+function stageRank(deal: { stageIsWon?: boolean | null; stageIsLost?: boolean | null }): number {
+  if (deal.stageIsWon) return 3;
+  if (deal.stageIsLost) return 1;
+  return 2;
+}
+
+function preferCandidate(
+  candidate: { stageIsWon?: boolean | null; stageIsLost?: boolean | null; value?: number | null; updatedAt: unknown },
+  saved: { stageIsWon?: boolean | null; stageIsLost?: boolean | null; value?: number | null; updatedAt: unknown }
+): boolean {
+  const candidateStage = stageRank(candidate);
+  const savedStage = stageRank(saved);
+  if (candidateStage !== savedStage) return candidateStage > savedStage;
+
+  // Historical email doubles often contain one populated amount and one zero-value
+  // technical copy. Keep the meaningful commercial amount for dashboard totals.
+  const candidateValue = Number(candidate.value || 0);
+  const savedValue = Number(saved.value || 0);
+  if (candidateValue !== savedValue) return candidateValue > savedValue;
+
+  return dateMs(candidate.updatedAt) > dateMs(saved.updatedAt);
 }
 
 export async function GET(request: NextRequest) {
@@ -110,22 +131,19 @@ export async function GET(request: NextRequest) {
     .orderBy(desc(deals.createdAt))
     .all()
     .filter((deal) => includeSandbox || deal.stageName !== SPAM_STAGE_NAME)
-    // Need Number is only a call queue until a real request is confirmed.
     .filter((deal) => deal.contactSource !== "need_number" || deal.contactQualification === "qualified");
 
   if (includeDuplicates) return NextResponse.json(rawResults);
 
-  // Collapse historical technical doubles for all normal CRM screens and counters.
-  // Email doubles are collapsed by RFC conversation even if different employees were
-  // saved as different contacts. Other doubles keep the stricter same-contact rule.
+  const emailIndex = buildEmailConversationIndex();
   const results: typeof rawResults = [];
   for (const deal of rawResults) {
-    const duplicateIndex = results.findIndex((saved) => isDuplicatePair(deal, saved));
+    const duplicateIndex = results.findIndex((saved) => isDuplicatePair(deal, saved, emailIndex));
     if (duplicateIndex < 0) {
       results.push(deal);
       continue;
     }
-    if (dealPriority(deal) > dealPriority(results[duplicateIndex])) {
+    if (preferCandidate(deal, results[duplicateIndex])) {
       results[duplicateIndex] = deal;
     }
   }
@@ -156,16 +174,17 @@ export async function POST(request: NextRequest) {
 
   const now = new Date();
   const notes = body.notes ? String(body.notes) : null;
+  const emailIndex = buildEmailConversationIndex();
   const existingDeal = db
     .select()
     .from(deals)
-    .where(eq(deals.contactId, contactId))
     .all()
     .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
     .find((deal) =>
       isDuplicatePair(
         { contactId, title, value, createdAt: now, notes },
-        { contactId: deal.contactId, title: deal.title, value: deal.value, createdAt: deal.createdAt, notes: deal.notes }
+        { contactId: deal.contactId, title: deal.title, value: deal.value, createdAt: deal.createdAt, notes: deal.notes },
+        emailIndex
       )
     );
 
@@ -212,7 +231,6 @@ export async function POST(request: NextRequest) {
       .returning()
       .get();
 
-    // Creating a deal from a Need Number call is the qualification event.
     if (contact.source === "need_number" && contact.qualification !== "qualified") {
       db.update(contacts)
         .set({ qualification: "qualified", updatedAt: now })
