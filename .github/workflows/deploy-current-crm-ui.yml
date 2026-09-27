@@ -32,6 +32,9 @@ jobs:
           test -f server.js
           grep -R -q 'Карточка и переписка' dist/assets
           grep -R -q 'Клиенты' dist/assets
+          grep -R -q 'Календарь проектов' dist/assets
+          grep -R -q 'Динамика сделок' dist/assets
+          grep -R -q 'Последние активности' dist/assets
 
       - uses: webfactory/ssh-agent@v0.9.0
         with:
@@ -56,10 +59,15 @@ jobs:
           curl --fail --silent --retry 12 --retry-connrefused --retry-delay 2 http://127.0.0.1:3030/health >/dev/null
           grep -R -q 'Карточка и переписка' dist/assets
           grep -R -q 'Клиенты' dist/assets
+          grep -R -q 'Календарь проектов' dist/assets
+          grep -R -q 'Динамика сделок' dist/assets
+          grep -R -q 'Последние активности' dist/assets
 
           # Core API paths used by dashboard, deals and client history must all be live.
           curl --fail --silent http://127.0.0.1:3020/api/deals >/tmp/crm-smoke-deals.json
           curl --fail --silent http://127.0.0.1:3020/api/contacts >/tmp/crm-smoke-contacts.json
+          curl --fail --silent http://127.0.0.1:3020/api/activities >/tmp/crm-smoke-activities.json
+          curl --fail --silent http://127.0.0.1:3020/api/economics >/tmp/crm-smoke-economics.json
           curl --fail --silent 'http://127.0.0.1:3020/api/inbox?filter=client&search=' >/tmp/crm-smoke-inbox.json
           curl --fail --silent 'http://127.0.0.1:3020/api/messages/telegram?search=' >/tmp/crm-smoke-telegram.json
 
@@ -73,13 +81,17 @@ jobs:
           const fs=require('fs');
           const deals=JSON.parse(fs.readFileSync('/tmp/crm-smoke-deals.json','utf8'));
           const contacts=JSON.parse(fs.readFileSync('/tmp/crm-smoke-contacts.json','utf8'));
+          const activities=JSON.parse(fs.readFileSync('/tmp/crm-smoke-activities.json','utf8'));
+          const economics=JSON.parse(fs.readFileSync('/tmp/crm-smoke-economics.json','utf8'));
           const inbox=JSON.parse(fs.readFileSync('/tmp/crm-smoke-inbox.json','utf8'));
           const telegram=JSON.parse(fs.readFileSync('/tmp/crm-smoke-telegram.json','utf8'));
           if(!Array.isArray(deals)) throw new Error('Deals API is not an array');
           if(!Array.isArray(contacts) && !Array.isArray(contacts.contacts)) throw new Error('Contacts API has unexpected shape');
+          if(!Array.isArray(activities)) throw new Error('Activities API is not an array');
+          if(!Array.isArray(economics.deals)) throw new Error('Economics API has unexpected shape');
           if(!Array.isArray(inbox.threads)) throw new Error('Inbox API has unexpected shape');
           if(!Array.isArray(telegram.threads)) throw new Error('Telegram API has unexpected shape');
-          console.log(`CRM smoke OK: ${deals.length} deals, ${Array.isArray(contacts)?contacts.length:contacts.contacts.length} contacts, ${inbox.threads.length} email threads, ${telegram.threads.length} telegram threads`);
+          console.log(`CRM smoke OK: ${deals.length} deals, ${Array.isArray(contacts)?contacts.length:contacts.contacts.length} contacts, ${activities.length} activities, ${economics.deals.length} economics rows, ${inbox.threads.length} email threads, ${telegram.threads.length} telegram threads`);
           NODE
           REMOTE
 
@@ -89,4 +101,4 @@ jobs:
           test "$code" = '200'
           echo "crm.crmsatori.ru/login -> $code"
 
-# redeploy CRM commit 2334464537e44dc0812391fa5c4d7a046a92b5cc with connected client cards
+# redeploy CRM commit 9e356ed2fbbc71cdb8dd21c1adbec3a4c4324559 with Figma-aligned live dashboard
