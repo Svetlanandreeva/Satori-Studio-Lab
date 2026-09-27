@@ -17,20 +17,16 @@ jobs:
           ssh-private-key: ${{ secrets.DEPLOY_SSH_KEY }}
       - name: Trust production server
         run: ssh-keyscan -H 194.226.97.103 >> ~/.ssh/known_hosts
-      - name: Print received amounts from live economics API
+      - name: Inspect target deal and pipeline stages
         run: |
           ssh root@194.226.97.103 "curl --fail --silent http://127.0.0.1:3020/api/economics" > /tmp/economics.json
+          ssh root@194.226.97.103 "curl --fail --silent http://127.0.0.1:3020/api/pipeline" > /tmp/pipeline.json
           node <<'NODE'
           const fs=require('fs');
-          const v=JSON.parse(fs.readFileSync('/tmp/economics.json','utf8'));
-          const rows=(v.deals||[]).filter(x=>Number(x.receivedAmount||0)>0).map(x=>({
-            dealId:x.dealId,
-            client:x.contactName,
-            deal:x.dealTitle,
-            stage:x.stageName,
-            receivedRub:Number(x.receivedAmount||0)/100,
-            economicsUpdatedAt:x.economicsUpdatedAt||x.updatedAt||null,
-          }));
-          console.log('LIVE_RECEIVED_ROWS='+JSON.stringify(rows,null,2));
-          console.log('LIVE_RECEIVED_TOTAL_RUB='+rows.reduce((s,x)=>s+x.receivedRub,0));
+          const economics=JSON.parse(fs.readFileSync('/tmp/economics.json','utf8'));
+          const pipeline=JSON.parse(fs.readFileSync('/tmp/pipeline.json','utf8'));
+          const dealId='135396a1-962d-4706-b704-6ec25dba7028';
+          const target=(economics.deals||[]).find(x=>x.dealId===dealId);
+          console.log('TARGET_DEAL='+JSON.stringify(target,null,2));
+          console.log('PIPELINE_STAGES='+JSON.stringify((pipeline||[]).map(s=>({id:s.id,name:s.name,isWon:s.isWon,isLost:s.isLost,order:s.order})),null,2));
           NODE
