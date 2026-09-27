@@ -30,6 +30,8 @@ jobs:
           npx esbuild server.ts --bundle --platform=node --format=esm --packages=external --outfile=server.js
           test -f dist/index.html
           test -f server.js
+          grep -R -q 'Карточка и переписка' dist/assets
+          grep -R -q 'Клиенты' dist/assets
 
       - uses: webfactory/ssh-agent@v0.9.0
         with:
@@ -52,6 +54,8 @@ jobs:
           systemctl restart satori-crm-ui
           systemctl is-active --quiet satori-crm-ui
           curl --fail --silent --retry 12 --retry-connrefused --retry-delay 2 http://127.0.0.1:3030/health >/dev/null
+          grep -R -q 'Карточка и переписка' dist/assets
+          grep -R -q 'Клиенты' dist/assets
 
           # Core API paths used by dashboard, deals and client history must all be live.
           curl --fail --silent http://127.0.0.1:3020/api/deals >/tmp/crm-smoke-deals.json
@@ -85,4 +89,4 @@ jobs:
           test "$code" = '200'
           echo "crm.crmsatori.ru/login -> $code"
 
-# redeploy CRM commit 312328cedaedf41154efb3cf11ba36c8b840fc9d with integrated smoke tests
+# redeploy CRM commit 2334464537e44dc0812391fa5c4d7a046a92b5cc with connected client cards
