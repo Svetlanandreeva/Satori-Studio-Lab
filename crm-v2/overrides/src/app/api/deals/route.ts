@@ -23,6 +23,7 @@ export async function GET(request: NextRequest) {
       contactEmail: contacts.email,
       contactTemperature: contacts.temperature,
       contactQualification: contacts.qualification,
+      contactSource: contacts.source,
       stageName: pipelineStages.name,
       stageColor: pipelineStages.color,
       stageOrder: pipelineStages.order,
@@ -34,7 +35,10 @@ export async function GET(request: NextRequest) {
     .leftJoin(pipelineStages, eq(deals.stageId, pipelineStages.id))
     .orderBy(desc(deals.createdAt))
     .all()
-    .filter((deal) => includeSandbox || deal.stageName !== SPAM_STAGE_NAME);
+    .filter((deal) => includeSandbox || deal.stageName !== SPAM_STAGE_NAME)
+    // Legacy Need Number imports used to create deals too early. They must not be
+    // counted or displayed until the call confirms a real request.
+    .filter((deal) => deal.contactSource !== "need_number" || deal.contactQualification === "qualified");
 
   return NextResponse.json(results);
 }
@@ -51,6 +55,11 @@ export async function POST(request: NextRequest) {
   const contactId = String(body.contactId || "").trim();
   if (!title || !contactId) {
     return NextResponse.json({ error: "Укажите название сделки и клиента" }, { status: 400 });
+  }
+
+  const contact = db.select().from(contacts).where(eq(contacts.id, contactId)).get();
+  if (!contact) {
+    return NextResponse.json({ error: "Клиент не найден" }, { status: 400 });
   }
 
   let finalStageId = body.stageId ? String(body.stageId) : "";
@@ -85,6 +94,16 @@ export async function POST(request: NextRequest) {
       })
       .returning()
       .get();
+
+    // Creating a deal from a Need Number call is the qualification event.
+    // Doing it here keeps UI and backend in sync and prevents the lead from
+    // disappearing from the call list before the deal actually exists.
+    if (contact.source === "need_number" && contact.qualification !== "qualified") {
+      db.update(contacts)
+        .set({ qualification: "qualified", updatedAt: now })
+        .where(eq(contacts.id, contactId))
+        .run();
+    }
 
     return NextResponse.json(result, { status: 201 });
   } catch (error) {
