@@ -8,6 +8,7 @@ import { DELIVERY_STAGE_NAME, COMPLETED_STAGE_NAME, runCrmConsistencyRepair } fr
 import { startShipment, markShipmentDelivered } from "@/lib/shipment";
 import { annotateLatestStageHistory, writeAuditLog } from "@/lib/operations";
 import { getRequestActor } from "@/lib/request-actor";
+import { deduplicateDeals } from "@/lib/deal-dedup";
 
 function migrateExistingSandboxContacts() {
   const stages = db.select().from(pipelineStages).all();
@@ -31,7 +32,10 @@ export async function GET() {
   runCrmConsistencyRepair();
   migrateExistingSandboxContacts();
   const stages = db.select().from(pipelineStages).orderBy(asc(pipelineStages.order)).all().filter((stage) => stage.name !== SPAM_STAGE_NAME);
-  const allDeals = db
+  const visibleStageIds = new Set(stages.map((stage) => stage.id));
+  const stageById = new Map(stages.map((stage) => [stage.id, stage]));
+
+  const rawDeals = db
     .select({
       id: deals.id,
       title: deals.title,
@@ -48,16 +52,28 @@ export async function GET() {
       contactName: contacts.name,
       contactTemperature: contacts.temperature,
       contactQualification: contacts.qualification,
+      contactSource: contacts.source,
       ownerName: teamMembers.name,
     })
     .from(deals)
     .leftJoin(contacts, eq(deals.contactId, contacts.id))
     .leftJoin(teamMembers, eq(deals.ownerId, teamMembers.id))
-    .all();
-  const visibleStageIds = new Set(stages.map((stage) => stage.id));
+    .all()
+    .filter((deal) => visibleStageIds.has(deal.stageId))
+    .filter((deal) => deal.contactSource !== "need_number" || deal.contactQualification === "qualified")
+    .map((deal) => {
+      const stage = stageById.get(deal.stageId);
+      return {
+        ...deal,
+        stageIsWon: Boolean(stage?.isWon),
+        stageIsLost: Boolean(stage?.isLost),
+      };
+    });
+
+  const visibleDeals = deduplicateDeals(rawDeals);
   return NextResponse.json(stages.map((stage) => ({
     ...stage,
-    deals: allDeals.filter((deal) => deal.stageId === stage.id && visibleStageIds.has(deal.stageId)),
+    deals: visibleDeals.filter((deal) => deal.stageId === stage.id),
   })));
 }
 
