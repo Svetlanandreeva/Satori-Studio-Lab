@@ -30,9 +30,6 @@ export async function GET(request: NextRequest) {
   const source = searchParams.get("source");
   const qualification = searchParams.get("qualification");
   const includeSpam = searchParams.get("includeSpam") === "1";
-  // По умолчанию раздел «Клиенты» — рабочая база. Контакты, у которых
-  // все сделки закончились отказом, остаются в истории/аналитике, но здесь
-  // не показываются. Административные экраны могут явно запросить их обратно.
   const includeRejected = searchParams.get("includeRejected") === "1";
   const callList = searchParams.get("callList") === "1";
 
@@ -61,8 +58,6 @@ export async function GET(request: NextRequest) {
     state.hasLost ||= isLost;
     dealStateByContact.set(deal.contactId, state);
 
-    // Для карточки в списке показываем активную сделку в приоритете.
-    // Если активных нет — последнюю закрытую (победа или отказ).
     const current = dealByContact.get(deal.contactId);
     if (!current) {
       dealByContact.set(deal.contactId, deal);
@@ -76,9 +71,13 @@ export async function GET(request: NextRequest) {
   const results = contactRows
     .filter((contact) => {
       if (!includeSpam && (contact.qualification === "spam" || contact.qualification === "ignore")) return false;
-      // Need Number is prospecting. It becomes a CRM client only after qualification / a real application.
+
+      // Need Number is a prospecting queue, not the client/deal database.
+      // Only NEW/WORKING Need Number leads belong to the active call list.
+      // After a call they leave this queue either as QUALIFIED (deal) or as a refusal.
       if (callList) {
-        if (contact.source !== "need_number" || contact.qualification === "qualified") return false;
+        if (contact.source !== "need_number") return false;
+        if (contact.qualification !== "new" && contact.qualification !== "working") return false;
       } else if (contact.source === "need_number" && contact.qualification !== "qualified") {
         return false;
       }
