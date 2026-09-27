@@ -20,15 +20,25 @@ jobs:
         run: |
           ssh root@194.226.97.103 'bash -se' <<'REMOTE'
           set +e
-          echo '=== all crm host declarations ==='
-          nginx -T 2>&1 | grep -n -B5 -A12 'server_name .*crm.crmsatori.ru' || true
-          echo '=== all 443 listen directives near crm blocks ==='
-          nginx -T 2>&1 | grep -n -B20 -A20 'ssl_certificate /etc/letsencrypt/live/crm.crmsatori.ru' || true
-          echo '=== presented certificate for crm SNI ==='
-          echo | openssl s_client -connect 192.168.0.38:443 -servername crm.crmsatori.ru 2>/dev/null | openssl x509 -noout -subject -issuer -ext subjectAltName || true
-          echo '=== target certificate file ==='
-          openssl x509 -in /etc/letsencrypt/live/crm.crmsatori.ru/fullchain.pem -noout -subject -issuer -ext subjectAltName || true
-          echo '=== HTTPS request ignoring cert ==='
+          echo '=== CRM nginx server blocks ==='
+          nginx -T 2>&1 | grep -n -B12 -A45 'server_name .*crm.crmsatori.ru' || true
+          echo '=== CRM upstream ports in nginx ==='
+          nginx -T 2>&1 | grep -n -B5 -A12 -E '127\.0\.0\.1:(3020|3030)' || true
+          echo '=== UI service state ==='
+          systemctl is-active satori-crm-ui || true
+          systemctl show satori-crm-ui -p ExecStart -p WorkingDirectory --no-pager || true
+          echo '=== UI deployed VERSION ==='
+          cat /var/www/satori/crm-new-ui/VERSION 2>/dev/null || true
+          echo
+          echo '=== UI dist assets ==='
+          sed -n '1,120p' /var/www/satori/crm-new-ui/dist/index.html 2>/dev/null || true
+          find /var/www/satori/crm-new-ui/dist/assets -maxdepth 1 -type f -printf '%f\n' 2>/dev/null | sort | tail -20 || true
+          echo '=== local service responses ==='
+          curl -sS -D - -o /tmp/ui-login.html http://127.0.0.1:3030/login | head -20 || true
+          curl -sS -D - -o /dev/null http://127.0.0.1:3020/login | head -20 || true
+          curl -sS -o /dev/null -w '3030 health: %{http_code}\n' http://127.0.0.1:3030/health || true
+          curl -sS -o /dev/null -w '3020 deals: %{http_code}\n' http://127.0.0.1:3020/api/deals || true
+          echo '=== public host headers ==='
           curl -skI --resolve crm.crmsatori.ru:443:192.168.0.38 https://crm.crmsatori.ru/login | head -30 || true
           echo '=== public DNS ==='
           dig +short @1.1.1.1 crm.crmsatori.ru A
