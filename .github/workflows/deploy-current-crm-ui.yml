@@ -38,7 +38,7 @@ jobs:
       - name: Trust production server
         run: ssh-keyscan -H 194.226.97.103 >> ~/.ssh/known_hosts
 
-      - name: Deploy UI without touching backend or nginx
+      - name: Deploy UI and smoke-test live CRM data paths
         run: |
           ssh root@194.226.97.103 'mkdir -p /var/www/satori/crm-new-ui'
           rsync -az --delete /tmp/satori-crm/dist/ root@194.226.97.103:/var/www/satori/crm-new-ui/dist/
@@ -52,7 +52,31 @@ jobs:
           systemctl restart satori-crm-ui
           systemctl is-active --quiet satori-crm-ui
           curl --fail --silent --retry 12 --retry-connrefused --retry-delay 2 http://127.0.0.1:3030/health >/dev/null
-          curl --fail --silent http://127.0.0.1:3020/api/deals >/dev/null
+
+          # Core API paths used by dashboard, deals and client history must all be live.
+          curl --fail --silent http://127.0.0.1:3020/api/deals >/tmp/crm-smoke-deals.json
+          curl --fail --silent http://127.0.0.1:3020/api/contacts >/tmp/crm-smoke-contacts.json
+          curl --fail --silent 'http://127.0.0.1:3020/api/inbox?filter=client&search=' >/tmp/crm-smoke-inbox.json
+          curl --fail --silent 'http://127.0.0.1:3020/api/messages/telegram?search=' >/tmp/crm-smoke-telegram.json
+
+          contact_id=$(/opt/node22/bin/node -e "const fs=require('fs');const v=JSON.parse(fs.readFileSync('/tmp/crm-smoke-contacts.json','utf8'));const rows=Array.isArray(v)?v:(Array.isArray(v.contacts)?v.contacts:[]);process.stdout.write(rows[0]?.id||'')")
+          if [ -n "$contact_id" ]; then
+            curl --fail --silent "http://127.0.0.1:3020/api/contacts/$contact_id/timeline" >/tmp/crm-smoke-timeline.json
+            /opt/node22/bin/node -e "const fs=require('fs');const v=JSON.parse(fs.readFileSync('/tmp/crm-smoke-timeline.json','utf8'));if(!v.contact||!Array.isArray(v.history))process.exit(1)"
+          fi
+
+          /opt/node22/bin/node - <<'NODE'
+          const fs=require('fs');
+          const deals=JSON.parse(fs.readFileSync('/tmp/crm-smoke-deals.json','utf8'));
+          const contacts=JSON.parse(fs.readFileSync('/tmp/crm-smoke-contacts.json','utf8'));
+          const inbox=JSON.parse(fs.readFileSync('/tmp/crm-smoke-inbox.json','utf8'));
+          const telegram=JSON.parse(fs.readFileSync('/tmp/crm-smoke-telegram.json','utf8'));
+          if(!Array.isArray(deals)) throw new Error('Deals API is not an array');
+          if(!Array.isArray(contacts) && !Array.isArray(contacts.contacts)) throw new Error('Contacts API has unexpected shape');
+          if(!Array.isArray(inbox.threads)) throw new Error('Inbox API has unexpected shape');
+          if(!Array.isArray(telegram.threads)) throw new Error('Telegram API has unexpected shape');
+          console.log(`CRM smoke OK: ${deals.length} deals, ${Array.isArray(contacts)?contacts.length:contacts.contacts.length} contacts, ${inbox.threads.length} email threads, ${telegram.threads.length} telegram threads`);
+          NODE
           REMOTE
 
       - name: Verify current public CRM host
@@ -61,4 +85,4 @@ jobs:
           test "$code" = '200'
           echo "crm.crmsatori.ru/login -> $code"
 
-# redeploy CRM commit 312328cedaedf41154efb3cf11ba36c8b840fc9d
+# redeploy CRM commit 312328cedaedf41154efb3cf11ba36c8b840fc9d with integrated smoke tests
