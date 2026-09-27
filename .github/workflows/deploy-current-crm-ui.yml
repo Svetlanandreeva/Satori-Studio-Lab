@@ -35,6 +35,7 @@ jobs:
           grep -R -q 'Календарь проектов' dist/assets
           grep -R -q 'Динамика сделок' dist/assets
           grep -R -q 'Последние активности' dist/assets
+          grep -R -q 'Переписка' dist/assets
 
       - uses: webfactory/ssh-agent@v0.9.0
         with:
@@ -62,6 +63,7 @@ jobs:
           grep -R -q 'Календарь проектов' dist/assets
           grep -R -q 'Динамика сделок' dist/assets
           grep -R -q 'Последние активности' dist/assets
+          grep -R -q 'Переписка' dist/assets
 
           # Core API paths used by dashboard, deals and client history must all be live.
           curl --fail --silent http://127.0.0.1:3020/api/deals >/tmp/crm-smoke-deals.json
@@ -101,4 +103,4 @@ jobs:
           test "$code" = '200'
           echo "crm.crmsatori.ru/login -> $code"
 
-# redeploy CRM commit 9e356ed2fbbc71cdb8dd21c1adbec3a4c4324559 with Figma-aligned live dashboard
+# redeploy CRM commit 031a8d7facbd6a4dce51283435ff3f558143e171 with client timeline fixes
