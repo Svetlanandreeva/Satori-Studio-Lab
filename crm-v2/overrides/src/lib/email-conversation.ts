@@ -32,7 +32,6 @@ export function normalizeEmailSubject(value: unknown): string {
     .toLowerCase()
     .replace(/ё/g, "е")
     .trim();
-  // Mail clients can stack prefixes such as Re: Re: Fwd:.
   while (/^(?:re|fw|fwd|ответ|пересл|пересылка)\s*:\s*/i.test(subject)) {
     subject = subject.replace(/^(?:re|fw|fwd|ответ|пересл|пересылка)\s*:\s*/i, "").trim();
   }
@@ -59,9 +58,8 @@ export function resolveEmailThreadForMessage(input: {
   const { byMessageId } = messageThreadMap();
   const references = emailReferenceIds(input.references, input.inReplyTo);
 
-  // RFC References/In-Reply-To are the primary conversation identity. This is
-  // deliberately independent of sender address: one customer thread may contain
-  // several employees with different mailboxes.
+  // The RFC reply chain is the conversation identity. It must not depend on the
+  // sender address because one customer thread can contain several employees.
   for (const reference of references.slice().reverse()) {
     const linkedThreadId = byMessageId.get(reference);
     if (!linkedThreadId) continue;
@@ -69,8 +67,8 @@ export function resolveEmailThreadForMessage(input: {
     if (thread) return { thread, threadKey: thread.threadKey };
   }
 
-  // If the root message is outside the sync window, replies still share the same
-  // References root, so they will land in one thread even before that root is loaded.
+  // When the root message is outside the sync window, all replies still carry the
+  // same root reference, so they receive the same key even before the root is loaded.
   const rootReference = references[0];
   const threadKey = rootReference
     ? `rfc:${rootReference}`
@@ -119,10 +117,73 @@ export function emailThreadIdFromDealNotes(notes: unknown): string | null {
   return match?.[1]?.trim() || null;
 }
 
-export function sameEmailConversationFromDealNotes(aNotes: unknown, bNotes: unknown): boolean {
-  const aThreadId = emailThreadIdFromDealNotes(aNotes);
-  const bThreadId = emailThreadIdFromDealNotes(bNotes);
-  if (!aThreadId || !bThreadId) return false;
-  if (aThreadId === bThreadId) return true;
-  return emailConversationThreadIds(aThreadId).has(bThreadId);
+export type EmailConversationIndex = {
+  conversationByThreadId: Map<string, string>;
+  conversationsByContactId: Map<string, Set<string>>;
+};
+
+export function buildEmailConversationIndex(): EmailConversationIndex {
+  const threads = db.select().from(emailThreads).all();
+  const adjacency = conversationAdjacency();
+  const conversationByThreadId = new Map<string, string>();
+  const conversationsByContactId = new Map<string, Set<string>>();
+
+  for (const thread of threads) {
+    if (conversationByThreadId.has(thread.id)) continue;
+    const component = new Set<string>();
+    const queue = [thread.id];
+    component.add(thread.id);
+    while (queue.length) {
+      const current = queue.shift()!;
+      for (const next of adjacency.get(current) || []) {
+        if (component.has(next)) continue;
+        component.add(next);
+        queue.push(next);
+      }
+    }
+    const conversationId = Array.from(component).sort()[0] || thread.id;
+    for (const threadId of component) conversationByThreadId.set(threadId, conversationId);
+  }
+
+  for (const thread of threads) {
+    if (!thread.contactId) continue;
+    const conversationId = conversationByThreadId.get(thread.id) || thread.id;
+    const set = conversationsByContactId.get(thread.contactId) || new Set<string>();
+    set.add(conversationId);
+    conversationsByContactId.set(thread.contactId, set);
+  }
+
+  return { conversationByThreadId, conversationsByContactId };
+}
+
+function conversationIdFromNotes(notes: unknown, index: EmailConversationIndex): string | null {
+  const threadId = emailThreadIdFromDealNotes(notes);
+  if (!threadId) return null;
+  return index.conversationByThreadId.get(threadId) || threadId;
+}
+
+export function sameEmailConversationForDeals(
+  a: { contactId?: string | null; notes?: unknown },
+  b: { contactId?: string | null; notes?: unknown },
+  index: EmailConversationIndex
+): boolean {
+  const aFromNotes = conversationIdFromNotes(a.notes, index);
+  const bFromNotes = conversationIdFromNotes(b.notes, index);
+  if (aFromNotes && bFromNotes) return aFromNotes === bFromNotes;
+
+  const aContactId = String(a.contactId || "");
+  const bContactId = String(b.contactId || "");
+  if (!aContactId || !bContactId || aContactId === bContactId) return false;
+
+  // Legacy importer used the sender address as the thread key. That created a
+  // separate contact/thread for each employee even when Message-ID references show
+  // they are all participants of one real email conversation. Use that RFC graph
+  // to collapse those historical CRM deals too.
+  const aConversations = index.conversationsByContactId.get(aContactId);
+  const bConversations = index.conversationsByContactId.get(bContactId);
+  if (!aConversations || !bConversations) return false;
+  for (const conversationId of aConversations) {
+    if (bConversations.has(conversationId)) return true;
+  }
+  return false;
 }
