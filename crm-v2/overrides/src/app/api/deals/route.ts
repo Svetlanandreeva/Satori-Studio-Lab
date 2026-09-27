@@ -18,6 +18,15 @@ const TITLE_STOP_WORDS = new Set([
   "заказ", "заявка", "проект", "изготовление",
 ]);
 
+type DealDuplicateInput = {
+  contactId: string;
+  contactSource?: unknown;
+  title: string;
+  value: number;
+  createdAt: unknown;
+  notes?: unknown;
+};
+
 function normalizeTitle(value: unknown): string {
   return String(value || "")
     .toLowerCase()
@@ -52,17 +61,25 @@ function dateMs(value: unknown): number {
 }
 
 function isDuplicatePair(
-  a: { contactId: string; title: string; value: number; createdAt: unknown; notes?: unknown },
-  b: { contactId: string; title: string; value: number; createdAt: unknown; notes?: unknown },
+  a: DealDuplicateInput,
+  b: DealDuplicateInput,
   emailIndex: EmailConversationIndex
 ): boolean {
-  // One RFC email conversation is one opportunity even when several employees of
-  // the same customer wrote from different addresses. The legacy importer split
-  // those participants into separate contacts, so the fallback index also links
-  // old records that do not yet have [email-thread:*] in deal notes.
+  // Primary rule: an RFC email conversation is a single opportunity even if
+  // several employees wrote from different addresses.
   if (sameEmailConversationForDeals(a, b, emailIndex)) return true;
 
   if (!a.contactId || a.contactId !== b.contactId) return false;
+
+  // Important legacy case: the old mail importer sometimes created several deals
+  // for different messages of ONE thread but attached all of them to the SAME
+  // email contact. Those old deals have no [email-thread:*] marker, so the RFC
+  // cross-contact rule above cannot identify them. If this email contact is linked
+  // to exactly one real mailbox conversation, every legacy deal generated from it
+  // belongs to that one conversation and must appear once in CRM statistics/list.
+  const source = String(a.contactSource || b.contactSource || "").toLowerCase();
+  const contactConversations = emailIndex.conversationsByContactId.get(a.contactId);
+  if (source === "email" && contactConversations?.size === 1) return true;
 
   const age = Math.abs(dateMs(a.createdAt) - dateMs(b.createdAt));
   const aTitle = normalizeTitle(a.title);
@@ -138,7 +155,27 @@ export async function GET(request: NextRequest) {
   const emailIndex = buildEmailConversationIndex();
   const results: typeof rawResults = [];
   for (const deal of rawResults) {
-    const duplicateIndex = results.findIndex((saved) => isDuplicatePair(deal, saved, emailIndex));
+    const duplicateIndex = results.findIndex((saved) =>
+      isDuplicatePair(
+        {
+          contactId: deal.contactId,
+          contactSource: deal.contactSource,
+          title: deal.title,
+          value: deal.value,
+          createdAt: deal.createdAt,
+          notes: deal.notes,
+        },
+        {
+          contactId: saved.contactId,
+          contactSource: saved.contactSource,
+          title: saved.title,
+          value: saved.value,
+          createdAt: saved.createdAt,
+          notes: saved.notes,
+        },
+        emailIndex
+      )
+    );
     if (duplicateIndex < 0) {
       results.push(deal);
       continue;
@@ -182,8 +219,15 @@ export async function POST(request: NextRequest) {
     .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
     .find((deal) =>
       isDuplicatePair(
-        { contactId, title, value, createdAt: now, notes },
-        { contactId: deal.contactId, title: deal.title, value: deal.value, createdAt: deal.createdAt, notes: deal.notes },
+        { contactId, contactSource: contact.source, title, value, createdAt: now, notes },
+        {
+          contactId: deal.contactId,
+          contactSource: deal.contactId === contactId ? contact.source : undefined,
+          title: deal.title,
+          value: deal.value,
+          createdAt: deal.createdAt,
+          notes: deal.notes,
+        },
         emailIndex
       )
     );
