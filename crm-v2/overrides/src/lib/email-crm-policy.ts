@@ -1,7 +1,10 @@
 import { asc, desc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { activities, contacts, deals, emailMessages, emailThreads, pipelineStages } from "@/db/schema";
-import { emailConversationThreadIds, emailThreadIdFromDealNotes } from "@/lib/email-conversation";
+import {
+  buildEmailConversationIndex,
+  sameEmailConversationForDeals,
+} from "@/lib/email-conversation";
 
 const LEGACY_AUTO_EMAIL_NOTE = "Создан автоматически из входящего письма";
 const MANUAL_EMAIL_NOTE = "Добавлен вручную из почты";
@@ -157,25 +160,29 @@ export function promoteEmailThreadToCrm(threadId: string) {
     throw new Error("Это сервисное письмо или в нём нет подтверждённой заявки");
   }
 
-  const conversationThreadIds = emailConversationThreadIds(thread.id);
-  const linkedDeals = db.select().from(deals).all()
-    .filter((candidate) => {
-      const linkedThreadId = emailThreadIdFromDealNotes(candidate.notes);
-      return Boolean(linkedThreadId && conversationThreadIds.has(linkedThreadId));
-    })
-    .sort((a, b) => b.updatedAt.getTime() - a.updatedAt.getTime());
+  const now = new Date();
+  const emailIndex = buildEmailConversationIndex();
+  const threadContact = findContactByEmail(thread.remoteEmail);
+  const candidateContactId = thread.contactId || threadContact?.id || null;
+  const candidateMeta = {
+    contactId: candidateContactId,
+    notes: `[email-thread:${thread.id}]`,
+  };
 
-  // A mailbox conversation is the opportunity identity. Multiple employees can
-  // participate in one thread, but that must still map to one CRM deal.
-  let deal = linkedDeals.find((candidate) => {
-    const stage = db.select().from(pipelineStages).where(eq(pipelineStages.id, candidate.stageId)).get();
-    return Boolean(stage && !stage.isWon && !stage.isLost);
-  }) || linkedDeals[0] || null;
+  // Reuse an existing deal from the same RFC conversation even when an older
+  // importer attached other participants to separate CRM contacts. Closed/won/lost
+  // deals are reused too: one mail thread remains one CRM opportunity.
+  let deal = db.select().from(deals).orderBy(desc(deals.updatedAt)).all().find((candidate) =>
+    sameEmailConversationForDeals(
+      candidateMeta,
+      { contactId: candidate.contactId, notes: candidate.notes },
+      emailIndex
+    )
+  ) || null;
 
   let contact = deal
     ? db.select().from(contacts).where(eq(contacts.id, deal.contactId)).get() || null
-    : findContactByEmail(thread.remoteEmail);
-  const now = new Date();
+    : threadContact;
 
   if (!contact) {
     contact = db.insert(contacts).values({
@@ -194,26 +201,48 @@ export function promoteEmailThreadToCrm(threadId: string) {
     }).returning().get();
   }
 
-  if (!deal) {
-    const stage = initialPipelineStage();
-    if (!stage) throw new Error("В CRM нет первого этапа воронки");
-    const cleanSubject = inferDealTitle(thread);
-    deal = db.insert(deals).values({
-      id: crypto.randomUUID(),
-      title: cleanSubject || `Запрос — ${contact.name}`,
-      value: 0,
-      stageId: stage.id,
-      contactId: contact.id,
-      expectedClose: null,
-      probability: 10,
-      notes: `[email-thread:${thread.id}] Добавлено вручную из почты`,
-      createdAt: now,
-      updatedAt: now,
-    }).returning().get();
+  if (!deal) deal = latestDealForContact(contact.id);
+
+  if (!deal || (() => {
+    const stage = db.select().from(pipelineStages).where(eq(pipelineStages.id, deal!.stageId)).get();
+    return Boolean(stage?.isWon || stage?.isLost);
+  })()) {
+    // Only create a new opportunity when there is no deal tied to this email
+    // conversation and the contact has no active deal to reuse.
+    const existingConversationDeal = db.select().from(deals).orderBy(desc(deals.updatedAt)).all().find((candidate) =>
+      sameEmailConversationForDeals(
+        candidateMeta,
+        { contactId: candidate.contactId, notes: candidate.notes },
+        emailIndex
+      )
+    );
+    if (existingConversationDeal) {
+      deal = existingConversationDeal;
+    } else {
+      const current = latestDealForContact(contact.id);
+      const currentStage = current ? db.select().from(pipelineStages).where(eq(pipelineStages.id, current.stageId)).get() : null;
+      if (current && currentStage && !currentStage.isWon && !currentStage.isLost) {
+        deal = current;
+      } else {
+        const stage = initialPipelineStage();
+        if (!stage) throw new Error("В CRM нет первого этапа воронки");
+        const cleanSubject = inferDealTitle(thread);
+        deal = db.insert(deals).values({
+          id: crypto.randomUUID(),
+          title: cleanSubject || `Запрос — ${contact.name}`,
+          value: 0,
+          stageId: stage.id,
+          contactId: contact.id,
+          expectedClose: null,
+          probability: 10,
+          notes: `[email-thread:${thread.id}] Добавлено вручную из почты`,
+          createdAt: now,
+          updatedAt: now,
+        }).returning().get();
+      }
+    }
   }
 
-  // Keep every participant's message in the mail history, while the CRM thread
-  // points to the single primary contact already attached to the deal.
   db.update(emailThreads)
     .set({ contactId: deal.contactId, isService: false, updatedAt: now })
     .where(eq(emailThreads.id, thread.id))
