@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
 import { deals, contacts, pipelineStages } from "@/db/schema";
 import { eq, desc } from "drizzle-orm";
+import { sameEmailConversationFromDealNotes } from "@/lib/email-conversation";
 import { SPAM_STAGE_NAME } from "@/lib/lead-qualification";
 
 const DAY = 24 * 60 * 60 * 1000;
@@ -47,9 +48,14 @@ function dateMs(value: unknown): number {
 }
 
 function isDuplicatePair(
-  a: { contactId: string; title: string; value: number; createdAt: unknown },
-  b: { contactId: string; title: string; value: number; createdAt: unknown }
+  a: { contactId: string; title: string; value: number; createdAt: unknown; notes?: unknown },
+  b: { contactId: string; title: string; value: number; createdAt: unknown; notes?: unknown }
 ): boolean {
+  // Email opportunity identity is the RFC conversation, not an individual sender.
+  // This catches a single customer thread where procurement/design/accounting staff
+  // write from several addresses and previously produced several CRM deals.
+  if (sameEmailConversationFromDealNotes(a.notes, b.notes)) return true;
+
   if (!a.contactId || a.contactId !== b.contactId) return false;
 
   const age = Math.abs(dateMs(a.createdAt) - dateMs(b.createdAt));
@@ -110,7 +116,8 @@ export async function GET(request: NextRequest) {
   if (includeDuplicates) return NextResponse.json(rawResults);
 
   // Collapse historical technical doubles for all normal CRM screens and counters.
-  // We keep the strongest version: won > active > lost, then the most recently updated.
+  // Email doubles are collapsed by RFC conversation even if different employees were
+  // saved as different contacts. Other doubles keep the stricter same-contact rule.
   const results: typeof rawResults = [];
   for (const deal of rawResults) {
     const duplicateIndex = results.findIndex((saved) => isDuplicatePair(deal, saved));
@@ -148,6 +155,7 @@ export async function POST(request: NextRequest) {
   }
 
   const now = new Date();
+  const notes = body.notes ? String(body.notes) : null;
   const existingDeal = db
     .select()
     .from(deals)
@@ -156,8 +164,8 @@ export async function POST(request: NextRequest) {
     .sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime())
     .find((deal) =>
       isDuplicatePair(
-        { contactId, title, value, createdAt: now },
-        { contactId: deal.contactId, title: deal.title, value: deal.value, createdAt: deal.createdAt }
+        { contactId, title, value, createdAt: now, notes },
+        { contactId: deal.contactId, title: deal.title, value: deal.value, createdAt: deal.createdAt, notes: deal.notes }
       )
     );
 
@@ -197,7 +205,7 @@ export async function POST(request: NextRequest) {
         contactId,
         expectedClose: body.expectedClose ? new Date(String(body.expectedClose)) : null,
         probability: Math.max(0, Math.min(100, Number(body.probability) || 0)),
-        notes: body.notes ? String(body.notes) : null,
+        notes,
         createdAt: now,
         updatedAt: now,
       })
