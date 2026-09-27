@@ -2,6 +2,12 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { emailMessages, emailThreads } from "@/db/schema";
 
+const PUBLIC_MAIL_DOMAINS = new Set([
+  "gmail.com", "googlemail.com", "yandex.ru", "ya.ru", "mail.ru", "bk.ru", "inbox.ru", "list.ru",
+  "outlook.com", "hotmail.com", "live.com", "icloud.com", "me.com", "rambler.ru",
+]);
+const LEGACY_SUBJECT_WINDOW_MS = 45 * 24 * 60 * 60 * 1000;
+
 export function normalizeEmailMessageId(value: unknown): string {
   return String(value || "")
     .trim()
@@ -38,6 +44,12 @@ export function normalizeEmailSubject(value: unknown): string {
   return subject.replace(/\s+/g, " ").slice(0, 500) || "без темы";
 }
 
+function emailDomain(value: unknown): string {
+  const email = String(value || "").trim().toLowerCase();
+  const at = email.lastIndexOf("@");
+  return at >= 0 ? email.slice(at + 1) : "";
+}
+
 function messageThreadMap() {
   const rows = db.select().from(emailMessages).all();
   const byMessageId = new Map<string, string>();
@@ -58,8 +70,6 @@ export function resolveEmailThreadForMessage(input: {
   const { byMessageId } = messageThreadMap();
   const references = emailReferenceIds(input.references, input.inReplyTo);
 
-  // The RFC reply chain is the conversation identity. It must not depend on the
-  // sender address because one customer thread can contain several employees.
   for (const reference of references.slice().reverse()) {
     const linkedThreadId = byMessageId.get(reference);
     if (!linkedThreadId) continue;
@@ -67,8 +77,6 @@ export function resolveEmailThreadForMessage(input: {
     if (thread) return { thread, threadKey: thread.threadKey };
   }
 
-  // When the root message is outside the sync window, all replies still carry the
-  // same root reference, so they receive the same key even before the root is loaded.
   const rootReference = references[0];
   const threadKey = rootReference
     ? `rfc:${rootReference}`
@@ -94,6 +102,33 @@ function conversationAdjacency(): Map<string, Set<string>> {
       if (relatedThreadId) link(message.threadId, relatedThreadId);
     }
   }
+
+  // Legacy imports sometimes split one mailbox conversation by sender address and
+  // lost the RFC References chain. Recover those threads conservatively: exact
+  // normalized subject + same company domain + close enough in time. Public mail
+  // providers are excluded to avoid merging unrelated customers on Gmail/Yandex.
+  const threads = db.select().from(emailThreads).all();
+  const groups = new Map<string, typeof threads>();
+  for (const thread of threads) {
+    const subject = normalizeEmailSubject(thread.subject);
+    const domain = emailDomain(thread.remoteEmail);
+    if (!subject || subject === "без темы" || subject.length < 5 || !domain || PUBLIC_MAIL_DOMAINS.has(domain)) continue;
+    const key = `${domain}\n${subject}`;
+    const group = groups.get(key) || [];
+    group.push(thread);
+    groups.set(key, group);
+  }
+  for (const group of groups.values()) {
+    group.sort((a, b) => a.lastMessageAt.getTime() - b.lastMessageAt.getTime());
+    for (let i = 1; i < group.length; i += 1) {
+      const prev = group[i - 1];
+      const current = group[i];
+      if (Math.abs(current.lastMessageAt.getTime() - prev.lastMessageAt.getTime()) <= LEGACY_SUBJECT_WINDOW_MS) {
+        link(prev.id, current.id);
+      }
+    }
+  }
+
   return adjacency;
 }
 
@@ -175,10 +210,6 @@ export function sameEmailConversationForDeals(
   const bContactId = String(b.contactId || "");
   if (!aContactId || !bContactId || aContactId === bContactId) return false;
 
-  // Legacy importer used the sender address as the thread key. That created a
-  // separate contact/thread for each employee even when Message-ID references show
-  // they are all participants of one real email conversation. Use that RFC graph
-  // to collapse those historical CRM deals too.
   const aConversations = index.conversationsByContactId.get(aContactId);
   const bConversations = index.conversationsByContactId.get(bContactId);
   if (!aConversations || !bConversations) return false;
