@@ -104,4 +104,4 @@ jobs:
           test "$code" = '200'
           echo "crm.crmsatori.ru/login -> $code"
 
-# redeploy CRM commit 4e0d6e230b5098a17fcb39682d4a2bbdc41da1b1 with Figma-aligned dashboard, deals and calls
+# redeploy CRM commit 19723a135d539c59c72ba31f6a133288e4055f11: payment totals only from current live deals
