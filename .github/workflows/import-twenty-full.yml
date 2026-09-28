@@ -1,0 +1,38 @@
+name: Import Twenty CRM full source
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/import-twenty-full.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  import:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Satori repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - name: Clone official Twenty CRM
+        run: |
+          git clone --depth 1 https://github.com/twentyhq/twenty.git /tmp/twenty
+          echo "TWENTY_SHA=$(git -C /tmp/twenty rev-parse HEAD)" >> "$GITHUB_ENV"
+
+      - name: Replace repository contents with Twenty CRM
+        run: |
+          rsync -a --delete --exclude='.git' /tmp/twenty/ ./
+          git status --short | head -200
+
+      - name: Commit and push full Twenty source
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Import full Twenty CRM source ${TWENTY_SHA}"
+          git push origin HEAD:main
