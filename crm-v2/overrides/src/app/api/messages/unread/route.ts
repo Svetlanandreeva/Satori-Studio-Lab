@@ -16,21 +16,20 @@ export async function GET() {
   );
 
   let email = 0;
-  let service = 0;
   for (const message of db.select().from(emailMessages).all()) {
     if (
       message.direction !== "incoming" ||
       message.isRead ||
+      message.isService ||
       message.receivedAt.getTime() <= startedAt.getTime()
     ) continue;
-    if (message.isService) service += 1;
-    else email += 1;
+    email += 1;
   }
 
   return NextResponse.json({
-    all: telegram + email + service,
+    all: telegram + email,
     telegram,
     email,
-    service,
+    service: 0,
   });
 }

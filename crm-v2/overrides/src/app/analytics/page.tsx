@@ -1,5 +1,7 @@
-import { BarChart3, Clock3, Percent, ReceiptText, TrendingUp, WalletCards } from "lucide-react";
-import { getAnalyticsSnapshot } from "@/lib/operations";
+import { BarChart3, Percent, ReceiptText, TrendingUp, WalletCards } from "lucide-react";
+import { db } from "@/db";
+import { contacts, deals, pipelineStages, dealEconomics } from "@/db/schema";
+import { SPAM_STAGE_NAME } from "@/lib/lead-qualification";
 
 export const dynamic = "force-dynamic";
 
@@ -9,52 +11,42 @@ const SOURCE_LABELS: Record<string, string> = {
 };
 function money(value: number) { return new Intl.NumberFormat("ru-RU", { style: "currency", currency: "RUB", maximumFractionDigits: 0 }).format((Number(value) || 0) / 100); }
 function percent(value: number) { return `${(Number(value) || 0).toLocaleString("ru-RU", { maximumFractionDigits: 1 })}%`; }
-function duration(hours: number) { return hours < 24 ? `${hours.toFixed(1)} ч` : `${(hours / 24).toFixed(1)} дн.`; }
-function responseTime(minutes: number) { if (!minutes) return "—"; return minutes < 60 ? `${Math.round(minutes)} мин` : `${(minutes / 60).toFixed(1)} ч`; }
 
 export default function AnalyticsPage() {
-  const data = getAnalyticsSnapshot();
-  const t = data.totals;
-  return (
-    <div className="mx-auto max-w-[1480px] space-y-5 pb-10">
-      <section className="rounded-[28px] border border-slate-200/80 bg-white p-5 shadow-sm sm:p-7">
-        <div className="mb-2 flex items-center gap-2 text-[12px] font-medium text-slate-400"><BarChart3 className="h-4 w-4" /> Продажи и эффективность</div>
-        <h1 className="text-3xl font-semibold tracking-[-.035em] text-slate-950">Аналитика</h1>
-        <p className="mt-2 max-w-2xl text-[15px] leading-6 text-slate-500">Конверсия, средний чек, скорость ответа, источники продаж, причины отказов и время на этапах воронки.</p>
-      </section>
+  const allContacts=db.select().from(contacts).all().filter(c=>!["spam","ignore"].includes(String(c.qualification||"").toLowerCase()));
+  const contactMap=new Map(allContacts.map(c=>[c.id,c]));
+  const stages=db.select().from(pipelineStages).all().filter(s=>s.name!==SPAM_STAGE_NAME);
+  const stageMap=new Map(stages.map(s=>[s.id,s]));
+  const allDeals=db.select().from(deals).all().filter(d=>contactMap.has(d.contactId)&&stageMap.has(d.stageId));
+  const economics=db.select().from(dealEconomics).all();
+  const econMap=new Map(economics.map(e=>[e.dealId,e]));
+  const active=allDeals.filter(d=>{const s=stageMap.get(d.stageId);return s&&!s.isLost&&!s.isWon});
+  const won=allDeals.filter(d=>stageMap.get(d.stageId)?.isWon);
+  const paid=allDeals.filter(d=>Number(econMap.get(d.id)?.receivedAmount||0)>0);
+  const revenue=paid.reduce((sum,d)=>sum+Number(econMap.get(d.id)?.receivedAmount||0),0);
+  const profit=paid.reduce((sum,d)=>{const e=econMap.get(d.id);if(!e)return sum;const costs=Number(e.productionCost||0)+Number(e.paymentCommission||0)+Number(e.deliveryCost||0)+Number(e.packagingCost||0)+Number(e.contractorCost||0)+Number(e.taxCost||0)+Number(e.otherCost||0);return sum+Number(e.receivedAmount||0)-costs},0);
+  const avgCheck=paid.length?revenue/paid.length:0;
+  const conversion=allDeals.length?(won.length/allDeals.length)*100:0;
 
-      <div className="grid grid-cols-2 gap-3 xl:grid-cols-6">
-        <Metric icon={Percent} label="Конверсия" value={percent(t.conversion)} />
-        <Metric icon={ReceiptText} label="Средний чек" value={money(t.avgCheck)} />
-        <Metric icon={WalletCards} label="Получено" value={money(t.revenue)} />
-        <Metric icon={TrendingUp} label="Прибыль" value={money(t.profit)} />
-        <Metric icon={Clock3} label="Первый ответ" value={responseTime(t.avgFirstResponseMinutes)} />
-        <Metric icon={BarChart3} label="Активных сделок" value={String(t.activeDeals)} />
-      </div>
+  const grouped=new Map<string,{source:string;contactIds:Set<string>;dealIds:Set<string>;paidDeals:Set<string>;revenue:number;profit:number}>();
+  for(const c of allContacts){const source=String(c.source||"other");const b=grouped.get(source)||{source,contactIds:new Set(),dealIds:new Set(),paidDeals:new Set(),revenue:0,profit:0};b.contactIds.add(c.id);grouped.set(source,b)}
+  for(const d of allDeals){const c=contactMap.get(d.contactId);const source=String(c?.source||"other");const b=grouped.get(source)||{source,contactIds:new Set(),dealIds:new Set(),paidDeals:new Set(),revenue:0,profit:0};b.dealIds.add(d.id);const e=econMap.get(d.id);if(Number(e?.receivedAmount||0)>0){b.paidDeals.add(d.id);b.revenue+=Number(e?.receivedAmount||0);const costs=Number(e?.productionCost||0)+Number(e?.paymentCommission||0)+Number(e?.deliveryCost||0)+Number(e?.packagingCost||0)+Number(e?.contractorCost||0)+Number(e?.taxCost||0)+Number(e?.otherCost||0);b.profit+=Number(e?.receivedAmount||0)-costs}grouped.set(source,b)}
+  const sources=Array.from(grouped.values()).map(b=>({source:b.source,contacts:b.contactIds.size,deals:b.dealIds.size,paid:b.paidDeals.size,revenue:b.revenue,profit:b.profit})).filter(x=>x.contacts||x.deals).sort((a,b)=>b.contacts-a.contacts);
 
-      <div className="grid gap-5 xl:grid-cols-[1.3fr_.7fr]">
-        <section className="overflow-hidden rounded-[24px] border border-slate-200/80 bg-white shadow-sm">
-          <div className="border-b border-slate-100 px-5 py-4"><h2 className="text-base font-semibold text-slate-950">Источники</h2><p className="mt-1 text-xs text-slate-400">Сколько лидов и сделок приходит из каждого канала</p></div>
-          <div className="overflow-x-auto"><table className="w-full min-w-[720px] text-left text-sm"><thead className="bg-slate-50 text-[11px] font-medium text-slate-400"><tr><th className="px-5 py-3">Источник</th><th className="px-4 py-3">Клиенты</th><th className="px-4 py-3">Сделки</th><th className="px-4 py-3">Победы</th><th className="px-4 py-3">Конверсия</th><th className="px-4 py-3">Выручка</th><th className="px-5 py-3">Прибыль</th></tr></thead><tbody className="divide-y divide-slate-100">{data.sources.map((item) => <tr key={item.source}><td className="px-5 py-3 font-medium text-slate-800">{SOURCE_LABELS[item.source] || item.source}</td><td className="px-4 py-3 text-slate-600">{item.contacts}</td><td className="px-4 py-3 text-slate-600">{item.deals}</td><td className="px-4 py-3 text-slate-600">{item.won}</td><td className="px-4 py-3 font-medium text-slate-800">{percent(item.conversion)}</td><td className="px-4 py-3 text-slate-600">{money(item.revenue)}</td><td className={`px-5 py-3 font-medium ${item.profit < 0 ? "text-rose-600" : "text-emerald-700"}`}>{money(item.profit)}</td></tr>)}</tbody></table>{!data.sources.length && <div className="p-10 text-center text-sm text-slate-400">Пока недостаточно данных.</div>}</div>
-        </section>
-
-        <section className="overflow-hidden rounded-[24px] border border-slate-200/80 bg-white shadow-sm">
-          <div className="border-b border-slate-100 px-5 py-4"><h2 className="text-base font-semibold text-slate-950">Причины отказов</h2><p className="mt-1 text-xs text-slate-400">Почему сделки не дошли до продажи</p></div>
-          <div className="space-y-3 p-5">{data.lossReasons.map((item) => {
-            const max = Math.max(1, ...data.lossReasons.map((x) => x.count));
-            return <div key={item.reason}><div className="mb-1.5 flex items-center justify-between gap-3 text-sm"><span className="text-slate-700">{item.reason}</span><span className="font-semibold text-slate-900">{item.count}</span></div><div className="h-2 overflow-hidden rounded-full bg-slate-100"><div className="h-full rounded-full bg-slate-800" style={{ width: `${Math.max(8, (item.count / max) * 100)}%` }} /></div></div>;
-          })}{!data.lossReasons.length && <div className="py-8 text-center text-sm text-slate-400">Отказов с причинами пока нет.</div>}</div>
-        </section>
-      </div>
-
-      <section className="overflow-hidden rounded-[24px] border border-slate-200/80 bg-white shadow-sm">
-        <div className="border-b border-slate-100 px-5 py-4"><h2 className="text-base font-semibold text-slate-950">Сколько сделка находится на этапе</h2><p className="mt-1 text-xs text-slate-400">Среднее время по накопленной истории переходов</p></div>
-        <div className="grid gap-3 p-5 sm:grid-cols-2 xl:grid-cols-4">{data.stageDurations.map((item) => <div key={item.stage} className="rounded-2xl border border-slate-100 bg-slate-50/60 p-4"><div className="text-xs text-slate-400">{item.stage}</div><div className="mt-1 text-xl font-semibold text-slate-950">{duration(item.avgHours)}</div><div className="mt-1 text-[10px] text-slate-400">по {item.samples} переходам</div></div>)}{!data.stageDurations.length && <div className="col-span-full py-8 text-center text-sm text-slate-400">История этапов начнёт накапливаться после движения сделок.</div>}</div>
-      </section>
+  return <div className="mx-auto max-w-[1480px] space-y-5 pb-10">
+    <section><div className="mb-1 flex items-center gap-2 text-[11px] font-medium text-slate-400"><BarChart3 className="h-4 w-4"/>Живые данные CRM</div><h1 className="text-2xl font-semibold tracking-[-.035em]">Аналитика</h1><p className="mt-1 text-sm text-slate-400">Здесь считаются только реальные клиенты, реальные сделки и фактически внесённые оплаты.</p></section>
+    <div className="grid grid-cols-2 gap-3 xl:grid-cols-5">
+      <Metric icon={Percent} label="Конверсия" value={percent(conversion)}/>
+      <Metric icon={ReceiptText} label="Средняя оплата" value={money(avgCheck)}/>
+      <Metric icon={WalletCards} label="Получено" value={money(revenue)}/>
+      <Metric icon={TrendingUp} label="Прибыль по оплатам" value={money(profit)}/>
+      <Metric icon={BarChart3} label="Активных сделок" value={String(active.length)}/>
     </div>
-  );
+    <section className="overflow-hidden rounded-[22px] border border-black/[.055] bg-white dark:border-white/[.07] dark:bg-[#171a20]">
+      <div className="border-b border-black/[.045] px-5 py-4 dark:border-white/[.055]"><h2 className="text-sm font-semibold">Источники</h2><p className="mt-1 text-xs text-slate-400">Один клиент считается один раз. Оплата и прибыль появляются только после внесения фактического платежа.</p></div>
+      <div className="overflow-x-auto"><table className="w-full min-w-[720px] text-left text-sm"><thead className="bg-black/[.018] text-[11px] font-medium text-slate-400 dark:bg-white/[.02]"><tr><th className="px-5 py-3">Источник</th><th className="px-4 py-3">Клиенты</th><th className="px-4 py-3">Сделки</th><th className="px-4 py-3">С оплатой</th><th className="px-4 py-3">Получено</th><th className="px-5 py-3">Прибыль</th></tr></thead><tbody className="divide-y divide-black/[.04] dark:divide-white/[.05]">{sources.map(item=><tr key={item.source}><td className="px-5 py-3 font-medium">{SOURCE_LABELS[item.source]||item.source}</td><td className="px-4 py-3 text-slate-500">{item.contacts}</td><td className="px-4 py-3 text-slate-500">{item.deals}</td><td className="px-4 py-3 text-slate-500">{item.paid}</td><td className="px-4 py-3 font-medium">{money(item.revenue)}</td><td className={`px-5 py-3 font-medium ${item.profit<0?"text-rose-500":"text-emerald-600"}`}>{money(item.profit)}</td></tr>)}</tbody></table>{!sources.length&&<div className="p-10 text-center text-sm text-slate-400">Пока недостаточно данных.</div>}</div>
+    </section>
+  </div>
 }
 
-function Metric({ icon: Icon, label, value }: { icon: typeof Percent; label: string; value: string }) {
-  return <div className="rounded-[22px] border border-slate-200/80 bg-white p-4 shadow-sm"><div className="flex items-center gap-1.5 text-[11px] text-slate-400"><Icon className="h-3.5 w-3.5" />{label}</div><div className="mt-2 truncate text-xl font-semibold tracking-tight text-slate-950">{value}</div></div>;
-}
+function Metric({icon:Icon,label,value}:{icon:typeof Percent;label:string;value:string}){return <div className="rounded-[20px] border border-black/[.055] bg-white p-4 dark:border-white/[.07] dark:bg-[#171a20]"><div className="flex items-center gap-1.5 text-[11px] text-slate-400"><Icon className="h-3.5 w-3.5"/>{label}</div><div className="mt-2 truncate text-xl font-semibold tracking-tight">{value}</div></div>}

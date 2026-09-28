@@ -3,10 +3,12 @@ import { contacts, deals, activities, pipelineStages } from "@/db/schema";
 import { eq, desc } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import { ContactDetailClient } from "@/components/contacts/ContactDetail";
+import { ContactResponsible } from "@/components/contacts/ContactResponsible";
 import { ContactIntelligencePanel } from "@/components/contacts/ContactIntelligencePanel";
 import { listClientDocuments } from "@/lib/client-documents";
 import { getDealEconomics } from "@/lib/economics";
 import { calculateDealFinancials } from "@/lib/deal-financials";
+import { isManagerDeal } from "@/lib/deal-manager";
 import { listProjects } from "@/lib/projects";
 import { getAssistantState } from "@/lib/assistant";
 import { enrichContactFromDialogs } from "@/lib/contact-intelligence";
@@ -52,24 +54,20 @@ export default async function ContactDetailPage({ params }: { params: Promise<{ 
   const enrichedDeals = contactDeals.map((deal) => {
     const project = projectMap.get(deal.id) || null;
     const economics = (getDealEconomics(deal.id) || {}) as Record<string, unknown>;
-    const calculated = calculateDealFinancials({ ...economics, dealValue: deal.value });
-
-    // Проект уже возвращает канонические производные показатели. Карточка клиента
-    // должна показывать ровно те же цифры, а не пересчитывать прибыль по своей формуле.
+    const calculated = calculateDealFinancials({ ...economics, dealValue: deal.value, managerCommissionEnabled: isManagerDeal(deal.id), managerCommissionRate: 50 });
     const finance = project
       ? {
           receivedAmount: Number(project.receivedAmount ?? calculated.receivedAmount),
           directCost: Number(project.directCost ?? calculated.directCost),
           profitBeforeManager: Number(project.profitBeforeManager ?? calculated.profitBeforeManager),
-          managerCommission: Number(project.managerCommission ?? calculated.managerCommission),
-          managerCommissionRate: Number(project.managerCommissionRate ?? calculated.managerCommissionRate),
-          totalCost: Number(project.totalCost ?? calculated.totalCost),
-          profit: Number(project.profit ?? calculated.profit),
-          margin: Number(project.margin ?? calculated.margin),
+          managerCommission: isManagerDeal(deal.id) ? Math.max(0, Math.round(Number(project.profitBeforeManager ?? calculated.profitBeforeManager) * .5)) : 0,
+          managerCommissionRate: isManagerDeal(deal.id) ? 50 : 0,
+          totalCost: Number(project.directCost ?? calculated.directCost) + (isManagerDeal(deal.id) ? Math.max(0, Math.round(Number(project.profitBeforeManager ?? calculated.profitBeforeManager) * .5)) : 0),
+          profit: isManagerDeal(deal.id) ? Math.max(0, Math.round(Number(project.profitBeforeManager ?? calculated.profitBeforeManager) * .5)) : Number(project.profit ?? calculated.profit),
+          margin: Number(project.receivedAmount ?? calculated.receivedAmount) > 0 ? ((isManagerDeal(deal.id) ? Math.max(0, Math.round(Number(project.profitBeforeManager ?? calculated.profitBeforeManager) * .5)) : Number(project.profit ?? calculated.profit)) / Number(project.receivedAmount ?? calculated.receivedAmount)) * 100 : 0,
           unpaid: Number(project.unpaid ?? calculated.unpaid),
         }
       : calculated;
-
     return { ...deal, ...finance, project };
   });
 
@@ -79,7 +77,8 @@ export default async function ContactDetailPage({ params }: { params: Promise<{ 
   } catch {}
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
+      <ContactResponsible contactId={id} />
       <ContactDetailClient
         contact={contact as never}
         deals={enrichedDeals as never}

@@ -9,6 +9,7 @@ import {
   taxBaseForPaymentMonth,
 } from "@/lib/economics";
 import { calculateFinancialsFromDirectCost, MANAGER_COMMISSION_RATE } from "@/lib/deal-financials";
+import { isManagerDeal } from "@/lib/deal-manager";
 import { getDealProcurementSummary, listDealPurchases } from "@/lib/procurement";
 
 export const dynamic = "force-dynamic";
@@ -38,23 +39,28 @@ function withManagerCommission<T extends {
   const baseProductionCost = Number(row.productionCost || 0);
   const directCostBeforeProcurement = Number(row.totalCost || 0);
   const directCost = directCostBeforeProcurement + procurementCost;
+  const managed = isManagerDeal(row.dealId);
   return {
     ...row,
     baseProductionCost,
-    // Поле «Производство / материалы» остаётся совместимым со старой формой.
-    // Фактические закупки добавляются сюда для preview, но в deal_economics отдельно не дублируются.
     productionCost: baseProductionCost + procurementCost,
     procurementCost,
     plannedProcurementCost: procurement.plannedTotal,
     procurementVariance: procurement.variance,
     purchases: listDealPurchases(row.dealId),
-    ...calculateFinancialsFromDirectCost(row.receivedAmount, directCost, row.dealValue || 0),
+    ...calculateFinancialsFromDirectCost(
+      row.receivedAmount,
+      directCost,
+      row.dealValue || 0,
+      managed,
+      MANAGER_COMMISSION_RATE
+    ),
   };
 }
 
-function withoutRejectedDeals(report: ReturnType<typeof listEconomics>) {
+function paidDealsOnly(report: ReturnType<typeof listEconomics>) {
   const deals = report.deals
-    .filter((deal) => !isRejectedStage(deal.stageName))
+    .filter((deal) => !isRejectedStage(deal.stageName) && Number(deal.receivedAmount || 0) > 0)
     .map((deal) => withManagerCommission(deal));
   const clients = new Map<string, {
     contactId: string;
@@ -137,7 +143,7 @@ function withoutRejectedDeals(report: ReturnType<typeof listEconomics>) {
 export async function GET(request: NextRequest) {
   try {
     const month = new URL(request.url).searchParams.get("month") || currentMonth();
-    const report = withoutRejectedDeals(listEconomics());
+    const report = paidDealsOnly(listEconomics());
     const fixedExpenses = listBusinessExpenses(month);
     return NextResponse.json({ ...report, fixedExpenses, taxBase: taxBaseForPaymentMonth(month) });
   } catch (error) {
@@ -157,8 +163,6 @@ export async function PUT(request: NextRequest) {
     const dealId = String(body.dealId || "").trim();
     if (!dealId) return NextResponse.json({ error: "Не указана сделка" }, { status: 400 });
     const procurement = getDealProcurementSummary(dealId);
-    // В форме поле «Производство / материалы» содержит фактические закупки.
-    // В базе deal_economics храним только производство/работы, чтобы закупки не посчитались дважды.
     const productionAndMaterials = cents(body.productionCost);
     const productionCost = Math.max(0, productionAndMaterials - procurement.actualTotal);
     const result = saveDealEconomics({

@@ -1,0 +1,13 @@
+"use client";
+import {useEffect,useState} from "react";
+import {UserRound,Loader2} from "lucide-react";
+import {toast} from "sonner";
+
+type Member={id:string;name:string;role:string;active:boolean};
+export function ContactResponsible({contactId}:{contactId:string}){
+ const [members,setMembers]=useState<Member[]>([]),[ownerId,setOwnerId]=useState(""),[busy,setBusy]=useState(true),[saving,setSaving]=useState(false);
+ useEffect(()=>{Promise.all([fetch("/api/team",{cache:"no-store"}).then(r=>r.json()),fetch(`/api/contacts/${contactId}/responsible`,{cache:"no-store"}).then(r=>r.json())]).then(([team,current])=>{setMembers((team.members||[]).filter((m:Member)=>m.active));setOwnerId(current.ownerId||"")}).finally(()=>setBusy(false))},[contactId]);
+ async function change(value:string){setOwnerId(value);setSaving(true);try{const r=await fetch(`/api/contacts/${contactId}/responsible`,{method:"PUT",headers:{"content-type":"application/json"},body:JSON.stringify({ownerId:value||null})});const d=await r.json();if(!r.ok)throw new Error(d.error||"Не удалось назначить ответственного");toast.success(d.ownerRole==="manager"?"Менеджер назначен · 50% прибыли по его активным сделкам":"Ответственный обновлён");}catch(e){toast.error(e instanceof Error?e.message:"Ошибка")}finally{setSaving(false)}}
+ const selected=members.find(m=>m.id===ownerId);
+ return <div className="rounded-[20px] border border-black/[.055] bg-white p-4 dark:border-white/[.07] dark:bg-[#171a20]"><div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between"><div className="flex items-center gap-3"><div className="flex h-9 w-9 items-center justify-center rounded-xl bg-black/[.035] dark:bg-white/[.05]"><UserRound className="h-4 w-4"/></div><div><div className="text-sm font-semibold">Ответственный за клиента</div><div className="mt-0.5 text-xs text-slate-400">Менеджер: 50% прибыли по его активным сделкам. Светлана / владелец: комиссия 0%.</div></div></div>{busy?<Loader2 className="h-4 w-4 animate-spin"/>:<div className="flex items-center gap-2"><select value={ownerId} onChange={e=>void change(e.target.value)} disabled={saving} className="min-w-[220px] rounded-xl border border-black/[.07] bg-white px-3 py-2.5 text-sm dark:border-white/[.08] dark:bg-white/[.04]"><option value="">Не назначен</option>{members.map(m=><option key={m.id} value={m.id}>{m.name}{m.role==="manager"?" · менеджер":" · владелец"}</option>)}</select>{saving&&<Loader2 className="h-4 w-4 animate-spin text-slate-400"/>}</div>}</div>{selected&&<div className="mt-3 text-[11px] text-slate-400">Сейчас: {selected.name} · {selected.role==="manager"?"менеджер, комиссия 50%":"владелец, без комиссии"}</div>}</div>
+}

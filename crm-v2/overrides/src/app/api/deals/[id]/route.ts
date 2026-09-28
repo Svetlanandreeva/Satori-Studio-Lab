@@ -1,12 +1,13 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { deals, pipelineStages, teamMembers } from "@/db/schema";
+import { contacts, deals, pipelineStages, teamMembers } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { pushDealStageToStorefront } from "@/lib/store-orders";
 import { annotateLatestStageHistory, writeAuditLog } from "@/lib/operations";
 import { getRequestActor } from "@/lib/request-actor";
 import { lockDealFields } from "@/lib/deal-overrides";
 import { getDealEconomics, saveDealEconomics } from "@/lib/economics";
+import { getDealPaymentDate, setDealPaymentDate } from "@/lib/deal-payment-meta";
 
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -21,7 +22,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     .leftJoin(teamMembers, eq(deals.ownerId, teamMembers.id))
     .where(eq(deals.id, id)).get();
   if (!deal) return NextResponse.json({ error: "Сделка не найдена" }, { status: 404 });
-  return NextResponse.json({ ...deal, economics: getDealEconomics(id) });
+  return NextResponse.json({ ...deal, paymentReceivedAt: getDealPaymentDate(id), economics: getDealEconomics(id) });
 }
 
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -63,6 +64,10 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
   const result = db.update(deals).set(updateData).where(eq(deals.id, id)).returning().get();
 
+  if (stage?.isLost) {
+    db.update(contacts).set({ qualification: "ignore", updatedAt: new Date() }).where(eq(contacts.id, existing.contactId)).run();
+  }
+
   if (body.receivedAmount !== undefined) {
     const current = (getDealEconomics(id) || {}) as any;
     saveDealEconomics({
@@ -79,8 +84,8 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
       notes: current.notes || null,
     });
   }
+  if (body.paymentReceivedAt !== undefined) setDealPaymentDate(id, body.paymentReceivedAt ? String(body.paymentReceivedAt) : null);
 
-  // Status, agreed amount and title entered by a person must never be overwritten by AI.
   lockDealFields(id, {
     value: body.value !== undefined ? true : undefined,
     stage: body.stageId !== undefined ? true : undefined,
@@ -89,22 +94,24 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
   if (body.stageId !== undefined && stage && String(existing.stageId) !== String(stage.id)) {
     annotateLatestStageHistory(id, {
-      reason: stage.isLost ? String(body.lossReason || "").trim() : `Перевод в «${stage.name}»`,
+      reason: stage.isLost ? `Отказ: ${String(body.lossReason || "").trim()}` : `Перевод в «${stage.name}»`,
       changedBy: actor.id,
     });
     try { await pushDealStageToStorefront(id, stage.name); }
     catch (error) { console.error("Storefront fulfillment sync failed", error); }
   }
 
-  writeAuditLog(actor, "update_deal", "deal", id, {
+  writeAuditLog(actor, stage?.isLost ? "archive_deal" : "update_deal", "deal", id, {
     title: body.title !== undefined ? body.title : undefined,
     value: body.value !== undefined ? body.value : undefined,
     receivedAmount: body.receivedAmount !== undefined ? body.receivedAmount : undefined,
+    paymentReceivedAt: body.paymentReceivedAt !== undefined ? body.paymentReceivedAt : undefined,
+    expectedClose: body.expectedClose !== undefined ? body.expectedClose : undefined,
     stageId: body.stageId !== undefined ? body.stageId : undefined,
     ownerId: body.ownerId !== undefined ? body.ownerId : undefined,
     lossReason: body.lossReason !== undefined ? body.lossReason : undefined,
   });
-  return NextResponse.json({ ...result, economics: getDealEconomics(id) });
+  return NextResponse.json({ ...result, paymentReceivedAt: getDealPaymentDate(id), economics: getDealEconomics(id), archived: Boolean(stage?.isLost) });
 }
 
 export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -112,6 +119,7 @@ export async function DELETE(request: NextRequest, { params }: { params: Promise
   const existing = db.select().from(deals).where(eq(deals.id, id)).get();
   if (!existing) return NextResponse.json({ error: "Сделка не найдена" }, { status: 404 });
   const actor = getRequestActor(request);
+  setDealPaymentDate(id, null);
   db.delete(deals).where(eq(deals.id, id)).run();
   writeAuditLog(actor, "delete_deal", "deal", id, { title: existing.title });
   return NextResponse.json({ success: true });

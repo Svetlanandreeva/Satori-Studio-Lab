@@ -29,6 +29,11 @@ interface SandboxDeal {
   stageName: string | null;
 }
 
+function isSandboxDeal(stageName: string | null) {
+  const name = String(stageName || "").trim().toLowerCase().replace(/ё/g, "е");
+  return name === "песочница / спам" || name.includes("отказ");
+}
+
 export default function SandboxPage() {
   const [contacts, setContacts] = useState<SandboxContact[]>([]);
   const [deals, setDeals] = useState<SandboxDeal[]>([]);
@@ -43,13 +48,11 @@ export default function SandboxPage() {
         fetch("/api/contacts?includeSpam=1", { cache: "no-store" }),
         fetch("/api/deals?includeSandbox=1", { cache: "no-store" }),
       ]);
-      if (!contactsResponse.ok || !dealsResponse.ok) {
-        throw new Error("Не удалось загрузить Песочницу");
-      }
+      if (!contactsResponse.ok || !dealsResponse.ok) throw new Error("Не удалось загрузить Песочницу");
       const contactData = (await contactsResponse.json()) as SandboxContact[];
       const dealData = (await dealsResponse.json()) as SandboxDeal[];
       setContacts(contactData.filter((contact) => contact.qualification === "spam" || contact.qualification === "ignore"));
-      setDeals(dealData.filter((deal) => deal.stageName === "Песочница / Спам"));
+      setDeals(dealData.filter((deal) => isSandboxDeal(deal.stageName)));
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Ошибка загрузки Песочницы");
     } finally {
@@ -57,9 +60,7 @@ export default function SandboxPage() {
     }
   }, []);
 
-  useEffect(() => {
-    load();
-  }, [load]);
+  useEffect(() => { load(); }, [load]);
 
   const visible = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -85,9 +86,7 @@ export default function SandboxPage() {
       await load();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Ошибка восстановления");
-    } finally {
-      setBusy(null);
-    }
+    } finally { setBusy(null); }
   };
 
   const remove = async (contact: SandboxContact) => {
@@ -101,108 +100,40 @@ export default function SandboxPage() {
       await load();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : "Ошибка удаления");
-    } finally {
-      setBusy(null);
-    }
+    } finally { setBusy(null); }
   };
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-5">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
         <div>
-          <div className="flex items-center gap-2">
-            <ArchiveX className="h-6 w-6 text-red-700" />
-            <h1 className="text-2xl font-bold tracking-tight">Песочница</h1>
-            <Badge variant="outline">{contacts.length}</Badge>
-          </div>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Игнор и спам убраны из основной воронки, экономики и активных проектов, но историю можно вернуть в работу.
-          </p>
+          <div className="flex items-center gap-2"><ArchiveX className="h-5 w-5 text-slate-500" /><h1 className="text-2xl font-semibold tracking-tight">Песочница</h1><Badge variant="outline">{contacts.length}</Badge></div>
+          <p className="mt-1 text-sm text-muted-foreground">Отказы, игнор и спам не участвуют в активных сделках, производстве, экономике и аналитике. История при этом сохраняется.</p>
         </div>
-        <div className="relative w-full lg:w-80">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            className="pl-9"
-            placeholder="Поиск в Песочнице..."
-            value={search}
-            onChange={(event) => setSearch(event.target.value)}
-          />
-        </div>
+        <div className="relative w-full lg:w-80"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" /><Input className="pl-9" placeholder="Поиск в Песочнице..." value={search} onChange={(event) => setSearch(event.target.value)} /></div>
       </div>
 
       {loading ? (
-        <div className="flex min-h-56 items-center justify-center text-muted-foreground">
-          <Loader2 className="mr-2 h-5 w-5 animate-spin" /> Загрузка...
-        </div>
+        <div className="flex min-h-56 items-center justify-center text-muted-foreground"><Loader2 className="mr-2 h-5 w-5 animate-spin" /> Загрузка...</div>
       ) : visible.length === 0 ? (
-        <Card>
-          <CardContent className="py-14 text-center text-muted-foreground">
-            Песочница пуста. Клиент попадёт сюда после статуса «Игнор» или «Спам».
-          </CardContent>
-        </Card>
+        <Card><CardContent className="py-14 text-center text-muted-foreground">Песочница пуста.</CardContent></Card>
       ) : (
         <div className="grid grid-cols-1 gap-4 xl:grid-cols-2">
           {visible.map((contact) => {
             const contactDeals = deals.filter((deal) => deal.contactId === contact.id);
             const ignored = contact.qualification === "ignore";
             return (
-              <Card key={contact.id} className={ignored ? "border-zinc-200" : "border-red-100"}>
+              <Card key={contact.id} className="border-black/[.07] shadow-none dark:border-white/[.07]">
                 <CardHeader className="pb-3">
                   <div className="flex items-start justify-between gap-3">
-                    <div className="min-w-0">
-                      <CardTitle className="truncate text-base">{contact.name}</CardTitle>
-                      <div className="mt-1 flex flex-wrap gap-2">
-                        <Badge variant={ignored ? "outline" : "destructive"}>{ignored ? "Игнор" : "Спам"}</Badge>
-                        {contact.source && <Badge variant="outline">{contact.source}</Badge>}
-                      </div>
-                    </div>
-                    <Link
-                      href={`/contacts/${contact.id}`}
-                      className="inline-flex h-9 items-center gap-2 rounded-md border px-3 text-sm hover:bg-muted"
-                    >
-                      <ExternalLink className="h-4 w-4" /> Открыть
-                    </Link>
+                    <div className="min-w-0"><CardTitle className="truncate text-base">{contact.name}</CardTitle><div className="mt-1 flex flex-wrap gap-2"><Badge variant="outline">{ignored ? "Отказ / игнор" : "Спам"}</Badge>{contact.source && <Badge variant="outline">{contact.source}</Badge>}</div></div>
+                    <Link href={`/contacts/${contact.id}`} className="inline-flex h-9 items-center gap-2 rounded-md border px-3 text-sm hover:bg-muted"><ExternalLink className="h-4 w-4" /> Открыть</Link>
                   </div>
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  <div className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-2">
-                    <div><span className="text-muted-foreground">Телефон:</span> {contact.phone || "—"}</div>
-                    <div><span className="text-muted-foreground">Email:</span> {contact.email || "—"}</div>
-                    <div><span className="text-muted-foreground">Компания:</span> {contact.company || "—"}</div>
-                    <div><span className="text-muted-foreground">Сделок:</span> {contactDeals.length}</div>
-                  </div>
-
-                  {contactDeals.length > 0 && (
-                    <div className="rounded-lg bg-muted/50 p-3 text-sm">
-                      <div className="mb-2 font-medium">Что лежит в Песочнице</div>
-                      <div className="space-y-1 text-muted-foreground">
-                        {contactDeals.map((deal) => (
-                          <div key={deal.id} className="flex items-center justify-between gap-3">
-                            <span className="truncate">{deal.title}</span>
-                            <span className="shrink-0">{(Number(deal.value || 0) / 100).toLocaleString("ru-RU")} ₽</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  <div className="flex flex-wrap gap-2 border-t pt-4">
-                    <Button
-                      variant="outline"
-                      onClick={() => restore(contact)}
-                      disabled={busy !== null}
-                    >
-                      {busy === contact.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RotateCcw className="mr-2 h-4 w-4" />}
-                      Вернуть в работу
-                    </Button>
-                    <Button
-                      variant="destructive"
-                      onClick={() => remove(contact)}
-                      disabled={busy !== null}
-                    >
-                      <Trash2 className="mr-2 h-4 w-4" /> Удалить навсегда
-                    </Button>
-                  </div>
+                  <div className="grid grid-cols-1 gap-2 text-sm sm:grid-cols-2"><div><span className="text-muted-foreground">Телефон:</span> {contact.phone || "—"}</div><div><span className="text-muted-foreground">Email:</span> {contact.email || "—"}</div><div><span className="text-muted-foreground">Компания:</span> {contact.company || "—"}</div><div><span className="text-muted-foreground">Сделок:</span> {contactDeals.length}</div></div>
+                  {contactDeals.length > 0 && <div className="rounded-xl bg-muted/40 p-3 text-sm"><div className="mb-2 font-medium">История сделок</div><div className="space-y-2 text-muted-foreground">{contactDeals.map((deal) => <div key={deal.id} className="flex items-center justify-between gap-3"><span className="min-w-0 truncate">{deal.title}<span className="ml-2 text-[10px] opacity-70">{deal.stageName}</span></span><span className="shrink-0">{(Number(deal.value || 0) / 100).toLocaleString("ru-RU")} ₽</span></div>)}</div></div>}
+                  <div className="flex flex-wrap gap-2 border-t pt-4"><Button variant="outline" onClick={() => restore(contact)} disabled={busy !== null}>{busy === contact.id ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RotateCcw className="mr-2 h-4 w-4" />}Вернуть в работу</Button><Button variant="destructive" onClick={() => remove(contact)} disabled={busy !== null}><Trash2 className="mr-2 h-4 w-4" />Удалить навсегда</Button></div>
                 </CardContent>
               </Card>
             );

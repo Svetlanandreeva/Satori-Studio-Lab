@@ -4,9 +4,14 @@ import { getRequestActor } from "@/lib/request-actor";
 
 export const dynamic = "force-dynamic";
 
+function isInProduction(stageName: unknown) {
+  return String(stageName || "").trim().toLowerCase().replace(/ё/g,"е") === "в производстве";
+}
+
 export async function GET() {
   try {
-    return NextResponse.json({ projects: listProductionProjects() });
+    const projects = listProductionProjects().filter((project: any) => isInProduction(project.stageName));
+    return NextResponse.json({ projects });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Не удалось загрузить производство" }, { status: 500 });
   }
