@@ -15,24 +15,85 @@ jobs:
         with:
           ssh-private-key: ${{ secrets.DEPLOY_SSH_KEY }}
       - run: ssh-keyscan -H 194.226.97.103 >> ~/.ssh/known_hosts
-      - name: Inspect remaining disk usage
+      - name: Inspect CRM timeout and restore public access
         run: |
           ssh root@194.226.97.103 'bash -se' <<'REMOTE'
           set -u
-          echo '=== df -h ==='
+          echo '=== disk ==='
           df -h /
-          echo '=== root directories ==='
-          du -xhd1 / 2>/dev/null | sort -h
-          echo '=== /root ==='
-          du -xhd2 /root 2>/dev/null | sort -h | tail -40
-          echo '=== /var/log ==='
-          du -xhd2 /var/log 2>/dev/null | sort -h | tail -40
-          echo '=== /var/www/satori ==='
-          du -xhd2 /var/www/satori 2>/dev/null | sort -h | tail -40
-          echo '=== /var/lib ==='
-          du -xhd2 /var/lib 2>/dev/null | sort -h | tail -50
-          echo '=== /opt ==='
-          du -xhd2 /opt 2>/dev/null | sort -h | tail -40
-          echo '=== Docker ==='
-          docker system df 2>/dev/null || true
+          echo '=== services before ==='
+          systemctl --no-pager --full status nginx 2>&1 | tail -30 || true
+          systemctl --no-pager --full status satori-crm 2>&1 | tail -30 || true
+          systemctl --no-pager --full status satori-crm-v2 2>&1 | tail -30 || true
+          echo '=== listeners ==='
+          ss -ltnp | grep -E ':(80|443|3010|3020|3030)\b' || true
+          echo '=== nginx config ==='
+          nginx -t || true
+          echo '=== local probes before ==='
+          for url in \
+            http://127.0.0.1:3010/health \
+            http://127.0.0.1:3020/ \
+            http://127.0.0.1:3030/healthz; do
+            code=$(curl -sS --max-time 8 -o /dev/null -w '%{http_code}' "$url" || true)
+            echo "$url -> $code"
+          done
+
+          # Recover the public reverse proxy first. Twenty has not passed health checks yet,
+          # so keep the current working CRM service as the public target.
+          if ! systemctl is-active --quiet nginx; then
+            systemctl restart nginx || true
+          else
+            systemctl reload nginx || true
+          fi
+
+          target=''
+          if systemctl is-active --quiet satori-crm-v2 && curl -fsS --max-time 8 http://127.0.0.1:3020/ >/dev/null 2>&1; then
+            target=3020
+          elif systemctl is-active --quiet satori-crm && curl -fsS --max-time 8 http://127.0.0.1:3010/health >/dev/null 2>&1; then
+            target=3010
+          else
+            systemctl restart satori-crm-v2 2>/dev/null || true
+            sleep 3
+            if curl -fsS --max-time 8 http://127.0.0.1:3020/ >/dev/null 2>&1; then
+              target=3020
+            else
+              systemctl restart satori-crm 2>/dev/null || true
+              sleep 3
+              if curl -fsS --max-time 8 http://127.0.0.1:3010/health >/dev/null 2>&1; then
+                target=3010
+              fi
+            fi
+          fi
+
+          if [ -z "$target" ]; then
+            echo 'No healthy CRM backend found' >&2
+            exit 1
+          fi
+
+          cfg_link=$(grep -RIl 'crm\.satorilabural\.online' /etc/nginx/sites-enabled 2>/dev/null | head -1 || true)
+          if [ -z "$cfg_link" ]; then
+            echo 'CRM nginx config not found' >&2
+            exit 1
+          fi
+          cfg=$(readlink -f "$cfg_link")
+          cp -a "$cfg" "${cfg}.timeout-recovery-$(date +%Y%m%d-%H%M%S)"
+          CFG="$cfg" TARGET="$target" python3 - <<'PY'
+          import os, re
+          from pathlib import Path
+          p = Path(os.environ['CFG'])
+          target = os.environ['TARGET']
+          s = p.read_text()
+          s, n = re.subn(r'proxy_pass\s+http://(?:127\.0\.0\.1|localhost):(?:3010|3020|3030)\s*;', f'proxy_pass http://127.0.0.1:{target};', s)
+          if n == 0:
+              raise SystemExit('No CRM proxy_pass entry found')
+          p.write_text(s)
+          PY
+          nginx -t
+          systemctl reload nginx
+
+          echo '=== public probe ==='
+          curl -kIsS --max-time 12 --resolve crm.satorilabural.online:443:127.0.0.1 https://crm.satorilabural.online/ | head -20 || true
+          echo "Restored CRM proxy to localhost:${target}"
+          echo '=== services after ==='
+          ss -ltnp | grep -E ':(80|443|3010|3020|3030)\b' || true
           REMOTE
