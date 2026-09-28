@@ -1,0 +1,7 @@
+User-agent: *
+Allow: /
+Disallow: /admin
+Disallow: /api/
+
+Host: satorilabural.ru
+Sitemap: https://satorilabural.ru/sitemap.xml

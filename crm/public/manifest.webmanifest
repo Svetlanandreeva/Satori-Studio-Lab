@@ -1,0 +1,16 @@
+{
+  "name": "Satori CRM",
+  "short_name": "Satori CRM",
+  "description": "Клиенты, заказы, производство и задачи Satori",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#f2f0eb",
+  "theme_color": "#11100f",
+  "icons": [
+    { "src": "/brand/favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" },
+    { "src": "/brand/apple-touch-icon.png", "sizes": "180x180", "type": "image/png", "purpose": "any" }
+  ]
+}

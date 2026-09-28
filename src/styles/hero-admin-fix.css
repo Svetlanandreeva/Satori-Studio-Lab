@@ -1,0 +1,119 @@
+/* Live hero + admin-entry corrections, loaded last. */
+
+@media (min-width: 1024px) {
+  /* Home hero: smoother tonal field, cleaner editorial column and aligned CTAs. */
+  #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(1) > div > div.absolute.inset-0 > div.absolute.inset-0 {
+    width: 74% !important;
+    opacity: 1 !important;
+    border-radius: 40px 0 0 40px !important;
+    background: linear-gradient(90deg,
+      rgba(18,15,13,.96) 0%,
+      rgba(18,15,13,.93) 34%,
+      rgba(18,15,13,.82) 54%,
+      rgba(18,15,13,.58) 72%,
+      rgba(18,15,13,.24) 88%,
+      rgba(18,15,13,0) 100%) !important;
+  }
+
+  /* Sit the whole editorial group lower in the image instead of crowding the top. */
+  #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(1) > div > div.relative {
+    width: 100% !important;
+    max-width: 650px !important;
+    padding-left: 56px !important;
+    padding-right: 28px !important;
+    box-sizing: border-box !important;
+    transform: translateY(84px) !important;
+  }
+
+  #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(1) h1 {
+    width: 570px !important;
+    max-width: 570px !important;
+    margin-top: 18px !important;
+    margin-bottom: 26px !important;
+    font-size: clamp(56px, 4.45vw, 64px) !important;
+    line-height: .98 !important;
+    letter-spacing: -.035em !important;
+    text-wrap: balance !important;
+    text-shadow: 0 2px 20px rgba(0,0,0,.15) !important;
+  }
+
+  #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(1) h1 + p {
+    width: 490px !important;
+    max-width: 490px !important;
+    margin-bottom: 34px !important;
+    color: #f1e8dd !important;
+    font-size: 16px !important;
+    line-height: 1.52 !important;
+    text-wrap: pretty !important;
+    text-shadow: 0 1px 12px rgba(0,0,0,.22) !important;
+  }
+
+  /* Keep the two hero CTAs visually equal and on one line. */
+  #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(1) button {
+    width: 184px !important;
+    min-width: 184px !important;
+    height: 58px !important;
+    min-height: 58px !important;
+    padding: 0 20px !important;
+    border-radius: 999px !important;
+    white-space: nowrap !important;
+    font-size: 14px !important;
+    line-height: 1 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+
+  #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(1) button + button {
+    margin-left: 14px !important;
+  }
+
+  /* The magnifier and heart in the Figma header were added as decorative text,
+     not working controls. Remove the fake placeholders until real search/favorites exist. */
+  #root > div > header > div:first-child > div:last-child::before {
+    content: none !important;
+    display: none !important;
+  }
+
+  #root > div > header > div:first-child > div:last-child {
+    min-width: 92px !important;
+    gap: 0 !important;
+  }
+}
+
+/* Footer admin entry: it already existed functionally, make it easy to find. */
+#root > div > footer a[href="/admin"] {
+  display: inline-flex !important;
+  align-items: center !important;
+  justify-content: center !important;
+  min-height: 38px !important;
+  padding: 0 16px !important;
+  border: 1px solid #5a4e43 !important;
+  border-radius: 999px !important;
+  background: #2b2520 !important;
+  color: #eadfd3 !important;
+  font-family: Inter, sans-serif !important;
+  font-size: 11px !important;
+  font-weight: 600 !important;
+  letter-spacing: .03em !important;
+  text-decoration: none !important;
+  opacity: 1 !important;
+}
+
+#root > div > footer a[href="/admin"]::before {
+  content: "↗";
+  margin-right: 8px;
+  font-size: 12px;
+}
+
+#root > div > footer a[href="/admin"]:hover {
+  background: #40372f !important;
+  border-color: #756555 !important;
+}
+
+@media (max-width: 1023px) {
+  /* On tablets/mobile the original full-width overlay is safer for readability. */
+  #root > div > div[class*="pageFade"] > div > section:first-child h1 {
+    text-wrap: balance;
+  }
+}

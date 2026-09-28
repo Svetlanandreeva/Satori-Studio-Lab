@@ -1,0 +1,88 @@
+.admin-figma .fa-split{
+  display:block;
+}
+
+.admin-figma .fa-split > .fa-table-card{
+  width:100%;
+}
+
+.admin-figma .fa-split > .fa-detail{
+  position:fixed;
+  z-index:130;
+  top:92px;
+  right:24px;
+  bottom:24px;
+  width:min(520px,calc(100vw - 48px));
+  overflow:auto;
+  box-shadow:0 28px 90px rgba(26,23,20,.26);
+  transform:translateX(calc(100% + 48px));
+  opacity:0;
+  pointer-events:none;
+  transition:transform .32s cubic-bezier(.22,1,.36,1),opacity .2s ease;
+}
+
+.admin-figma .fa-split.fa-order-drawer-open > .fa-detail{
+  transform:translateX(0);
+  opacity:1;
+  pointer-events:auto;
+}
+
+#fa-order-drawer-backdrop{
+  position:fixed;
+  inset:0;
+  z-index:120;
+  border:0;
+  padding:0;
+  background:rgba(26,23,20,.24);
+  backdrop-filter:blur(2px);
+  opacity:0;
+  pointer-events:none;
+  transition:opacity .2s ease;
+}
+
+#fa-order-drawer-backdrop.is-open{
+  opacity:1;
+  pointer-events:auto;
+}
+
+.admin-figma .fa-order-drawer-close{
+  position:absolute;
+  top:18px;
+  right:18px;
+  width:36px;
+  height:36px;
+  border:1px solid var(--line);
+  border-radius:50%;
+  background:var(--paper2);
+  color:var(--ink);
+  font-size:25px;
+  line-height:1;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  z-index:2;
+}
+
+.admin-figma .fa-split > .fa-detail .fa-detail-title{
+  padding-right:48px;
+}
+
+.fa-order-drawer-lock{
+  overflow:hidden;
+}
+
+@media (max-width: 760px){
+  .admin-figma .fa-split > .fa-detail{
+    top:0;
+    right:0;
+    bottom:0;
+    width:min(94vw,520px);
+    border-radius:24px 0 0 24px;
+    padding:24px 20px 96px;
+  }
+
+  .admin-figma .fa-order-drawer-close{
+    top:14px;
+    right:14px;
+  }
+}

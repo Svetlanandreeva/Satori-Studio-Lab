@@ -1,0 +1,67 @@
+name: Check CRM v2
+
+on:
+  pull_request:
+    paths:
+      - 'crm-v2/**'
+      - '.github/workflows/ci-crm-v2.yml'
+  workflow_dispatch:
+
+env:
+  UPSTREAM_REPO: https://github.com/Hainrixz/auto-crm.git
+  UPSTREAM_SHA: 0aef51a9aef0487c59b964b4eea9d964a2321f0c
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - name: Fetch pinned MIT Auto-CRM
+        run: |
+          git clone --filter=blob:none "$UPSTREAM_REPO" /tmp/satori-auto-crm
+          cd /tmp/satori-auto-crm
+          git checkout --detach "$UPSTREAM_SHA"
+          test -f LICENSE
+          grep -q 'MIT License' LICENSE
+
+      - name: Apply deployment base patch
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          root = Path('/tmp/satori-auto-crm')
+          p = root / 'next.config.ts'
+          s = p.read_text()
+          needle = 'const nextConfig: NextConfig = {\n  serverExternalPackages: ["better-sqlite3"],\n};'
+          replacement = 'const nextConfig: NextConfig = {\n  output: "standalone",\n  serverExternalPackages: ["better-sqlite3"],\n};'
+          if needle not in s:
+              raise SystemExit('next.config.ts patch target not found')
+          p.write_text(s.replace(needle, replacement))
+
+          p = root / 'src/db/index.ts'
+          s = p.read_text()
+          needle = 'const DB_PATH = path.join(process.cwd(), "data", "crm.db");'
+          replacement = 'const DB_PATH = process.env.CRM_DB_PATH || path.join(process.cwd(), "data", "crm.db");'
+          if needle not in s:
+              raise SystemExit('DB path patch target not found')
+          p.write_text(s.replace(needle, replacement))
+          PY
+
+      - name: Apply Satori overrides
+        run: |
+          python3 crm-v2/russianize.py
+          cp -a crm-v2/overrides/src/. /tmp/satori-auto-crm/src/
+
+      - name: Install and build
+        working-directory: /tmp/satori-auto-crm
+        env:
+          NEXT_TELEMETRY_DISABLED: '1'
+        run: |
+          npm ci
+          npm run build
+          test -f .next/standalone/server.js

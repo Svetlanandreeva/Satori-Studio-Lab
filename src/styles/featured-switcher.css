@@ -1,0 +1,65 @@
+/* Featured hit selector — 01 / 02 / 03 are real product controls. */
+
+.featured-hit-switcher {
+  z-index: 6;
+  gap: 6px !important;
+}
+
+.featured-hit-switcher > span {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 8px;
+  min-width: 48px;
+  min-height: 20px;
+  padding: 1px 0;
+  cursor: pointer;
+  user-select: none;
+  color: #8f8174 !important;
+  font-weight: 500 !important;
+  transition: color .18s ease, transform .18s ease, opacity .18s ease;
+}
+
+.featured-hit-switcher > span::before {
+  content: "";
+  width: 0;
+  height: 1px;
+  background: #1a1412;
+  transition: width .18s ease;
+}
+
+.featured-hit-switcher > span:hover,
+.featured-hit-switcher > span:focus-visible {
+  color: #1a1412 !important;
+  outline: none;
+}
+
+.featured-hit-switcher > span.is-active {
+  color: #1a1412 !important;
+  font-weight: 700 !important;
+  transform: translateX(-4px);
+}
+
+.featured-hit-switcher > span.is-active::before {
+  width: 18px;
+}
+
+.featured-hit-switching img {
+  opacity: .72;
+}
+
+.featured-hit-switcher ~ h2,
+.featured-hit-switcher ~ p {
+  transition: opacity .16s ease;
+}
+
+@media (max-width: 767px) {
+  .featured-hit-switcher {
+    top: 18px !important;
+    right: 18px !important;
+  }
+
+  .featured-hit-switcher > span {
+    min-width: 40px;
+  }
+}

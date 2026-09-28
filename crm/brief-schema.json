@@ -1,0 +1,17 @@
+{
+  "fields": [
+    "item",
+    "quantity",
+    "dimensions",
+    "materials",
+    "finish",
+    "construction",
+    "deadline",
+    "budget",
+    "delivery",
+    "branding",
+    "packaging"
+  ],
+  "coreRequired": ["item", "quantity", "dimensions", "materials", "deadline"],
+  "readyMinimum": 8
+}

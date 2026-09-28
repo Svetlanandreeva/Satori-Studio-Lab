@@ -1,0 +1,102 @@
+import { readFile, writeFile } from "node:fs/promises";
+import { existsSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const PROMO_FILE = path.join(__dirname, "data", "promocodes.json");
+
+let writeQueue = Promise.resolve();
+
+async function readPromoCodes() {
+  if (!existsSync(PROMO_FILE)) return [];
+  const raw = await readFile(PROMO_FILE, "utf-8");
+  return raw.trim() ? JSON.parse(raw) : [];
+}
+
+function withWriteLock(fn) {
+  writeQueue = writeQueue.then(fn, fn);
+  return writeQueue;
+}
+
+export async function listPromoCodes() {
+  return readPromoCodes();
+}
+
+export async function getPromoCode(code) {
+  if (!code) return null;
+  const codes = await readPromoCodes();
+  return codes.find((c) => c.code.toLowerCase() === code.toLowerCase()) || null;
+}
+
+export async function createPromoCode({
+  code, type, value, usageLimit, applyTo, minAmount, startsAt, endsAt,
+  oncePerClient, active,
+}) {
+  return withWriteLock(async () => {
+    if (!code || !type || !value) throw new Error("Заполните код, тип и размер скидки");
+    const codes = await readPromoCodes();
+    if (codes.some((c) => c.code.toLowerCase() === code.toLowerCase())) {
+      throw new Error("Такой промокод уже существует");
+    }
+    const promo = {
+      code: code.trim().toUpperCase(),
+      type,
+      value: Number(value),
+      usageLimit: usageLimit ? Number(usageLimit) : null,
+      usedCount: 0,
+      active: active !== false,
+      applyTo: applyTo || null,
+      minAmount: Number(minAmount) || 0,
+      startsAt: startsAt || null,
+      endsAt: endsAt || null,
+      oncePerClient: Boolean(oncePerClient),
+      createdAt: new Date().toISOString(),
+    };
+    codes.push(promo);
+    await writeFile(PROMO_FILE, JSON.stringify(codes, null, 2), "utf-8");
+    return promo;
+  });
+}
+
+export async function updatePromoCode(code, patch) {
+  return withWriteLock(async () => {
+    const codes = await readPromoCodes();
+    const idx = codes.findIndex((c) => c.code.toLowerCase() === code.toLowerCase());
+    if (idx === -1) return null;
+    codes[idx] = { ...codes[idx], ...patch };
+    await writeFile(PROMO_FILE, JSON.stringify(codes, null, 2), "utf-8");
+    return codes[idx];
+  });
+}
+
+export async function deletePromoCode(code) {
+  return withWriteLock(async () => {
+    const codes = await readPromoCodes();
+    const next = codes.filter((c) => c.code.toLowerCase() !== code.toLowerCase());
+    const changed = next.length !== codes.length;
+    if (changed) await writeFile(PROMO_FILE, JSON.stringify(next, null, 2), "utf-8");
+    return changed;
+  });
+}
+
+export function isPromoUsable(promo, amount = null) {
+  if (!promo || !promo.active) return false;
+  if (promo.usageLimit && promo.usedCount >= promo.usageLimit) return false;
+  // Older callers do not yet pass the basket amount. Only enforce a minimum
+  // when an amount is explicitly supplied, so existing checkout stays valid.
+  if (amount !== null && promo.minAmount && Number(amount) < Number(promo.minAmount)) return false;
+  const now = Date.now();
+  if (promo.startsAt && now < new Date(promo.startsAt).getTime()) return false;
+  if (promo.endsAt) {
+    const end = new Date(promo.endsAt);
+    if (/^\d{4}-\d{2}-\d{2}$/.test(promo.endsAt)) end.setHours(23, 59, 59, 999);
+    if (now > end.getTime()) return false;
+  }
+  return true;
+}
+
+export function computeDiscount(promo, amount) {
+  const raw = promo.type === "percent" ? amount * (promo.value / 100) : promo.value;
+  return Math.max(0, Math.min(Math.round(raw), amount));
+}

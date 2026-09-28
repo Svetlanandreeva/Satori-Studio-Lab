@@ -1,0 +1,120 @@
+name: Reconcile CRM storefront orders
+
+on:
+  workflow_run:
+    workflows: ["Deploy CRM v2 stage"]
+    types: [completed]
+  workflow_dispatch:
+
+concurrency:
+  group: crm-store-reconcile
+  cancel-in-progress: true
+
+jobs:
+  reconcile:
+    if: ${{ github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.DEPLOY_SSH_KEY }}
+
+      - name: Trust production server
+        run: ssh-keyscan -H 194.226.97.103 >> ~/.ssh/known_hosts
+
+      - name: Give CRM v2 secure access to website backend credentials
+        run: |
+          ssh root@194.226.97.103 'bash -se' <<'REMOTE'
+          set -eu
+          mkdir -p /etc/systemd/system/satori-crm-v2.service.d
+          cat >/etc/systemd/system/satori-crm-v2.service.d/store-sync.conf <<'UNIT'
+          [Service]
+          EnvironmentFile=-/var/www/satori/.env
+          Environment=STORE_BACKEND_URL=http://127.0.0.1:3001
+          UNIT
+          systemctl daemon-reload
+          systemctl restart satori-crm-v2
+          systemctl is-active --quiet satori-crm-v2
+          REMOTE
+
+      - name: Reconcile existing website orders into CRM
+        run: |
+          ssh root@194.226.97.103 'python3 -' <<'PY'
+          import json, time, urllib.request
+          from pathlib import Path
+
+          orders_path = Path('/var/www/satori/backend/data/orders.json')
+          orders = json.loads(orders_path.read_text()) if orders_path.exists() else []
+          url = 'http://127.0.0.1:3020/api/integrations/store-orders'
+          payload = json.dumps({'orders': orders}, ensure_ascii=False).encode('utf-8')
+
+          last_error = None
+          for _ in range(30):
+              try:
+                  req = urllib.request.Request(url, data=payload, headers={'Content-Type': 'application/json'}, method='POST')
+                  with urllib.request.urlopen(req, timeout=20) as response:
+                      result = json.loads(response.read().decode('utf-8'))
+                  if result.get('failed'):
+                      raise RuntimeError(f"Store reconciliation failed for {result['failed']} order(s): {result}")
+                  print(f"Store reconciliation OK: {result.get('processed', 0)} orders")
+                  break
+              except Exception as exc:
+                  last_error = exc
+                  time.sleep(2)
+          else:
+              raise RuntimeError(f'CRM storefront sync endpoint did not become ready: {last_error}')
+          PY
+
+      - name: Verify paid orders are confirmed projects and failed payments are not deals
+        run: |
+          ssh root@194.226.97.103 'python3 -' <<'PY'
+          import json, re, sqlite3
+          from pathlib import Path
+
+          orders_path = Path('/var/www/satori/backend/data/orders.json')
+          orders = json.loads(orders_path.read_text()) if orders_path.exists() else []
+          db = sqlite3.connect('/var/lib/satori-auto-crm/crm.db')
+          db.row_factory = sqlite3.Row
+
+          def phone(value):
+              digits = re.sub(r'\D', '', str(value or ''))
+              if len(digits) == 11 and digits.startswith('8'): digits = '7' + digits[1:]
+              if len(digits) == 10: digits = '7' + digits
+              return digits
+
+          contacts = db.execute('SELECT id, phone, email, temperature, qualification FROM contacts').fetchall()
+          deals = db.execute('SELECT id, contact_id, probability, notes FROM deals').fetchall()
+
+          for order in orders:
+              order_id = str(order.get('id') or '')
+              status = str(order.get('status') or '').lower()
+              customer = order.get('customer') or {}
+              related = [d for d in deals if order_id and order_id in str(d['notes'] or '')]
+
+              if status == 'canceled':
+                  if related:
+                      raise RuntimeError(f'Failed payment {order_id} still exists as CRM deal(s): {[d["id"] for d in related]}')
+                  continue
+
+              if status != 'paid':
+                  continue
+
+              p = phone(customer.get('phone'))
+              email = str(customer.get('email') or '').strip().lower()
+              matches = [c for c in contacts if (p and phone(c['phone']) == p) or (email and str(c['email'] or '').lower() == email)]
+              if not matches:
+                  raise RuntimeError(f'Paid order {order_id} has no CRM contact')
+              if not any(c['temperature'] == 'hot' and c['qualification'] == 'qualified' for c in matches):
+                  raise RuntimeError(f'Paid order {order_id} customer is not hot+qualified')
+              if not related:
+                  raise RuntimeError(f'Paid order {order_id} has no CRM deal')
+              for deal in related:
+                  if int(deal['probability'] or 0) != 100:
+                      raise RuntimeError(f'Paid order {order_id} deal probability is not 100%')
+                  project = db.execute('SELECT ordered_at FROM project_details WHERE deal_id=?', (deal['id'],)).fetchone()
+                  if not project or not project['ordered_at']:
+                      raise RuntimeError(f'Paid order {order_id} has no payment/start date in project')
+
+          print('Storefront CRM invariants are valid: paid=100%, project dates present, failed payments removed')
+          PY

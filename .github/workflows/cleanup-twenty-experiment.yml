@@ -1,0 +1,33 @@
+name: Cleanup failed Twenty experiment (manual)
+
+# Запускается только вручную (Actions → этот workflow → Run workflow).
+# Останавливает контейнеры Twenty, которые остались на VPS после неудачного
+# деплоя, и освобождает место. Рабочую CRM (порт 3020), магазин и nginx не трогает.
+on:
+  workflow_dispatch:
+
+jobs:
+  cleanup:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.DEPLOY_SSH_KEY }}
+      - name: Trust production server
+        run: ssh-keyscan -H 194.226.97.103 >> ~/.ssh/known_hosts
+      - name: Stop Twenty containers and report
+        run: |
+          ssh root@194.226.97.103 'bash -se' <<'REMOTE'
+          set -u
+          echo '=== disk before ==='; df -h / | tail -1
+          if [ -f /opt/satori-twenty/docker-compose.yml ] && command -v docker >/dev/null 2>&1; then
+            cd /opt/satori-twenty && docker compose down --remove-orphans || true
+            docker image prune -af || true
+          else
+            echo 'Twenty is not installed — nothing to stop'
+          fi
+          echo '=== disk after ==='; df -h / | tail -1
+          echo '=== CRM still alive? ==='
+          curl -s -o /dev/null -w '3020 -> %{http_code}\n' http://127.0.0.1:3020/login || true
+          REMOTE

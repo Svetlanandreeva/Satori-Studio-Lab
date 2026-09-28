@@ -1,0 +1,185 @@
+/* Final desktop polish from live-browser screenshots.
+   Loaded after globals.css + figma-fixes.css so these rules only correct
+   geometry/overflow and do not touch commerce behaviour. */
+
+@media (min-width: 1024px) {
+  /* ------------------------------------------------------------------------ */
+  /* Featured product: real admin descriptions can be much longer than the   */
+  /* Figma placeholder. Keep price + CTA visible inside the 560px card.       */
+  /* ------------------------------------------------------------------------ */
+  #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(3) > div > div:nth-child(2) {
+    overflow: hidden;
+    padding: 42px 48px !important;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+
+  #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(3) > div > div:nth-child(2) > p:nth-of-type(2) {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 9;
+    overflow: hidden;
+    line-height: 1.55 !important;
+    margin-bottom: 16px !important;
+  }
+
+  #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(3) > div > div:nth-child(2) > p:nth-of-type(3) {
+    margin-bottom: 16px !important;
+  }
+
+  /* ------------------------------------------------------------------------ */
+  /* Custom-production block. Its live Russian copy is taller than the Figma */
+  /* placeholder, so a hard 309px height made heading/button overflow.        */
+  /* ------------------------------------------------------------------------ */
+  #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(5) {
+    padding: 0 48px 32px !important;
+  }
+
+  #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(5) > div {
+    height: auto !important;
+    min-height: 336px !important;
+    padding: 36px 40px !important;
+    gap: 48px !important;
+    align-items: stretch !important;
+    overflow: hidden;
+  }
+
+  #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(5) > div > div:first-child {
+    flex: 1 1 0 !important;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+  }
+
+  #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(5) h2 {
+    max-width: 445px !important;
+    margin-bottom: 14px !important;
+    font-size: clamp(34px, 3vw, 40px) !important;
+    line-height: 1.07 !important;
+    text-wrap: balance;
+  }
+
+  #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(5) h2 + p {
+    max-width: 430px !important;
+    margin-bottom: 20px !important;
+    line-height: 1.55 !important;
+  }
+
+  #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(5) > div > div:first-child > div:last-child {
+    gap: 14px !important;
+  }
+
+  #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(5) > div > div:first-child > div:last-child button {
+    flex: 0 0 auto;
+    padding: 11px 24px !important;
+  }
+
+  #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(5) > div > div:last-child {
+    flex: 0 1 54% !important;
+    max-width: 590px;
+    height: auto !important;
+    min-height: 230px !important;
+    align-self: center;
+    padding: 24px 32px !important;
+  }
+
+  /* Give the sales heading a clean breath after the custom block. */
+  #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(6) {
+    padding-top: 22px !important;
+  }
+
+  #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(6) h2 {
+    margin: 0 !important;
+    line-height: 1.05 !important;
+  }
+
+  /* ------------------------------------------------------------------------ */
+  /* Trust strip: less dead vertical space while preserving the five columns. */
+  /* ------------------------------------------------------------------------ */
+  #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(8) > div {
+    height: 166px !important;
+    padding: 22px 30px !important;
+    align-items: stretch;
+  }
+
+  #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(8) > div > div {
+    min-height: 118px !important;
+  }
+
+  /* ------------------------------------------------------------------------ */
+  /* Footer: fluid tracks instead of fixed 280/170/... widths. This prevents  */
+  /* SATORI from being clipped on the left and the newsletter escaping right. */
+  /* ------------------------------------------------------------------------ */
+  #root > div > footer {
+    width: 100% !important;
+    max-width: none !important;
+    min-height: 420px !important;
+    margin: 0 !important;
+    padding: 48px 48px 28px !important;
+    box-sizing: border-box;
+    overflow: hidden;
+  }
+
+  #root > div > footer > div:first-child {
+    width: 100%;
+    max-width: 1344px;
+    margin-left: auto !important;
+    margin-right: auto !important;
+    grid-template-columns:
+      minmax(210px, 1.15fr)
+      minmax(120px, .72fr)
+      minmax(135px, .78fr)
+      minmax(135px, .78fr)
+      minmax(250px, 1.2fr) !important;
+    gap: clamp(22px, 2.2vw, 38px) !important;
+    justify-content: stretch !important;
+    align-items: start;
+  }
+
+  #root > div > footer > div:first-child > div {
+    min-width: 0;
+  }
+
+  #root > div > footer > div:first-child > div:first-child > div:first-child {
+    margin-left: 0 !important;
+  }
+
+  #root > div > footer > div:first-child > div:last-child p {
+    max-width: 280px !important;
+  }
+
+  #root > div > footer form {
+    width: 100% !important;
+    max-width: 320px;
+    box-sizing: border-box;
+  }
+
+  #root > div > footer form input {
+    width: 100%;
+    min-width: 0;
+  }
+
+  #root > div > footer > div:last-child {
+    width: 100%;
+    max-width: 1344px;
+    margin: 96px auto 0 !important;
+  }
+}
+
+/* Intermediate desktop: keep the same composition without squeezing copy. */
+@media (min-width: 1024px) and (max-width: 1240px) {
+  #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(5) > div {
+    gap: 30px !important;
+  }
+
+  #root > div > div[class*="pageFade"] > div:has(> section:nth-of-type(8)) > section:nth-of-type(5) h2 {
+    font-size: 34px !important;
+  }
+
+  #root > div > footer > div:first-child {
+    grid-template-columns: 1.1fr .72fr .8fr .8fr 1.15fr !important;
+    gap: 20px !important;
+  }
+}
