@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import { db } from "@/db";
-import { deals, pipelineStages, teamMembers } from "@/db/schema";
+import { contacts, deals, pipelineStages, teamMembers } from "@/db/schema";
 import { eq } from "drizzle-orm";
 import { pushDealStageToStorefront } from "@/lib/store-orders";
 import { annotateLatestStageHistory, writeAuditLog } from "@/lib/operations";
@@ -64,6 +64,10 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
   const result = db.update(deals).set(updateData).where(eq(deals.id, id)).returning().get();
 
+  if (stage?.isLost) {
+    db.update(contacts).set({ qualification: "ignore", updatedAt: new Date() }).where(eq(contacts.id, existing.contactId)).run();
+  }
+
   if (body.receivedAmount !== undefined) {
     const current = (getDealEconomics(id) || {}) as any;
     saveDealEconomics({
@@ -90,14 +94,14 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
 
   if (body.stageId !== undefined && stage && String(existing.stageId) !== String(stage.id)) {
     annotateLatestStageHistory(id, {
-      reason: stage.isLost ? String(body.lossReason || "").trim() : `Перевод в «${stage.name}»`,
+      reason: stage.isLost ? `Отказ: ${String(body.lossReason || "").trim()}` : `Перевод в «${stage.name}»`,
       changedBy: actor.id,
     });
     try { await pushDealStageToStorefront(id, stage.name); }
     catch (error) { console.error("Storefront fulfillment sync failed", error); }
   }
 
-  writeAuditLog(actor, "update_deal", "deal", id, {
+  writeAuditLog(actor, stage?.isLost ? "archive_deal" : "update_deal", "deal", id, {
     title: body.title !== undefined ? body.title : undefined,
     value: body.value !== undefined ? body.value : undefined,
     receivedAmount: body.receivedAmount !== undefined ? body.receivedAmount : undefined,
@@ -107,7 +111,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     ownerId: body.ownerId !== undefined ? body.ownerId : undefined,
     lossReason: body.lossReason !== undefined ? body.lossReason : undefined,
   });
-  return NextResponse.json({ ...result, paymentReceivedAt: getDealPaymentDate(id), economics: getDealEconomics(id) });
+  return NextResponse.json({ ...result, paymentReceivedAt: getDealPaymentDate(id), economics: getDealEconomics(id), archived: Boolean(stage?.isLost) });
 }
 
 export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
