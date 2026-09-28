@@ -15,22 +15,24 @@ jobs:
         with:
           ssh-private-key: ${{ secrets.DEPLOY_SSH_KEY }}
       - run: ssh-keyscan -H 194.226.97.103 >> ~/.ssh/known_hosts
-      - name: Disk usage
+      - name: Inspect remaining disk usage
         run: |
           ssh root@194.226.97.103 'bash -se' <<'REMOTE'
           set -u
           echo '=== df -h ==='
-          df -h
+          df -h /
           echo '=== root directories ==='
           du -xhd1 / 2>/dev/null | sort -h
-          echo '=== /var ==='
-          du -xhd1 /var 2>/dev/null | sort -h
-          echo '=== /var/www ==='
-          du -xhd2 /var/www 2>/dev/null | sort -h | tail -40
+          echo '=== /root ==='
+          du -xhd2 /root 2>/dev/null | sort -h | tail -40
+          echo '=== /var/log ==='
+          du -xhd2 /var/log 2>/dev/null | sort -h | tail -40
+          echo '=== /var/www/satori ==='
+          du -xhd2 /var/www/satori 2>/dev/null | sort -h | tail -40
           echo '=== /var/lib ==='
-          du -xhd1 /var/lib 2>/dev/null | sort -h | tail -30
+          du -xhd2 /var/lib 2>/dev/null | sort -h | tail -50
           echo '=== /opt ==='
-          du -xhd2 /opt 2>/dev/null | sort -h | tail -30
+          du -xhd2 /opt 2>/dev/null | sort -h | tail -40
           echo '=== Docker ==='
           docker system df 2>/dev/null || true
           REMOTE
