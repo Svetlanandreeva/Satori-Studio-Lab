@@ -139,7 +139,7 @@ export async function DELETE(request: NextRequest) {
   if (stage.isWon || stage.isLost || PROTECTED_STAGE_NAMES.has(stage.name)) return NextResponse.json({ error: "Системный этап нельзя удалить" }, { status: 400 });
   const hasDeals = Boolean(db.select({ id: deals.id }).from(deals).where(eq(deals.stageId, stage.id)).get());
   if (hasDeals) return NextResponse.json({ error: "Сначала перенесите сделки с этого этапа" }, { status: 409 });
-  const usedInHistory = Boolean(db.select({ id: dealStageHistory.id }).from(dealStageHistory).all().find(row => row.fromStageId === stage.id || row.toStageId === stage.id));
+  const usedInHistory = Boolean(db.select({ id: dealStageHistory.id, fromStageId: dealStageHistory.fromStageId, toStageId: dealStageHistory.toStageId }).from(dealStageHistory).all().find(row => row.fromStageId === stage.id || row.toStageId === stage.id));
   if (usedInHistory) return NextResponse.json({ error: "Этап уже использовался в истории сделок. Его можно переименовать, но нельзя удалить." }, { status: 409 });
   db.delete(pipelineStages).where(eq(pipelineStages.id, stage.id)).run();
   normalizeVisibleOrders();
