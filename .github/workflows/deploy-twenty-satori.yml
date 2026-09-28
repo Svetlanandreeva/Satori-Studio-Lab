@@ -1,0 +1,142 @@
+name: Deploy Twenty CRM to Satori VPS
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - '.github/workflows/deploy-twenty-satori.yml'
+      - 'packages/twenty-docker/docker-compose.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-twenty-satori
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Load SSH key
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.DEPLOY_SSH_KEY }}
+
+      - name: Trust Satori VPS
+        run: ssh-keyscan -H 194.226.97.103 >> ~/.ssh/known_hosts
+
+      - name: Upload official Twenty Docker Compose file
+        run: |
+          scp packages/twenty-docker/docker-compose.yml root@194.226.97.103:/tmp/satori-twenty-compose.yml
+
+      - name: Install and start Twenty
+        run: |
+          ssh root@194.226.97.103 'bash -se' <<'REMOTE'
+          set -euo pipefail
+
+          if ! command -v docker >/dev/null 2>&1; then
+            curl -fsSL https://get.docker.com | sh
+          fi
+          systemctl enable --now docker
+
+          if ! docker compose version >/dev/null 2>&1; then
+            apt-get update
+            apt-get install -y docker-compose-plugin || apt-get install -y docker-compose-v2
+          fi
+
+          install -d -m 0750 /opt/satori-twenty
+          cp /tmp/satori-twenty-compose.yml /opt/satori-twenty/docker-compose.yml
+
+          # Bind Twenty only to localhost; Nginx remains the public TLS entry point.
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path('/opt/satori-twenty/docker-compose.yml')
+          s = p.read_text()
+          s = s.replace('"3000:3000"', '"127.0.0.1:3030:3000"')
+          p.write_text(s)
+          PY
+
+          cd /opt/satori-twenty
+          if [ ! -f .env ]; then
+            umask 077
+            PG_PASSWORD="$(openssl rand -hex 24)"
+            ENCRYPTION_KEY="$(openssl rand -base64 32 | tr -d '\n')"
+            APP_SECRET="$(openssl rand -base64 32 | tr -d '\n')"
+            cat > .env <<EOF
+          TAG=latest
+          PG_DATABASE_USER=postgres
+          PG_DATABASE_PASSWORD=${PG_PASSWORD}
+          PG_DATABASE_HOST=db
+          PG_DATABASE_PORT=5432
+          PG_DATABASE_NAME=default
+          REDIS_URL=redis://redis:6379
+          SERVER_URL=https://crm.satorilabural.online
+          STORAGE_TYPE=local
+          ENCRYPTION_KEY=${ENCRYPTION_KEY}
+          APP_SECRET=${APP_SECRET}
+          EOF
+          fi
+
+          docker compose pull
+          docker compose up -d --remove-orphans
+
+          ok=0
+          for i in $(seq 1 120); do
+            if curl -fsS http://127.0.0.1:3030/healthz >/dev/null 2>&1; then
+              ok=1
+              break
+            fi
+            sleep 5
+          done
+          if [ "$ok" != 1 ]; then
+            echo 'Twenty did not become healthy in time' >&2
+            docker compose ps >&2 || true
+            docker compose logs --tail=250 server worker >&2 || true
+            exit 1
+          fi
+
+          echo 'Twenty is healthy on localhost:3030'
+          REMOTE
+
+      - name: Switch crm.satorilabural.online to Twenty
+        run: |
+          ssh root@194.226.97.103 'bash -se' <<'REMOTE'
+          set -euo pipefail
+
+          cfg_link=$(grep -RIl 'crm\.satorilabural\.online' /etc/nginx/sites-enabled 2>/dev/null | head -1 || true)
+          if [ -z "$cfg_link" ]; then
+            echo 'Could not find enabled Nginx config for crm.satorilabural.online' >&2
+            exit 1
+          fi
+          cfg=$(readlink -f "$cfg_link")
+          cp -a "$cfg" "${cfg}.before-twenty-$(date +%Y%m%d-%H%M%S)"
+
+          CFG="$cfg" python3 - <<'PY'
+          import os, re
+          from pathlib import Path
+          p = Path(os.environ['CFG'])
+          s = p.read_text()
+          s, n = re.subn(r'proxy_pass\s+http://(?:127\.0\.0\.1|localhost):(?:3010|3020|3030)\s*;',
+                         'proxy_pass http://127.0.0.1:3030;', s)
+          if n == 0 and '127.0.0.1:3030' not in s:
+              raise SystemExit('CRM proxy_pass was not found')
+          # Twenty has its own authentication; remove the temporary Nginx Basic Auth gate.
+          s = re.sub(r'^\s*auth_basic\s+[^;]+;\s*\n?', '', s, flags=re.M)
+          s = re.sub(r'^\s*auth_basic_user_file\s+[^;]+;\s*\n?', '', s, flags=re.M)
+          p.write_text(s)
+          PY
+
+          nginx -t
+          systemctl reload nginx
+
+          code=$(curl -sS -o /tmp/twenty-public.html -w '%{http_code}' -L --max-redirs 5 https://crm.satorilabural.online/)
+          case "$code" in
+            200|201|202|204) ;;
+            *) echo "Unexpected public HTTP status: $code" >&2; head -c 1000 /tmp/twenty-public.html >&2 || true; exit 1 ;;
+          esac
+          curl -fsS http://127.0.0.1:3030/healthz >/dev/null
+          echo 'Public Twenty deployment is live at https://crm.satorilabural.online/'
+          REMOTE
