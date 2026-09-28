@@ -9,6 +9,7 @@ import {
   taxBaseForPaymentMonth,
 } from "@/lib/economics";
 import { calculateFinancialsFromDirectCost, MANAGER_COMMISSION_RATE } from "@/lib/deal-financials";
+import { isManagerDeal } from "@/lib/deal-manager";
 import { getDealProcurementSummary, listDealPurchases } from "@/lib/procurement";
 
 export const dynamic = "force-dynamic";
@@ -38,6 +39,7 @@ function withManagerCommission<T extends {
   const baseProductionCost = Number(row.productionCost || 0);
   const directCostBeforeProcurement = Number(row.totalCost || 0);
   const directCost = directCostBeforeProcurement + procurementCost;
+  const managed = isManagerDeal(row.dealId);
   return {
     ...row,
     baseProductionCost,
@@ -46,7 +48,13 @@ function withManagerCommission<T extends {
     plannedProcurementCost: procurement.plannedTotal,
     procurementVariance: procurement.variance,
     purchases: listDealPurchases(row.dealId),
-    ...calculateFinancialsFromDirectCost(row.receivedAmount, directCost, row.dealValue || 0),
+    ...calculateFinancialsFromDirectCost(
+      row.receivedAmount,
+      directCost,
+      row.dealValue || 0,
+      managed,
+      MANAGER_COMMISSION_RATE
+    ),
   };
 }
 
