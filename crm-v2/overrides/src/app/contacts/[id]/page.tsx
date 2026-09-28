@@ -3,6 +3,7 @@ import { contacts, deals, activities, pipelineStages } from "@/db/schema";
 import { eq, desc } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import { ContactDetailClient } from "@/components/contacts/ContactDetail";
+import { ContactResponsible } from "@/components/contacts/ContactResponsible";
 import { ContactIntelligencePanel } from "@/components/contacts/ContactIntelligencePanel";
 import { listClientDocuments } from "@/lib/client-documents";
 import { getDealEconomics } from "@/lib/economics";
@@ -53,9 +54,6 @@ export default async function ContactDetailPage({ params }: { params: Promise<{ 
     const project = projectMap.get(deal.id) || null;
     const economics = (getDealEconomics(deal.id) || {}) as Record<string, unknown>;
     const calculated = calculateDealFinancials({ ...economics, dealValue: deal.value });
-
-    // Проект уже возвращает канонические производные показатели. Карточка клиента
-    // должна показывать ровно те же цифры, а не пересчитывать прибыль по своей формуле.
     const finance = project
       ? {
           receivedAmount: Number(project.receivedAmount ?? calculated.receivedAmount),
@@ -69,7 +67,6 @@ export default async function ContactDetailPage({ params }: { params: Promise<{ 
           unpaid: Number(project.unpaid ?? calculated.unpaid),
         }
       : calculated;
-
     return { ...deal, ...finance, project };
   });
 
@@ -79,7 +76,8 @@ export default async function ContactDetailPage({ params }: { params: Promise<{ 
   } catch {}
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
+      <ContactResponsible contactId={id} />
       <ContactDetailClient
         contact={contact as never}
         deals={enrichedDeals as never}
