@@ -1,5 +1,0 @@
-/* Public storefront must never advertise the admin panel entry.
-   The owner-only footer link is injected only when an admin token is present. */
-.satori-admin-top-link {
-  display: none !important;
-}

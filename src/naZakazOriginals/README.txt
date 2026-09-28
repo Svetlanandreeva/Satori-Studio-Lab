@@ -1,1 +1,0 @@
-original lighting photos split into base64 text chunks; generated from user-provided originals at their original resolution
