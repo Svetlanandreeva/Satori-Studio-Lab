@@ -8,6 +8,7 @@ import { getRequestActor } from "@/lib/request-actor";
 import { lockDealFields } from "@/lib/deal-overrides";
 import { getDealEconomics, saveDealEconomics } from "@/lib/economics";
 import { deleteDealsCascade } from "@/lib/safe-delete";
+import { getDealSchedule, saveDealSchedule } from "@/lib/deal-schedule";
 
 export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
@@ -22,7 +23,7 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     .leftJoin(teamMembers, eq(deals.ownerId, teamMembers.id))
     .where(eq(deals.id, id)).get();
   if (!deal) return NextResponse.json({ error: "Сделка не найдена" }, { status: 404 });
-  return NextResponse.json({ ...deal, economics: getDealEconomics(id) });
+  return NextResponse.json({ ...deal, economics: getDealEconomics(id), schedule: getDealSchedule(id) });
 }
 
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
@@ -60,6 +61,11 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     if (stage.isLost && !reason) return NextResponse.json({ error: "Для отказа укажите причину" }, { status: 400 });
     updateData.stageId = stage.id;
     updateData.lossReason = stage.isLost ? reason : null;
+  }
+
+  if (body.paidAt !== undefined || body.termDays !== undefined) {
+    try { saveDealSchedule(id, { paidAt: body.paidAt, termDays: body.termDays }); }
+    catch (error) { return NextResponse.json({ error: error instanceof Error ? error.message : "Некорректные сроки" }, { status: 400 }); }
   }
 
   const result = db.update(deals).set(updateData).where(eq(deals.id, id)).returning().get();
@@ -104,8 +110,10 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
     stageId: body.stageId !== undefined ? body.stageId : undefined,
     ownerId: body.ownerId !== undefined ? body.ownerId : undefined,
     lossReason: body.lossReason !== undefined ? body.lossReason : undefined,
+    paidAt: body.paidAt !== undefined ? body.paidAt : undefined,
+    termDays: body.termDays !== undefined ? body.termDays : undefined,
   });
-  return NextResponse.json({ ...result, economics: getDealEconomics(id) });
+  return NextResponse.json({ ...result, economics: getDealEconomics(id), schedule: getDealSchedule(id) });
 }
 
 export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {

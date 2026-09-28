@@ -3,6 +3,7 @@ import { pipelineStages, deals, contacts, teamMembers } from "@/db/schema";
 import { eq, asc } from "drizzle-orm";
 import { KanbanBoard } from "@/components/pipeline/KanbanBoard";
 import { NewDealButton } from "@/components/deals/DealActions";
+import { getDealSchedules } from "@/lib/deal-schedule";
 import { SPAM_STAGE_NAME } from "@/lib/lead-qualification";
 import type { PipelineColumn } from "@/types";
 
@@ -37,9 +38,11 @@ export default function PipelinePage() {
     .all()
     .filter((deal) => visibleStageIds.has(deal.stageId));
 
+  const schedules = getDealSchedules(allDeals.map((deal) => deal.id));
+  const withDates = allDeals.map((deal) => ({ ...deal, deadline: schedules.get(deal.id)?.deadline || null, shippedAt: schedules.get(deal.id)?.shippedAt || null }));
   const columns: PipelineColumn[] = stages.map((stage) => ({
     ...stage,
-    deals: allDeals.filter((deal) => deal.stageId === stage.id) as PipelineColumn["deals"],
+    deals: withDates.filter((deal) => deal.stageId === stage.id) as PipelineColumn["deals"],
   }));
 
   const total = allDeals.filter((deal) => { const st = stages.find((x) => x.id === deal.stageId); return st && !st.isWon && !st.isLost; });

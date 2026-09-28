@@ -146,12 +146,14 @@ export function seedStoreOrderPaymentDate(dealId: string, paymentTimestamp: unkn
   if (!paidAt) return null;
   const now = Date.now();
   const existing = sqlite.prepare(`
-    SELECT ordered_at AS orderedAt
+    SELECT ordered_at AS orderedAt, production_term_days AS termDays
     FROM project_details WHERE deal_id = ?
-  `).get(dealId) as { orderedAt: string | null } | undefined;
+  `).get(dealId) as { orderedAt: string | null; termDays: number | null } | undefined;
 
   const orderedAt = existing?.orderedAt || paidAt;
-  const deadline = addCalendarDays(orderedAt, STORE_PRODUCTION_TERM_DAYS);
+  // Не затираем срок, который поставили вручную в карточке сделки.
+  const termDays = existing?.termDays ? Number(existing.termDays) : STORE_PRODUCTION_TERM_DAYS;
+  const deadline = addCalendarDays(orderedAt, termDays);
 
   if (!existing) {
     sqlite.prepare(`
@@ -167,7 +169,7 @@ export function seedStoreOrderPaymentDate(dealId: string, paymentTimestamp: unkn
     UPDATE project_details
     SET ordered_at = ?, production_term_days = ?, contract_deadline = ?, updated_at = ?
     WHERE deal_id = ?
-  `).run(orderedAt, STORE_PRODUCTION_TERM_DAYS, deadline, now, dealId);
+  `).run(orderedAt, termDays, deadline, now, dealId);
   return orderedAt;
 }
 
@@ -309,12 +311,13 @@ export function listProjects() {
     const dealNotes = String(row.dealNotes || "");
     const isStoreOrder = Boolean(storeOrderIdFromNotes(dealNotes));
     const orderedAt = row.orderedAt ? String(row.orderedAt) : null;
-    const productionTermDays = isStoreOrder
-      ? STORE_PRODUCTION_TERM_DAYS
-      : (row.productionTermDays ? Number(row.productionTermDays) : null);
+    // Срок, указанный вручную в карточке сделки, важнее стандартных 7 дней магазина.
+    const productionTermDays = row.productionTermDays
+      ? Number(row.productionTermDays)
+      : (isStoreOrder ? STORE_PRODUCTION_TERM_DAYS : null);
     const storedDeadline = row.contractDeadline ? String(row.contractDeadline) : null;
-    const contractDeadline = isStoreOrder && orderedAt
-      ? addCalendarDays(orderedAt, STORE_PRODUCTION_TERM_DAYS)
+    const contractDeadline = orderedAt && productionTermDays
+      ? addCalendarDays(orderedAt, productionTermDays)
       : storedDeadline;
     const shippedAt = row.shippedAt ? String(row.shippedAt) : null;
     const deliveredAt = row.deliveredAt ? String(row.deliveredAt) : null;

@@ -18,6 +18,9 @@ interface Deal {
   contactQualification: string | null;
   probability: number;
   ownerName?: string | null;
+  deadline?: string | null;
+  shippedAt?: string | null;
+  isWon?: boolean;
 }
 
 interface KanbanColumnProps {
@@ -36,7 +39,7 @@ export function KanbanColumn({ id, name, color, isLost, deals }: KanbanColumnPro
   return (
     <div
       ref={setNodeRef}
-      className={`flex max-h-full w-[272px] min-w-[272px] flex-col rounded-2xl border border-transparent bg-slate-100/80 transition-colors dark:bg-white/[.03] ${isOver ? "border-violet-300 bg-violet-50/70 dark:bg-violet-500/10" : ""}`}
+      className={`flex max-h-full w-[248px] min-w-[248px] flex-col rounded-2xl border border-transparent bg-slate-100/80 transition-colors dark:bg-white/[.03] ${isOver ? "border-violet-300 bg-violet-50/70 dark:bg-violet-500/10" : ""}`}
     >
       <div className="flex items-center gap-2 px-3 pb-1 pt-3">
         <span className="h-2.5 w-2.5 shrink-0 rounded-full" style={{ backgroundColor: color }} />

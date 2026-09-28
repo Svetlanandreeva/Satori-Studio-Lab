@@ -145,6 +145,7 @@ export function KanbanBoard({ initialColumns }: KanbanBoardProps) {
             contactTemperature: deal.contactTemperature || deal.contact?.temperature || null,
             contactQualification: deal.contactQualification || deal.contact?.qualification || "new",
             probability: deal.probability, ownerName: deal.ownerName || null,
+            deadline: deal.deadline || null, shippedAt: deal.shippedAt || null, isWon: Boolean((column as any).isWon),
           })) as any} />)}
         </div>
         <DragOverlay>{activeDeal ? <DealCard id={activeDeal.id} title={activeDeal.title} value={activeDeal.value} contactId={activeDeal.contactId} contactName={(activeDeal as any).contactName || (activeDeal as any).contact?.name || null} contactTemperature={(activeDeal as any).contactTemperature || (activeDeal as any).contact?.temperature || null} contactQualification={(activeDeal as any).contactQualification || (activeDeal as any).contact?.qualification || "new"} probability={activeDeal.probability} ownerName={(activeDeal as any).ownerName || null} readOnly /> : null}</DragOverlay>

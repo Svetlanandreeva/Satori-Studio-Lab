@@ -1,14 +1,14 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { eq } from "drizzle-orm";
-import { ArrowLeft, Boxes, Clock3, ExternalLink, UserRound, WalletCards } from "lucide-react";
+import { ArrowLeft, Boxes, Clock3 } from "lucide-react";
 import { db } from "@/db";
 import { contacts, deals, pipelineStages, teamMembers } from "@/db/schema";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { DealOperationsPanel } from "@/components/deals/DealOperationsPanel";
-import { DealManualEditor } from "@/components/deals/DealManualEditor";
+import { DealStageBar } from "@/components/deals/DealStageBar";
+import { DealMoneyDates } from "@/components/deals/DealMoneyDates";
+import { getDealSchedule } from "@/lib/deal-schedule";
 import { DealConversation } from "@/components/deals/DealConversation";
 import { DealHeaderActions } from "@/components/deals/DealActions";
 import { getDealEconomics } from "@/lib/economics";
@@ -23,17 +23,8 @@ export const dynamic = "force-dynamic";
 function money(value: number) {
   return new Intl.NumberFormat("ru-RU", { style: "currency", currency: "RUB", maximumFractionDigits: 0 }).format((Number(value) || 0) / 100);
 }
-function signedMoney(value: number) {
-  const amount = Number(value) || 0;
-  return `${amount > 0 ? "+" : ""}${money(amount)}`;
-}
 function date(value: number | Date) {
   return new Intl.DateTimeFormat("ru-RU", { dateStyle: "medium", timeStyle: "short" }).format(value instanceof Date ? value : new Date(value));
-}
-function calendarDate(value: string | null) {
-  if (!value) return "—";
-  const [year, month, day] = value.split("-").map(Number);
-  return year && month && day ? new Intl.DateTimeFormat("ru-RU").format(new Date(year, month - 1, day)) : value;
 }
 function purchaseStatus(status: string) {
   if (status === "ordered") return { label: "Заказано", className: "border-amber-200 bg-amber-50 text-amber-700" };
@@ -64,7 +55,6 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
     .where(eq(deals.id, id)).get();
   if (!deal) notFound();
 
-  const stageOptions = db.select({ id: pipelineStages.id, name: pipelineStages.name, isLost: pipelineStages.isLost }).from(pipelineStages).orderBy(pipelineStages.order).all();
   const economics = calculateDealFinancials({ ...(getDealEconomics(id) || {}), dealId: id, dealValue: deal.value });
   const procurement = listDealPurchases(id);
   const procurementSummary = getDealProcurementSummary(id);
@@ -74,93 +64,84 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
   const ai = getDealAiSummary(deal.id);
   const economicsRaw = (getDealEconomics(deal.id) || { receivedAmount: 0 }) as { receivedAmount: number };
 
+  const stageList = db.select().from(pipelineStages).orderBy(pipelineStages.order).all()
+    .filter((st) => !/песочниц|спам/i.test(st.name))
+    .map((st) => ({ id: st.id, name: st.name, color: st.color, isWon: Boolean(st.isWon), isLost: Boolean(st.isLost) }));
+  const schedule = getDealSchedule(deal.id);
+
   return (
-    <div className="mx-auto max-w-[1280px] space-y-5 pb-10">
-      <div className="flex flex-wrap items-center gap-3">
-        <Link href="/deals"><Button variant="ghost" size="icon" className="rounded-xl" aria-label="Назад к сделкам"><ArrowLeft className="h-5 w-5" /></Button></Link>
+    <div className="mx-auto max-w-[1320px] space-y-4 pb-10">
+      <div className="flex flex-wrap items-start gap-3">
+        <Link href="/deals"><Button variant="ghost" size="icon" className="mt-0.5 rounded-xl" aria-label="Назад к сделкам"><ArrowLeft className="h-5 w-5" /></Button></Link>
         <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2">
-            <h1 className="truncate text-2xl font-semibold tracking-tight text-slate-950">{deal.title}</h1>
-            <Badge variant="outline" style={{ borderColor: deal.stageColor || undefined }}>{deal.stageName || "Без этапа"}</Badge>
-            {deal.isLost && <Badge variant="outline" className="border-rose-200 bg-rose-50 text-rose-700">Отказ</Badge>}
-            {deal.isWon && <Badge variant="outline" className="border-emerald-200 bg-emerald-50 text-emerald-700">Завершено</Badge>}
-          </div>
+          <h1 className="text-2xl font-semibold tracking-tight text-slate-950 dark:text-white">{deal.title}</h1>
           <div className="mt-1 text-sm text-slate-500">
-            {deal.contactId ? <Link href={`/contacts/${deal.contactId}`} className="hover:text-slate-900 hover:underline">{deal.contactName || "Клиент"}</Link> : "Без клиента"}
+            {deal.contactId ? <Link href={`/contacts/${deal.contactId}`} className="font-medium text-slate-700 hover:underline dark:text-slate-300">{deal.contactName || "Клиент"}</Link> : "Без клиента"}
             {deal.company ? ` · ${deal.company}` : ""} · создана {date(deal.createdAt)}
           </div>
         </div>
         <DealHeaderActions deal={{ id: deal.id, title: deal.title, value: deal.value, stageId: deal.stageId, contactId: deal.contactId, contactName: deal.contactName, notes: deal.notes }} />
       </div>
 
-      <DealManualEditor dealId={deal.id} value={deal.value} stageId={deal.stageId} stages={stageOptions} lossReason={deal.lossReason}/>
+      <DealStageBar dealId={deal.id} stageId={deal.stageId} stages={stageList} />
+      {deal.isLost && deal.lossReason && <div className="rounded-xl bg-rose-50 px-4 py-2.5 text-sm text-rose-700">Причина отказа: {deal.lossReason}</div>}
 
-      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Metric label="Сумма сделки" value={money(deal.value)} />
-        <Metric label={`Получено${deal.value ? ` · ${Math.min(100, Math.round(economicsRaw.receivedAmount / deal.value * 100))}%` : ""}`} value={money(economics.receivedAmount)} />
-        <Metric label="Закупки (факт / план)" value={`${money(procurementSummary.actualTotal)} / ${money(procurementSummary.plannedTotal)}`} tone={procurementSummary.variance > 0 ? "text-rose-600" : undefined} />
-        <Metric label={`Прибыль${economics.receivedAmount ? ` · маржа ${economics.margin.toFixed(0)}%` : ""}`} value={money(economics.profit)} />
-      </div>
-
-      <div className="grid gap-5 xl:grid-cols-[minmax(0,.82fr)_minmax(420px,1.18fr)]">
+      <div className="grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(360px,1fr)]">
         <div className="space-y-4">
-          <Card className="rounded-[24px] border-slate-200/80 shadow-sm">
-            <CardHeader><CardTitle className="text-base">Файлы и КП</CardTitle></CardHeader>
-            <CardContent>
-              {!documents.length ? <div className="text-sm text-slate-400">Файлов пока нет.</div> : <div className="space-y-2">{documents.slice(0, 8).map((d: any) => <a key={d.id} href={`/api/contacts/${deal.contactId}/documents/${d.id}`} target="_blank" className="block rounded-xl border bg-slate-50 px-3 py-2 text-sm hover:bg-white"><div className="font-medium text-slate-800">{d.name}</div><div className="text-[11px] text-slate-400">{d.kind}</div></a>)}</div>}
-            </CardContent>
-          </Card>
+          <DealMoneyDates
+            dealId={deal.id}
+            value={deal.value}
+            received={economicsRaw.receivedAmount}
+            schedule={{ paidAt: schedule.paidAt, termDays: schedule.termDays, deadline: schedule.deadline, shippedAt: schedule.shippedAt }}
+            ownerId={deal.ownerId || null}
+            members={members}
+            costs={{ procurement: procurementSummary.actualTotal, profit: economics.profit }}
+          />
 
-          <Card className="rounded-[24px] border-slate-200/80 shadow-sm">
-            <CardHeader><CardTitle className="text-base">Описание от AI</CardTitle></CardHeader>
-            <CardContent>
-              <div className="whitespace-pre-wrap text-sm leading-6 text-slate-600">{ai?.summary || "AI ещё не сформировал краткий срез именно по этой сделке."}</div>
-              {ai?.updatedAt && <div className="mt-3 text-[11px] text-slate-400">Обновлено: {date(Number(ai.updatedAt))}</div>}
-            </CardContent>
-          </Card>
-        </div>
-        {deal.contactId ? <DealConversation contactId={deal.contactId} threadId={ai?.sourceThreadId || null}/> : <div className="rounded-[24px] border bg-white p-8 text-sm text-slate-400">К сделке не привязан клиент.</div>}
-      </div>
+          {procurement.length > 0 && (
+            <section className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm dark:border-white/[.08] dark:bg-[#16181d]">
+              <div className="mb-3 flex items-center justify-between"><h2 className="flex items-center gap-2 text-sm font-semibold"><Boxes className="h-4 w-4 text-slate-400" />Закупки</h2><Link href="/procurement" className="text-xs text-slate-500 hover:text-slate-900">Управлять →</Link></div>
+              <div className="divide-y divide-slate-100 text-sm dark:divide-white/[.06]">
+                {procurement.map((item) => { const meta = purchaseStatus(item.status); return (
+                  <div key={item.id} className="flex items-center gap-3 py-2">
+                    <div className="min-w-0 flex-1 truncate text-slate-800 dark:text-slate-200">{item.name} <span className="text-slate-400">· {item.quantity} {item.unit}</span></div>
+                    <Badge variant="outline" className={meta.className}>{meta.label}</Badge>
+                    <div className="w-24 text-right font-medium tabular-nums">{money(item.totalCost || item.plannedTotalCost)}</div>
+                  </div>); })}
+              </div>
+            </section>
+          )}
 
-      <Card className="rounded-[24px] border-slate-200/80 shadow-sm">
-        <CardHeader><CardTitle className="flex items-center gap-2 text-base"><UserRound className="h-4 w-4" />Ответственный и результат</CardTitle></CardHeader>
-        <CardContent><DealOperationsPanel dealId={deal.id} ownerId={deal.ownerId || null} lossReason={deal.lossReason || null} members={members} /></CardContent>
-      </Card>
+          {documents.length > 0 && (
+            <section className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm dark:border-white/[.08] dark:bg-[#16181d]">
+              <h2 className="mb-3 text-sm font-semibold">Файлы и КП</h2>
+              <div className="flex flex-wrap gap-2">{documents.slice(0, 12).map((d: any) => <a key={d.id} href={`/api/contacts/${deal.contactId}/documents/${d.id}`} target="_blank" className="rounded-lg border bg-slate-50 px-3 py-1.5 text-[13px] text-slate-700 hover:bg-white">{d.name}</a>)}</div>
+            </section>
+          )}
 
-      <Card className="rounded-[24px] border-slate-200/80 shadow-sm">
-        <CardHeader><div className="flex flex-wrap items-center justify-between gap-3"><div><CardTitle className="flex items-center gap-2 text-base"><Boxes className="h-4 w-4" />Закупки и материалы</CardTitle><p className="mt-1 text-xs text-slate-400">Факт автоматически входит в прямые расходы и влияет на прибыль и маржу. План нужен для контроля бюджета.</p></div><Link href="/procurement"><Button variant="outline" size="sm">Управлять закупками</Button></Link></div></CardHeader>
-        <CardContent>
-          {!procurement.length ? <div className="rounded-2xl bg-slate-50 p-5 text-sm text-slate-500">Материалы пока не занесены. Добавь их в разделе «Закупки», чтобы себестоимость сделки считалась точно.</div> : <div className="overflow-x-auto"><table className="min-w-[980px] w-full text-sm"><thead className="text-left text-[11px] uppercase tracking-wide text-slate-400"><tr><th className="pb-2">Материал</th><th className="pb-2">Статус</th><th className="pb-2">Количество</th><th className="pb-2 text-right">План</th><th className="pb-2 text-right">Факт</th><th className="pb-2 text-right">Отклонение</th><th className="pb-2">Поставщик / дата</th></tr></thead><tbody className="divide-y divide-slate-100">{procurement.map((item) => { const meta = purchaseStatus(item.status); return <tr key={item.id}><td className="py-3 pr-3"><div className="font-medium text-slate-800">{item.name}</div>{item.notes && <div className="mt-0.5 max-w-[260px] truncate text-xs text-slate-400">{item.notes}</div>}{item.sourceUrl && <a href={item.sourceUrl} target="_blank" rel="noreferrer" className="mt-1 inline-flex items-center gap-1 text-xs text-slate-500 hover:text-slate-900"><ExternalLink className="h-3 w-3" />Товар / чек</a>}</td><td className="py-3 pr-3"><Badge variant="outline" className={meta.className}>{meta.label}</Badge></td><td className="py-3 pr-3 text-slate-500">{item.quantity} {item.unit}</td><td className="py-3 pr-3 text-right text-slate-500">{money(item.plannedTotalCost)}</td><td className="py-3 pr-3 text-right font-semibold text-slate-900">{money(item.totalCost)}</td><td className={`py-3 pr-3 text-right font-medium ${item.variance > 0 ? "text-rose-600" : item.variance < 0 ? "text-emerald-700" : "text-slate-500"}`}>{signedMoney(item.variance)}</td><td className="py-3 text-slate-500"><div>{item.supplier || "—"}</div><div className="mt-0.5 text-xs text-slate-400">{calendarDate(item.purchaseDate)}</div></td></tr>; })}</tbody><tfoot><tr className="border-t"><td colSpan={3} className="pt-4 text-sm font-medium text-slate-500">Закупки итого</td><td className="pt-4 text-right font-semibold text-slate-700">{money(procurementSummary.plannedTotal)}</td><td className="pt-4 text-right text-base font-semibold text-slate-950">{money(procurementSummary.actualTotal)}</td><td className={`pt-4 text-right font-semibold ${procurementSummary.variance > 0 ? "text-rose-600" : procurementSummary.variance < 0 ? "text-emerald-700" : "text-slate-500"}`}>{signedMoney(procurementSummary.variance)}</td><td /></tr></tfoot></table></div>}
-        </CardContent>
-      </Card>
-
-      <Card className="rounded-[24px] border-slate-200/80 shadow-sm">
-        <CardHeader><CardTitle className="flex items-center gap-2 text-base"><Clock3 className="h-4 w-4" />История движения по воронке</CardTitle></CardHeader>
-        <CardContent>
-          {!history.length ? <p className="text-sm text-slate-500">История пока пуста.</p> : (
-            <div className="space-y-0">
-              {history.map((item, index) => (
-                <div key={item.id} className="relative flex gap-4 pb-5 last:pb-0">
-                  {index < history.length - 1 && <div className="absolute left-[7px] top-4 h-[calc(100%-4px)] w-px bg-slate-200" />}
-                  <div className="relative mt-1.5 h-4 w-4 shrink-0 rounded-full border-4 border-white bg-slate-900 shadow-sm ring-1 ring-slate-200" />
-                  <div className="min-w-0 flex-1 rounded-2xl border border-slate-100 bg-slate-50/60 px-4 py-3">
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <div className="text-sm font-medium text-slate-900">{item.fromStage ? `${item.fromStage} → ` : ""}{item.toStage || "Этап"}</div>
-                      <div className="text-[11px] text-slate-400">{date(item.createdAt)}</div>
-                    </div>
-                    {item.reason && <div className="mt-1 text-xs text-slate-600">{item.reason}</div>}
-                    <div className="mt-1 text-[11px] text-slate-400">{item.changedByName ? `Изменил: ${item.changedByName}` : "Системное изменение"}</div>
-                  </div>
+          <details className="group rounded-2xl border border-slate-200/80 bg-white shadow-sm dark:border-white/[.08] dark:bg-[#16181d]">
+            <summary className="flex cursor-pointer list-none items-center gap-2 px-5 py-3.5 text-sm font-semibold"><Clock3 className="h-4 w-4 text-slate-400" />История этапов <span className="font-normal text-slate-400">{history.length}</span><span className="ml-auto text-xs font-normal text-slate-400 group-open:hidden">показать</span></summary>
+            <div className="space-y-2 px-5 pb-4">
+              {!history.length ? <p className="text-sm text-slate-500">История пока пуста.</p> : history.map((item) => (
+                <div key={item.id} className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5 border-t border-slate-100 pt-2 text-[13px] dark:border-white/[.06]">
+                  <span className="font-medium text-slate-800 dark:text-slate-200">{item.fromStage ? `${item.fromStage} → ` : ""}{item.toStage || "Этап"}</span>
+                  <span className="text-slate-400">{date(item.createdAt)}{item.changedByName ? ` · ${item.changedByName}` : ""}</span>
+                  {item.reason && <span className="w-full text-slate-500">{item.reason}</span>}
                 </div>
               ))}
             </div>
+          </details>
+
+          {ai?.summary && (
+            <details className="rounded-2xl border border-slate-200/80 bg-white shadow-sm dark:border-white/[.08] dark:bg-[#16181d]">
+              <summary className="cursor-pointer list-none px-5 py-3.5 text-sm font-semibold">Краткое описание от AI</summary>
+              <div className="whitespace-pre-wrap px-5 pb-4 text-sm leading-6 text-slate-600">{ai.summary}</div>
+            </details>
           )}
-        </CardContent>
-      </Card>
+        </div>
+
+        <div>{deal.contactId ? <DealConversation contactId={deal.contactId} threadId={ai?.sourceThreadId || null}/> : <div className="rounded-2xl border bg-white p-8 text-sm text-slate-400">К сделке не привязан клиент.</div>}</div>
+      </div>
     </div>
   );
-}
-
-function Metric({ label, value, tone = "text-slate-950" }: { label: string; value: string; tone?: string }) {
-  return <div className="rounded-2xl border border-slate-200/80 bg-white px-4 py-3 shadow-sm"><div className="flex items-center gap-2 text-[11px] text-slate-400"><WalletCards className="h-3.5 w-3.5 shrink-0" />{label}</div><div className={`mt-2 text-xl font-semibold tracking-tight ${tone}`}>{value}</div></div>;
 }

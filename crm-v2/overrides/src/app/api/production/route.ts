@@ -6,7 +6,10 @@ export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
-    return NextResponse.json({ projects: listProductionProjects() });
+    // В «Производстве» — только сделки на этапе «В производстве».
+    const inProduction = (name: unknown) => String(name || "").trim().toLowerCase().replace(/ё/g, "е") === "в производстве";
+    const projects = listProductionProjects().filter((project: Record<string, unknown>) => inProduction(project.stageName));
+    return NextResponse.json({ projects });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Не удалось загрузить производство" }, { status: 500 });
   }
