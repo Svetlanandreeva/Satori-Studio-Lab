@@ -1,0 +1,52 @@
+name: Replace CRM with Twenty
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.github/workflows/replace-with-twenty.yml'
+
+permissions:
+  contents: write
+
+jobs:
+  replace:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - name: Checkout current repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Fetch official Twenty CRM source
+        run: |
+          git clone --depth 1 https://github.com/twentyhq/twenty.git /tmp/twenty
+          rm -rf /tmp/twenty/.git
+
+      - name: Replace current CRM with Twenty
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          # Remove everything from the working tree except the current repository metadata.
+          find . -mindepth 1 -maxdepth 1 ! -name '.git' -exec rm -rf {} +
+
+          # Copy the official Twenty source tree, including dotfiles.
+          cp -a /tmp/twenty/. .
+
+          # Do not import upstream CI workflows during this one-time migration.
+          # They can be restored selectively later after Satori deployment is configured.
+          rm -rf .github/workflows
+          mkdir -p .github/workflows
+          cat > .github/workflows/README.md <<'EOF'
+          Twenty CRM source imported from https://github.com/twentyhq/twenty on 2026-09-28.
+          Upstream GitHub Actions workflows were intentionally omitted during the initial Satori migration.
+          EOF
+
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add -A
+          git commit -m "Replace Satori CRM with Twenty CRM"
+          git push origin HEAD:main
