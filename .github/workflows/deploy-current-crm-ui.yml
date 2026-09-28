@@ -37,6 +37,8 @@ jobs:
           grep -R -q 'Последние активности' dist/assets
           grep -R -q 'Список на обзвон' dist/assets
           grep -R -q 'Сводка по сделкам' dist/assets
+          grep -R -q 'Этапы воронки' dist/assets
+          grep -R -q 'Свернуть меню' dist/assets
 
       - uses: webfactory/ssh-agent@v0.9.0
         with:
@@ -66,6 +68,8 @@ jobs:
           grep -R -q 'Последние активности' dist/assets
           grep -R -q 'Список на обзвон' dist/assets
           grep -R -q 'Сводка по сделкам' dist/assets
+          grep -R -q 'Этапы воронки' dist/assets
+          grep -R -q 'Свернуть меню' dist/assets
 
           curl --fail --silent http://127.0.0.1:3020/api/deals >/tmp/crm-smoke-deals.json
           curl --fail --silent http://127.0.0.1:3020/api/contacts >/tmp/crm-smoke-contacts.json
@@ -73,6 +77,7 @@ jobs:
           curl --fail --silent http://127.0.0.1:3020/api/economics >/tmp/crm-smoke-economics.json
           curl --fail --silent 'http://127.0.0.1:3020/api/inbox?filter=client&search=' >/tmp/crm-smoke-inbox.json
           curl --fail --silent 'http://127.0.0.1:3020/api/messages/telegram?search=' >/tmp/crm-smoke-telegram.json
+          curl --fail --silent http://127.0.0.1:3020/api/pipeline >/tmp/crm-smoke-pipeline.json
 
           contact_id=$(/opt/node22/bin/node -e "const fs=require('fs');const v=JSON.parse(fs.readFileSync('/tmp/crm-smoke-contacts.json','utf8'));const rows=Array.isArray(v)?v:(Array.isArray(v.contacts)?v.contacts:[]);process.stdout.write(rows[0]?.id||'')")
           if [ -n "$contact_id" ]; then
@@ -88,13 +93,15 @@ jobs:
           const economics=JSON.parse(fs.readFileSync('/tmp/crm-smoke-economics.json','utf8'));
           const inbox=JSON.parse(fs.readFileSync('/tmp/crm-smoke-inbox.json','utf8'));
           const telegram=JSON.parse(fs.readFileSync('/tmp/crm-smoke-telegram.json','utf8'));
+          const pipeline=JSON.parse(fs.readFileSync('/tmp/crm-smoke-pipeline.json','utf8'));
           if(!Array.isArray(deals)) throw new Error('Deals API is not an array');
           if(!Array.isArray(contacts) && !Array.isArray(contacts.contacts)) throw new Error('Contacts API has unexpected shape');
           if(!Array.isArray(activities)) throw new Error('Activities API is not an array');
           if(!Array.isArray(economics.deals)) throw new Error('Economics API has unexpected shape');
           if(!Array.isArray(inbox.threads)) throw new Error('Inbox API has unexpected shape');
           if(!Array.isArray(telegram.threads)) throw new Error('Telegram API has unexpected shape');
-          console.log(`CRM smoke OK: ${deals.length} deals, ${Array.isArray(contacts)?contacts.length:contacts.contacts.length} contacts, ${activities.length} activities, ${economics.deals.length} economics rows, ${inbox.threads.length} email threads, ${telegram.threads.length} telegram threads`);
+          if(!Array.isArray(pipeline)) throw new Error('Pipeline API has unexpected shape');
+          console.log(`CRM smoke OK: ${deals.length} deals, ${Array.isArray(contacts)?contacts.length:contacts.contacts.length} contacts, ${activities.length} activities, ${economics.deals.length} economics rows, ${pipeline.length} stages, ${inbox.threads.length} email threads, ${telegram.threads.length} telegram threads`);
           NODE
           REMOTE
 
@@ -104,4 +111,4 @@ jobs:
           test "$code" = '200'
           echo "crm.crmsatori.ru/login -> $code"
 
-# redeploy CRM commit 19723a135d539c59c72ba31f6a133288e4055f11: payment totals only from current live deals
+# redeploy CRM commit 44eaf07a2c8e1024fe32302d5906b67a115d893e: show all deals, responsive workspace, collapsible sidebar and pipeline settings
