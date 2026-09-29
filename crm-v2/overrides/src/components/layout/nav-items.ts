@@ -28,3 +28,6 @@ export const SECONDARY_NAV: NavItem[] = [
 export function isActive(pathname: string, href: string) {
   return href === "/" ? pathname === "/" : pathname === href || pathname.startsWith(`${href}/`);
 }
+
+/** Разделы только для владельца — менеджер их не видит (proxy тоже не пускает). */
+export const OWNER_ONLY = ["/analytics", "/economics", "/procurement", "/control", "/settings", "/assistant"];

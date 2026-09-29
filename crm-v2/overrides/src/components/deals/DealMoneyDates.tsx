@@ -42,9 +42,11 @@ export function deadlineBadge(deadline: string | null, shippedAt: string | null)
 const toneClass = { red: "bg-rose-50 text-rose-700 ring-rose-200", amber: "bg-amber-50 text-amber-800 ring-amber-200", green: "bg-emerald-50 text-emerald-700 ring-emerald-200" };
 
 /** Главный блок карточки: деньги, дата оплаты (= старт работ), срок и дедлайн. */
-export function DealMoneyDates({ dealId, value, received, schedule, ownerId, members, costs }: {
+export function DealMoneyDates({ dealId, value, received, schedule, ownerId, members, costs, access = "full" }: {
   dealId: string; value: number; received: number; schedule: ScheduleView; ownerId: string | null; members: Member[];
   costs: { procurement: number; profit: number };
+  /** full — владелец; own — менеджер, своя сделка (без закупок и прибыли); none — сделка коллеги (сумм не видно). */
+  access?: "full" | "own" | "none";
 }) {
   const router = useRouter();
   const initial = useMemo(() => ({
@@ -68,7 +70,7 @@ export function DealMoneyDates({ dealId, value, received, schedule, ownerId, mem
     const t = Number(f.term) || 0;
     const res = await fetch(`/api/deals/${dealId}`, {
       method: "PUT", headers: { "Content-Type": "application/json" }, keepalive,
-      body: JSON.stringify({ value: toKop(f.value), receivedAmount: toKop(f.received), paidAt: f.paidAt || null, termDays: f.term ? t : null, ownerId: f.owner || null }),
+      body: JSON.stringify({ ...(access === "none" ? {} : { value: toKop(f.value), receivedAmount: toKop(f.received) }), paidAt: f.paidAt || null, termDays: f.term ? t : null, ownerId: f.owner || null }),
     });
     const data = await res.json().catch(() => null);
     if (!res.ok) throw new Error(data?.error || "ошибка сервера");
@@ -109,6 +111,9 @@ export function DealMoneyDates({ dealId, value, received, schedule, ownerId, mem
       </div>
 
       {/* Деньги */}
+      {access === "none" ? (
+        <div className="px-5 py-4 text-[13px] text-slate-500">Суммы по этой сделке видит ответственный. Сроки и этапы можно вести.</div>
+      ) : (
       <div className="grid gap-3 p-5 sm:grid-cols-[1fr_1fr_1.2fr] sm:items-end">
         <label className="text-[12px] text-slate-500">Сумма сделки, ₽
           <input inputMode="decimal" value={form.value} onChange={set("value")} placeholder="0" className={`${inputCls} mt-1`} />
@@ -116,11 +121,16 @@ export function DealMoneyDates({ dealId, value, received, schedule, ownerId, mem
         <label className="text-[12px] text-slate-500">Получено, ₽ <span className="text-slate-400">{paidPct ? `· ${paidPct}%` : ""}</span>
           <input inputMode="decimal" value={form.received} onChange={(e) => { const v = e.target.value; setForm((f) => ({ ...f, received: v, paidAt: f.paidAt || (toKop(v) > 0 ? today() : "") })); }} placeholder="0" className={`${inputCls} mt-1`} />
         </label>
-        <div className="flex items-end justify-between gap-3 rounded-xl bg-slate-50 px-3.5 py-2 text-[12px] dark:bg-white/[.04]">
-          <div><div className="text-slate-500">Закупки</div><div className="text-[14px] font-semibold tabular-nums">{money(costs.procurement)}</div></div>
-          <div className="text-right"><div className="text-slate-500">Прибыль</div><div className={`text-[14px] font-semibold tabular-nums ${profitTone}`}>{money(costs.profit)}</div></div>
-        </div>
+        {access === "full" ? (
+          <div className="flex items-end justify-between gap-3 rounded-xl bg-slate-50 px-3.5 py-2 text-[12px] dark:bg-white/[.04]">
+            <div><div className="text-slate-500">Закупки</div><div className="text-[14px] font-semibold tabular-nums">{money(costs.procurement)}</div></div>
+            <div className="text-right"><div className="text-slate-500">Прибыль</div><div className={`text-[14px] font-semibold tabular-nums ${profitTone}`}>{money(costs.profit)}</div></div>
+          </div>
+        ) : (
+          <div className="rounded-xl bg-slate-50 px-3.5 py-2 text-[12px] dark:bg-white/[.04]"><div className="text-slate-500">Осталось получить</div><div className="text-[14px] font-semibold tabular-nums">{money(Math.max(0, toKop(form.value) - toKop(form.received)))}</div></div>
+        )}
       </div>
+      )}
 
       <div className="flex flex-wrap items-center gap-3 border-t border-slate-100 px-5 py-2.5 dark:border-white/[.06]">
         <label className="flex items-center gap-2 text-[12px] text-slate-500">Ответственный

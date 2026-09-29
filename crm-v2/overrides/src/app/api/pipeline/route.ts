@@ -8,6 +8,7 @@ import { DELIVERY_STAGE_NAME, COMPLETED_STAGE_NAME, runCrmConsistencyRepair } fr
 import { startShipment, markShipmentDelivered } from "@/lib/shipment";
 import { annotateLatestStageHistory, writeAuditLog } from "@/lib/operations";
 import { getRequestActor } from "@/lib/request-actor";
+import { canSeeDealMoney } from "@/lib/access";
 import { deduplicateDeals } from "@/lib/deal-dedup";
 
 // Эти этапы использует синхронизация с магазином и почтой — их можно двигать и перекрашивать, но не переименовывать и не удалять.
@@ -42,7 +43,8 @@ function normalizeVisibleOrders() {
   });
 }
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const actor = getRequestActor(request);
   runCrmConsistencyRepair();
   migrateExistingSandboxContacts();
   const stages = visibleStages();
@@ -77,7 +79,7 @@ export async function GET() {
     .filter((deal) => deal.contactSource !== "need_number" || deal.contactQualification === "qualified")
     .map((deal) => {
       const stage = stageById.get(deal.stageId);
-      return { ...deal, stageIsWon: Boolean(stage?.isWon), stageIsLost: Boolean(stage?.isLost) };
+      return { ...deal, value: canSeeDealMoney(actor, deal.ownerId) ? deal.value : -1, stageIsWon: Boolean(stage?.isWon), stageIsLost: Boolean(stage?.isLost) };
     });
 
   const visibleDeals = deduplicateDeals(rawDeals);
@@ -184,7 +186,7 @@ export async function PUT(request: NextRequest) {
     if (targetStage.isLost && !lossReason) return NextResponse.json({ error: "Укажите причину отказа" }, { status: 400 });
 
     const actor = getRequestActor(request);
-    const result = db.update(deals).set({ stageId: targetStage.id, lossReason: targetStage.isLost ? lossReason : null, updatedAt: new Date() }).where(eq(deals.id, existing.id)).returning().get();
+    const result = db.update(deals).set({ stageId: targetStage.id, lossReason: targetStage.isLost ? lossReason : null, updatedAt: new Date(), ...(actor.role === "manager" && !existing.ownerId ? { ownerId: actor.id } : {}) }).where(eq(deals.id, existing.id)).returning().get();
     annotateLatestStageHistory(existing.id, { reason: targetStage.isLost ? lossReason : `Перевод в «${targetStage.name}»`, changedBy: actor.id });
     writeAuditLog(actor, "move_deal", "deal", existing.id, { fromStageId: existing.stageId, toStageId: targetStage.id, toStage: targetStage.name, lossReason: targetStage.isLost ? lossReason : null });
     markDealReachedCalculation(existing.id, targetStage.id);

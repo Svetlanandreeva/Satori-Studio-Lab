@@ -6,6 +6,7 @@ import { describeSchedule, todayYekaterinburg } from "@/lib/deal-schedule";
 import { rangeInquiries } from "@/lib/inquiries";
 import { PeriodPicker } from "@/components/dashboard/PeriodPicker";
 import { ScrollToToday } from "@/components/dashboard/ScrollToToday";
+import { isOwner, pageActor } from "@/lib/access";
 
 export const dynamic = "force-dynamic";
 
@@ -21,12 +22,14 @@ function daysBetween(a: string, b: string) { const out: string[] = []; for (let 
 const SOURCE: Record<string, string> = { telegram: "Telegram", telegram_account: "Telegram", email: "Почта", website: "Сайт", order: "Сайт", referral: "Рекомендации", instagram: "Instagram", ads: "Реклама" };
 
 type Stage = { id: string; name: string; color: string; order: number; isWon: number; isLost: number };
-type DealRow = { id: string; title: string; value: number; stageId: string; createdAt: unknown; updatedAt: unknown; contactName: string | null; source: string | null; qualification: string | null; notes: string | null };
+type DealRow = { id: string; title: string; value: number; ownerId: string | null; stageId: string; createdAt: unknown; updatedAt: unknown; contactName: string | null; source: string | null; qualification: string | null; notes: string | null };
 
 /** Сводка — главная: сколько пишут, что в работе, календарь сроков и воронка по этапам. */
 export default async function SummaryPage({ searchParams }: { searchParams?: Promise<{ m?: string; from?: string; to?: string }> }) {
   const params = (await searchParams) || {};
   const today = todayYekaterinburg();
+  const actor = await pageActor();
+  const owner = isOwner(actor);
   // Период: ?from=&to= (свой) или ?m=YYYY-MM (месяц), по умолчанию текущий месяц.
   const custom = isDay(params.from) && isDay(params.to) && String(params.from) <= String(params.to);
   const month = custom ? null : /^\d{4}-\d{2}$/.test(String(params.m || "")) ? String(params.m) : today.slice(0, 7);
@@ -46,7 +49,7 @@ export default async function SummaryPage({ searchParams }: { searchParams?: Pro
   const first = stages.find((s) => !s.isWon && !s.isLost);
 
   const junk = (q: unknown, src: unknown) => ["spam", "ignore", "unqualified", "contractor"].includes(String(q || "")) || (src === "need_number" && q !== "qualified");
-  const deals = (sqlite.prepare(`SELECT d.id, d.title, d.value, d.stage_id AS stageId, d.created_at AS createdAt, d.updated_at AS updatedAt, d.notes,
+  const deals = (sqlite.prepare(`SELECT d.id, d.title, d.value, d.owner_id AS ownerId, d.stage_id AS stageId, d.created_at AS createdAt, d.updated_at AS updatedAt, d.notes,
       c.name AS contactName, c.source, c.qualification FROM deals d LEFT JOIN contacts c ON c.id=d.contact_id`).all() as DealRow[])
     .filter((d) => stageById.has(d.stageId) && !junk(d.qualification, d.source));
 
@@ -140,8 +143,19 @@ export default async function SummaryPage({ searchParams }: { searchParams?: Pro
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Kpi label="Новых обращений" value={String(contacts.length)} hint={[...bySource].sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k} ${v}`).join(" · ") || "новых обращений нет"} />
         <Kpi label="Взято в работу" value={String(takenToWork)} hint={contacts.length ? `${Math.round((takenToWork / contacts.length) * 100)}% · не квал ${junkCount} · ждут ${waiting}` : "—"} />
-        <Kpi label="Сделок в работе" value={String(open.length)} hint={`на ${money(open.reduce((n, d) => n + (Number(d.value) || 0), 0))} · лидов ${leads.length}`} />
-        <Kpi label={month ? "Оплаты за месяц" : "Оплаты за период"} value={money(receivedThisMonth)} hint={`${paidThisMonth.length} ${plural(paidThisMonth.length, "заказ", "заказа", "заказов")} стартовали`} />
+        {owner ? (<>
+          <Kpi label="Сделок в работе" value={String(open.length)} hint={`на ${money(open.reduce((n, d) => n + (Number(d.value) || 0), 0))} · лидов ${leads.length}`} />
+          <Kpi label={month ? "Оплаты за месяц" : "Оплаты за период"} value={money(receivedThisMonth)} hint={`${paidThisMonth.length} ${plural(paidThisMonth.length, "заказ", "заказа", "заказов")} стартовали`} />
+        </>) : (() => {
+          // Менеджер видит только свои деньги: сделки, где он ответственный.
+          const mine = open.filter((d) => d.ownerId === actor.id);
+          const minePaid = paidThisMonth.filter((d) => d.ownerId === actor.id);
+          const mineReceived = minePaid.reduce((n, d) => n + (econ.get(d.id) || 0), 0);
+          return (<>
+            <Kpi label="Мои сделки в работе" value={String(mine.length)} hint={`на ${money(mine.reduce((n, d) => n + (Number(d.value) || 0), 0))} · всего в работе ${open.length}`} />
+            <Kpi label={month ? "Мои оплаты за месяц" : "Мои оплаты за период"} value={money(mineReceived)} hint={`${minePaid.length} ${plural(minePaid.length, "заказ", "заказа", "заказов")} оплатили`} />
+          </>);
+        })()}
       </div>
 
       {/* Воронка — одной строкой */}

@@ -3,12 +3,14 @@ import { db } from "@/db";
 import { contacts, deals, pipelineStages } from "@/db/schema";
 import { DealsTable, type DealRow } from "@/components/deals/DealsTable";
 import { SPAM_STAGE_NAME } from "@/lib/lead-qualification";
+import { canSeeDealMoney, pageActor } from "@/lib/access";
 
 export const dynamic = "force-dynamic";
 
 export default async function DealsPage() {
+  const actor = await pageActor();
   const rows = db.select({
-    id: deals.id, title: deals.title, value: deals.value, createdAt: deals.createdAt, updatedAt: deals.updatedAt, notes: deals.notes,
+    id: deals.id, title: deals.title, value: deals.value, ownerId: deals.ownerId, createdAt: deals.createdAt, updatedAt: deals.updatedAt, notes: deals.notes,
     contactId: contacts.id, contactName: contacts.name, contactPhone: contacts.phone, contactSource: contacts.source, qualification: contacts.qualification,
     stageId: pipelineStages.id, stageName: pipelineStages.name, stageColor: pipelineStages.color, isLost: pipelineStages.isLost, isWon: pipelineStages.isWon,
   })
@@ -29,7 +31,7 @@ export default async function DealsPage() {
   // Первый этап («Новый запрос») — это лиды. Сделкой они становятся с «Расчёта».
   const firstStageId = stages.find((s) => !s.isWon && !s.isLost)?.id || null;
   const data: DealRow[] = rows.map((r) => ({
-    id: r.id, title: r.title, value: r.value,
+    id: r.id, title: r.title, value: canSeeDealMoney(actor, r.ownerId) ? r.value : -1,
     createdAt: new Date(r.createdAt).toISOString(), updatedAt: new Date(r.updatedAt).toISOString(),
     contactId: r.contactId, contactName: r.contactName, contactPhone: r.contactPhone,
     stageId: r.stageId, stageName: r.stageName, stageColor: r.stageColor, isWon: Boolean(r.isWon), isLost: Boolean(r.isLost),

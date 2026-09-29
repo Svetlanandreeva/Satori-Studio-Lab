@@ -7,6 +7,7 @@ import { deduplicateDeals, isDuplicateDealPair } from "@/lib/deal-dedup";
 import { SPAM_STAGE_NAME } from "@/lib/lead-qualification";
 import { deleteDealsCascade } from "@/lib/safe-delete";
 import { getRequestActor } from "@/lib/request-actor";
+import { canSeeDealMoney } from "@/lib/access";
 import { writeAuditLog } from "@/lib/operations";
 
 export async function GET(request: NextRequest) {
@@ -19,6 +20,7 @@ export async function GET(request: NextRequest) {
       id: deals.id,
       title: deals.title,
       value: deals.value,
+      ownerId: deals.ownerId,
       stageId: deals.stageId,
       contactId: deals.contactId,
       expectedClose: deals.expectedClose,
@@ -45,8 +47,10 @@ export async function GET(request: NextRequest) {
     .filter((deal) => includeSandbox || deal.stageName !== SPAM_STAGE_NAME)
     .filter((deal) => deal.contactSource !== "need_number" || deal.contactQualification === "qualified");
 
-  if (includeDuplicates) return NextResponse.json(rawResults);
-  return NextResponse.json(deduplicateDeals(rawResults));
+  const actor = getRequestActor(request);
+  const mask = <T extends { value: number; ownerId: string | null }>(l: T[]) => (actor.role === "owner" ? l : l.map((d) => (canSeeDealMoney(actor, d.ownerId) ? d : { ...d, value: -1 })));
+  if (includeDuplicates) return NextResponse.json(mask(rawResults));
+  return NextResponse.json(mask(deduplicateDeals(rawResults)));
 }
 
 export async function POST(request: NextRequest) {
@@ -132,6 +136,8 @@ export async function POST(request: NextRequest) {
         expectedClose: body.expectedClose ? new Date(String(body.expectedClose)) : null,
         probability: Math.max(0, Math.min(100, Number(body.probability) || 0)),
         notes,
+        // Сделку, которую завёл менеджер, сразу закрепляем за ним — это его продажа.
+        ownerId: getRequestActor(request).role === "manager" ? getRequestActor(request).id : null,
         createdAt: now,
         updatedAt: now,
       })

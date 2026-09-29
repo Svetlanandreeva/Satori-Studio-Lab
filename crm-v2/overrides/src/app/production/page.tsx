@@ -102,7 +102,7 @@ export default function ProductionPage() {
                   </div>
                   <div className="text-[12px] leading-5 text-slate-500">
                     {p.orderedAt ? <>оплата {short(p.orderedAt)}{p.productionTermDays ? ` · ${p.productionTermDays} дн.` : ""}<br />в работе {p.productionDays ?? 0} дн.</> : <span className="text-slate-400">оплата не отмечена</span>}
-                    <br /><button type="button" onClick={() => setPanel(p.dealId)} className="font-medium text-slate-700 hover:underline dark:text-slate-300">затраты {new Intl.NumberFormat("ru-RU", { style: "currency", currency: "RUB", maximumFractionDigits: 0 }).format((Number(p.directCost) || 0) / 100)} →</button>
+                    <br /><button type="button" onClick={() => setPanel(p.dealId)} className="font-medium text-slate-700 hover:underline dark:text-slate-300">{p.directCost == null ? "материалы и сроки" : `затраты ${new Intl.NumberFormat("ru-RU", { style: "currency", currency: "RUB", maximumFractionDigits: 0 }).format((Number(p.directCost) || 0) / 100)}`} →</button>
                   </div>
                   <button onClick={() => setOpen(expanded ? null : p.dealId)} className="hidden h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 sm:flex" aria-label="Чек-лист"><ChevronDown className={`h-4 w-4 transition ${expanded ? "rotate-180" : ""}`} /></button>
                 </div>

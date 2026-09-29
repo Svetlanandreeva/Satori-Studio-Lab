@@ -17,6 +17,7 @@ type Data = {
   procurement: { actualTotal: number };
   costs: Costs;
   finance: { directCost: number; profit: number; margin: number; managerCommission: number };
+  restricted?: boolean;
 };
 
 const money = (kop: number) => new Intl.NumberFormat("ru-RU", { style: "currency", currency: "RUB", maximumFractionDigits: 0 }).format((Number(kop) || 0) / 100);
@@ -158,8 +159,8 @@ export function ProjectPanel({ dealId, onClose, onChanged }: { dealId: string | 
               <p className="mt-1.5 text-[11px] text-slate-400">Количество × цена за единицу. Материалы сразу учитываются в себестоимости.</p>
             </section>
 
-            {/* Прочие расходы */}
-            <section className="rounded-xl border border-slate-200 p-4 dark:border-white/[.08]">
+            {/* Прочие расходы — только владельцу */}
+            {!data.restricted && <section className="rounded-xl border border-slate-200 p-4 dark:border-white/[.08]">
               <div className="mb-3 flex items-center justify-between gap-2"><h3 className="text-sm font-semibold">Прочие расходы и оплата</h3><SaveState a={costsAuto} /></div>
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                 {COSTS.map(([k, label]) => (
@@ -167,16 +168,16 @@ export function ProjectPanel({ dealId, onClose, onChanged }: { dealId: string | 
                 ))}
                 <label className="text-[12px] font-medium text-emerald-700">Получено от клиента, ₽<input inputMode="decimal" value={costs.receivedAmount || ""} onChange={(e) => setCosts((c) => ({ ...c, receivedAmount: e.target.value }))} placeholder="0" className={`${input} mt-1`} /></label>
               </div>
-            </section>
+            </section>}
 
-            {/* Итог */}
-            <section className="grid grid-cols-2 gap-3 rounded-xl bg-slate-950 p-4 text-white sm:grid-cols-4 dark:bg-white/[.06]">
+            {/* Итог — только владельцу */}
+            {!data.restricted && <><section className="grid grid-cols-2 gap-3 rounded-xl bg-slate-950 p-4 text-white sm:grid-cols-4 dark:bg-white/[.06]">
               <Stat label="Сумма сделки" value={money(data.deal.value)} />
               <Stat label="Получено" value={money(data.costs.receivedAmount)} />
               <Stat label="Себестоимость" value={money(data.finance.directCost)} />
               <Stat label={`Прибыль${data.costs.receivedAmount ? ` · ${data.finance.margin.toFixed(0)}%` : ""}`} value={money(data.finance.profit)} accent={data.finance.profit < 0 ? "text-rose-300" : "text-emerald-300"} />
             </section>
-            {!data.costs.receivedAmount && <p className="-mt-3 text-[11px] text-slate-400">Прибыль считается от полученных денег. Пока оплаты нет, она отрицательная на сумму расходов.</p>}
+            {!data.costs.receivedAmount && <p className="-mt-3 text-[11px] text-slate-400">Прибыль считается от полученных денег. Пока оплаты нет, она отрицательная на сумму расходов.</p>}</>}
           </div>
         )}
       </SheetContent>

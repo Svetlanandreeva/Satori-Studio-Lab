@@ -81,11 +81,12 @@ export async function POST(request: NextRequest) {
       const existing = openDealFor(contactId);
       if (!existing) {
         const contact = sqlite.prepare("SELECT name FROM contacts WHERE id=?").get(contactId) as { name?: string } | undefined;
-        sqlite.prepare(`INSERT INTO deals(id,title,value,stage_id,contact_id,probability,notes,created_at,updated_at) VALUES(?,?,0,?,?,30,?,?,?)`)
-          .run(crypto.randomUUID(), title || `${channel === "telegram" ? "Telegram" : "Заявка"} · ${contact?.name || "клиент"}`, stages.work.id, contactId, "Взято в работу из «Сообщений»", now, now);
+        // Взял в работу менеджер — сделка его.
+        sqlite.prepare(`INSERT INTO deals(id,title,value,stage_id,contact_id,probability,notes,owner_id,created_at,updated_at) VALUES(?,?,0,?,?,30,?,?,?,?)`)
+          .run(crypto.randomUUID(), title || `${channel === "telegram" ? "Telegram" : "Заявка"} · ${contact?.name || "клиент"}`, stages.work.id, contactId, "Взято в работу из «Сообщений»", actor.role === "manager" ? actor.id : null, now, now);
       } else if (stages.first && existing.stageId === stages.first.id) {
-        // Лид с первого этапа — переводим в работу.
-        sqlite.prepare("UPDATE deals SET stage_id=?, updated_at=? WHERE id=?").run(stages.work.id, now, existing.id);
+        // Лид с первого этапа — переводим в работу (и закрепляем за менеджером, если ничей).
+        sqlite.prepare("UPDATE deals SET stage_id=?, owner_id=COALESCE(owner_id, ?), updated_at=? WHERE id=?").run(stages.work.id, actor.role === "manager" ? actor.id : null, now, existing.id);
       }
       if (contactId) sqlite.prepare("UPDATE contacts SET qualification=CASE WHEN qualification IN ('qualified') THEN qualification ELSE 'working' END, updated_at=? WHERE id=?").run(now, contactId);
     } else if (status === "contractor") {

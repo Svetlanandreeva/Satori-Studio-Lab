@@ -3,6 +3,7 @@ import { contacts, deals, activities, pipelineStages } from "@/db/schema";
 import { eq, desc } from "drizzle-orm";
 import { notFound } from "next/navigation";
 import { ContactDetailClient } from "@/components/contacts/ContactDetail";
+import { canSeeDealMoney, isOwner, pageActor } from "@/lib/access";
 import { ContactIntelligencePanel } from "@/components/contacts/ContactIntelligencePanel";
 import { listClientDocuments } from "@/lib/client-documents";
 import { getDealEconomics } from "@/lib/economics";
@@ -72,6 +73,16 @@ export default async function ContactDetailPage({ params }: { params: Promise<{ 
 
     return { ...deal, ...finance, project };
   });
+  // Менеджер: без прибыли и затрат; по чужим сделкам — без сумм.
+  const actor = await pageActor();
+  if (!isOwner(actor)) {
+    const owners = new Map((db.select({ id: deals.id, ownerId: deals.ownerId }).from(deals).where(eq(deals.contactId, id)).all()).map((r) => [r.id, r.ownerId]));
+    for (const d of enrichedDeals as Array<Record<string, unknown>>) {
+      const own = canSeeDealMoney(actor, owners.get(String(d.id)) || null);
+      Object.assign(d, { directCost: 0, profitBeforeManager: 0, managerCommission: 0, totalCost: 0, profit: 0, margin: 0, project: null });
+      if (!own) Object.assign(d, { value: -1, receivedAmount: 0, unpaid: 0 });
+    }
+  }
 
   let assistantInsights: Array<Record<string, unknown>> = [];
   try {

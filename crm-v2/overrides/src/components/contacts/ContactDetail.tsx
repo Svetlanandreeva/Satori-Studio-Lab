@@ -39,7 +39,7 @@ type Contact = { id: string; name: string; email: string | null; phone: string |
 
 interface Props { contact: Contact; deals: Deal[]; activities: Activity[]; documents: Doc[]; assistantInsights: Insight[]; }
 
-function money(value: number) { return `${Math.round((value || 0) / 100).toLocaleString("ru-RU")} ₽`; }
+function money(value: number) { return value < 0 ? "—" : `${Math.round((value || 0) / 100).toLocaleString("ru-RU")} ₽`; }
 function date(value: number | Date | string) {
   const d = normalizeLegacyDate(value);
   return !d ? "—" : new Intl.DateTimeFormat("ru-RU", { dateStyle: "medium" }).format(d);
@@ -195,7 +195,7 @@ export function ContactDetailClient({ contact, deals, activities, documents: ini
                 </div>
                 <div className="shrink-0 text-sm font-semibold tabular-nums">{money(deal.value)}</div>
               </Link>))}</div>}
-            {deals.length > 1 && totalReceived > 0 && <div className="mt-3 text-xs text-muted-foreground">Всего получено {money(totalReceived)} · прибыль {money(totalProfit)}</div>}
+            {deals.length > 1 && totalReceived > 0 && <div className="mt-3 text-xs text-muted-foreground">Всего получено {money(totalReceived)}{totalProfit ? ` · прибыль ${money(totalProfit)}` : ""}</div>}
           </CardContent></Card>
 
           <Card><CardHeader><div className="flex items-center justify-between"><CardTitle className="text-base">История клиента</CardTitle><Button variant="outline" size="sm" onClick={() => setShowActivity(true)}><Plus className="mr-1 h-4 w-4" />Добавить</Button></div></CardHeader><CardContent>

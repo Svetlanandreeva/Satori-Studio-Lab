@@ -17,7 +17,8 @@ export type DealRow = {
 };
 type StageLite = { id: string; name: string; color: string; isWon: boolean; isLost: boolean };
 
-const money = (v: number) => new Intl.NumberFormat("ru-RU", { style: "currency", currency: "RUB", maximumFractionDigits: 0 }).format((Number(v) || 0) / 100);
+// -1 = сумма скрыта (сделка коллеги у менеджера)
+const money = (v: number) => (v < 0 ? "—" : new Intl.NumberFormat("ru-RU", { style: "currency", currency: "RUB", maximumFractionDigits: 0 }).format((Number(v) || 0) / 100));
 const shortDate = (v: string) => new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short" }).format(new Date(v));
 
 type Scope = "active" | "leads" | "won" | "lost" | "all";
@@ -89,7 +90,7 @@ export function DealsTable({ rows, stages }: { rows: DealRow[]; stages: StageLit
     });
   }, [rows, q, scope, stage]);
 
-  const total = filtered.reduce((n, r) => n + (Number(r.value) || 0), 0);
+  const total = filtered.reduce((n, r) => n + Math.max(0, Number(r.value) || 0), 0);
   const allChecked = filtered.length > 0 && filtered.every((r) => selected.has(r.id));
 
   function toggle(id: string) {

@@ -76,6 +76,11 @@ async function sessionData(token: string | undefined): Promise<SessionData | nul
   }
 }
 
+// Экономика компании — только владельцу (синхронно с lib/access.ts).
+const OWNER_ONLY_PAGES = ["/analytics", "/economics", "/procurement", "/control", "/settings", "/assistant", "/sandbox", "/projects"];
+const OWNER_ONLY_API = ["/api/economics", "/api/funnel-settings", "/api/control", "/api/export", "/api/integrations/settings", "/api/integrations/openai", "/api/assistant", "/api/projects"];
+const under = (pathname: string, list: string[]) => list.some((p) => pathname === p || pathname.startsWith(`${p}/`));
+
 function mutation(method: string) {
   return !["GET", "HEAD", "OPTIONS"].includes(method.toUpperCase());
 }
@@ -97,6 +102,10 @@ export async function proxy(request: NextRequest) {
   const session = await sessionData(request.cookies.get(COOKIE)?.value);
   if (session) {
     if (pathname === "/login") return NextResponse.redirect(new URL("/", request.url));
+    if (session.role !== "owner") {
+      if (under(pathname, OWNER_ONLY_API)) return NextResponse.json({ error: "Этот раздел доступен только владельцу CRM" }, { status: 403 });
+      if (under(pathname, OWNER_ONLY_PAGES)) return NextResponse.redirect(new URL("/", request.url));
+    }
     const blocked = roleBlocked(request, session);
     if (blocked) return NextResponse.json({ error: blocked }, { status: 403 });
     const response = NextResponse.next();

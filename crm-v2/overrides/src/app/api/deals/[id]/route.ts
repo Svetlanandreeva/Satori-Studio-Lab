@@ -5,12 +5,13 @@ import { eq } from "drizzle-orm";
 import { pushDealStageToStorefront } from "@/lib/store-orders";
 import { annotateLatestStageHistory, writeAuditLog } from "@/lib/operations";
 import { getRequestActor } from "@/lib/request-actor";
+import { canSeeDealMoney } from "@/lib/access";
 import { lockDealFields } from "@/lib/deal-overrides";
 import { getDealEconomics, saveDealEconomics } from "@/lib/economics";
 import { deleteDealsCascade } from "@/lib/safe-delete";
 import { getDealSchedule, saveDealSchedule } from "@/lib/deal-schedule";
 
-export async function GET(_request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const deal = db
     .select({
@@ -23,6 +24,13 @@ export async function GET(_request: NextRequest, { params }: { params: Promise<{
     .leftJoin(teamMembers, eq(deals.ownerId, teamMembers.id))
     .where(eq(deals.id, id)).get();
   if (!deal) return NextResponse.json({ error: "Сделка не найдена" }, { status: 404 });
+  const actor = getRequestActor(request);
+  if (actor.role !== "owner") {
+    // Менеджер: без экономики компании; по чужим сделкам — без сумм.
+    const own = canSeeDealMoney(actor, deal.ownerId);
+    const e = getDealEconomics(id) as { receivedAmount?: number } | null;
+    return NextResponse.json({ ...deal, value: own ? deal.value : null, economics: own && e ? { receivedAmount: e.receivedAmount || 0 } : null, schedule: getDealSchedule(id) });
+  }
   return NextResponse.json({ ...deal, economics: getDealEconomics(id), schedule: getDealSchedule(id) });
 }
 
@@ -36,6 +44,13 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
   if (!existing) return NextResponse.json({ error: "Сделка не найдена" }, { status: 404 });
   const actor = getRequestActor(request);
   const updateData: Record<string, unknown> = { updatedAt: new Date() };
+  if (actor.role !== "owner") {
+    // Менеджер не меняет деньги чужих сделок и не забирает чужую сделку себе.
+    if (!canSeeDealMoney(actor, existing.ownerId)) { delete body.value; delete body.receivedAmount; }
+    if (body.ownerId !== undefined && existing.ownerId && existing.ownerId !== actor.id) delete body.ownerId;
+    // Затраты и экономику менеджер не правит.
+    for (const k of ["productionCost", "deliveryCost", "packagingCost", "contractorCost", "paymentCommission", "taxCost", "otherCost", "managerCommission"]) delete body[k];
+  }
 
   if (body.title !== undefined) updateData.title = String(body.title || "").trim();
   if (body.value !== undefined) updateData.value = Math.max(0, Number(body.value) || 0);

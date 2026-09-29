@@ -7,7 +7,8 @@ import { ChevronDown, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useUnreadMessages } from "@/lib/use-unread-messages";
 import { ThemeToggle } from "./ThemeToggle";
-import { PRIMARY_NAV, SECONDARY_NAV, isActive, type NavItem } from "./nav-items";
+import { OWNER_ONLY, PRIMARY_NAV, SECONDARY_NAV, isActive, type NavItem } from "./nav-items";
+import { useMe } from "./use-role";
 
 function NavLink({ item, pathname, badge = 0 }: { item: NavItem; pathname: string; badge?: number }) {
   const active = isActive(pathname, item.href);
@@ -26,7 +27,10 @@ function NavLink({ item, pathname, badge = 0 }: { item: NavItem; pathname: strin
 export function Sidebar() {
   const pathname = usePathname();
   const { summary } = useUnreadMessages();
-  const secondaryActive = SECONDARY_NAV.some((item) => isActive(pathname, item.href));
+  const me = useMe();
+  const owner = me?.role === "owner";
+  const secondary = SECONDARY_NAV.filter((i) => owner || !OWNER_ONLY.includes(i.href));
+  const secondaryActive = secondary.some((item) => isActive(pathname, item.href));
   const [moreOpen, setMoreOpen] = useState(false);
 
   useEffect(() => {
@@ -54,11 +58,17 @@ export function Sidebar() {
           <span className="flex-1 text-left">Ещё</span>
           <ChevronDown className={cn("h-3.5 w-3.5 transition-transform", showMore ? "rotate-180" : "")} />
         </button>
-        {showMore && <div className="space-y-0.5">{SECONDARY_NAV.map((item) => <NavLink key={item.href} item={item} pathname={pathname} />)}</div>}
+        {showMore && <div className="space-y-0.5">{secondary.map((item) => <NavLink key={item.href} item={item} pathname={pathname} />)}</div>}
       </nav>
 
       <div className="shrink-0 border-t border-white/[.06] p-2.5">
-        <NavLink item={{ href: "/settings", label: "Настройки", icon: Settings }} pathname={pathname} />
+        {owner && <NavLink item={{ href: "/settings", label: "Настройки", icon: Settings }} pathname={pathname} />}
+        {me && (
+          <div className="flex items-center gap-2 px-3 py-1.5 text-[12px] text-white/45">
+            <span className="min-w-0 flex-1 truncate">{me.name}{owner ? "" : " · менеджер"}</span>
+            <button type="button" onClick={() => { void fetch("/api/auth/logout", { method: "POST" }).finally(() => { window.location.href = "/login"; }); }} className="rounded px-1.5 py-0.5 hover:bg-white/[.08] hover:text-white">Выйти</button>
+          </div>
+        )}
       </div>
     </aside>
   );

@@ -48,7 +48,7 @@ export function DealCard({ id, title, value, contactName, contactTemperature, ow
         {contactTemperature && <span className={`h-2 w-2 shrink-0 rounded-full ${tempDot[contactTemperature] || "bg-slate-300"}`} title={tempLabel[contactTemperature] || ""} />}
       </div>
       <div className="mt-2 flex items-center justify-between gap-2">
-        <span className="text-[13px] font-semibold tabular-nums text-slate-900 dark:text-white">{value ? formatCurrency(value) : <span className="font-normal text-slate-400">сумма не указана</span>}</span>
+        <span className="text-[13px] font-semibold tabular-nums text-slate-900 dark:text-white">{value < 0 ? <span className="font-normal text-slate-400">сделка коллеги</span> : value ? formatCurrency(value) : <span className="font-normal text-slate-400">сумма не указана</span>}</span>
         {badge && deadline && <span className={`shrink-0 rounded-md px-1.5 py-0.5 text-[10.5px] font-medium ${badgeClass}`} title={badge.text}>до {new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short" }).format(new Date(`${deadline}T12:00:00Z`))}</span>}
         {!badge && ownerName && <span className="flex min-w-0 items-center gap-1 text-[11px] text-slate-400"><UserRound className="h-3 w-3 shrink-0" /><span className="truncate">{ownerName}</span></span>}
       </div>

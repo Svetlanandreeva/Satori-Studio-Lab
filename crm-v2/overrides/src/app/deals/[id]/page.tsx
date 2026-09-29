@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { eq } from "drizzle-orm";
 import { ArrowLeft, Boxes, Clock3, Globe } from "lucide-react";
 import { db, sqlite } from "@/db";
+import { canSeeDealMoney, isOwner, pageActor } from "@/lib/access";
 import { contacts, deals, pipelineStages, teamMembers } from "@/db/schema";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -58,6 +59,8 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
 
   const economics = calculateDealFinancials({ ...(getDealEconomics(id) || {}), dealId: id, dealValue: deal.value });
   const procurement = listDealPurchases(id);
+  const actor = await pageActor();
+  const moneyAccess: "full" | "own" | "none" = isOwner(actor) ? "full" : canSeeDealMoney(actor, deal.ownerId) ? "own" : "none";
   const procurementSummary = getDealProcurementSummary(id);
   const history = listDealHistory(id) as Array<any>;
   // Текст заявок с форм сайта — чтобы видеть, что человек написал, прямо в сделке.
@@ -87,7 +90,7 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
             {deal.company ? ` · ${deal.company}` : ""} · создана {date(deal.createdAt)}
           </div>
         </div>
-        <DealHeaderActions deal={{ id: deal.id, title: deal.title, value: deal.value, stageId: deal.stageId, contactId: deal.contactId, contactName: deal.contactName, notes: deal.notes }} />
+        <DealHeaderActions deal={{ id: deal.id, title: deal.title, value: moneyAccess === "none" ? 0 : deal.value, stageId: deal.stageId, contactId: deal.contactId, contactName: deal.contactName, notes: deal.notes }} />
       </div>
 
       <DealStageBar dealId={deal.id} stageId={deal.stageId} stages={stageList} />
@@ -108,12 +111,13 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
           ))}
           <DealMoneyDates
             dealId={deal.id}
-            value={deal.value}
-            received={economicsRaw.receivedAmount}
+            value={moneyAccess === "none" ? 0 : deal.value}
+            received={moneyAccess === "none" ? 0 : economicsRaw.receivedAmount}
             schedule={{ paidAt: schedule.paidAt, termDays: schedule.termDays, deadline: schedule.deadline, shippedAt: schedule.shippedAt }}
             ownerId={deal.ownerId || null}
             members={members}
-            costs={{ procurement: procurementSummary.actualTotal, profit: economics.profit }}
+            costs={moneyAccess === "full" ? { procurement: procurementSummary.actualTotal, profit: economics.profit } : { procurement: 0, profit: 0 }}
+            access={moneyAccess}
           />
 
           {procurement.length > 0 && (
@@ -124,7 +128,7 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
                   <div key={item.id} className="flex items-center gap-3 py-2">
                     <div className="min-w-0 flex-1 truncate text-slate-800 dark:text-slate-200">{item.name} <span className="text-slate-400">· {item.quantity} {item.unit}</span></div>
                     <Badge variant="outline" className={meta.className}>{meta.label}</Badge>
-                    <div className="w-24 text-right font-medium tabular-nums">{money(item.totalCost || item.plannedTotalCost)}</div>
+                    {moneyAccess === "full" && <div className="w-24 text-right font-medium tabular-nums">{money(item.totalCost || item.plannedTotalCost)}</div>}
                   </div>); })}
               </div>
             </section>

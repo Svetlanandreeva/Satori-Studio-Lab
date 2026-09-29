@@ -34,7 +34,7 @@ interface KanbanColumnProps {
 export function KanbanColumn({ id, name, color, isLost, deals }: KanbanColumnProps) {
   const { setNodeRef, isOver } = useDroppable({ id });
   const [adding, setAdding] = useState(false);
-  const totalValue = deals.reduce((sum, deal) => sum + deal.value, 0);
+  const totalValue = deals.reduce((sum, deal) => sum + Math.max(0, deal.value), 0); // -1 = сумма скрыта (сделка коллеги)
 
   return (
     <div
@@ -51,7 +51,7 @@ export function KanbanColumn({ id, name, color, isLost, deals }: KanbanColumnPro
           </button>
         )}
       </div>
-      <div className="px-3 pb-2 text-[11px] text-slate-400">{formatCurrency(totalValue)}</div>
+      <div className="px-3 pb-2 text-[11px] text-slate-400">{deals.some((d) => d.value < 0) ? (totalValue ? `мои ${formatCurrency(totalValue)}` : "") : formatCurrency(totalValue)}</div>
 
       <SortableContext items={deals.map((deal) => deal.id)} strategy={verticalListSortingStrategy}>
         <div className="min-h-[120px] flex-1 space-y-2 overflow-y-auto px-2 pb-2">
