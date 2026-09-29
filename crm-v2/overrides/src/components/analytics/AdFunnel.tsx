@@ -1,9 +1,10 @@
 import { Settings2 } from "lucide-react";
 import { adFunnel, manualAdSpend, metrikaSettings } from "@/lib/metrika";
-import { monthInquiries, type Inquiry } from "@/lib/inquiries";
+import { monthInquiries, rangeInquiries, type Inquiry } from "@/lib/inquiries";
+import { buildInsights, change, type Period } from "@/lib/analytics-insights";
 import { MetrikaSetup } from "@/components/analytics/MetrikaSetup";
 import { AdCharts } from "@/components/analytics/AdCharts";
-import { ChevronRight } from "lucide-react";
+import { AlertTriangle, ArrowDown, ArrowUp, CheckCircle2, ChevronRight, Info } from "lucide-react";
 
 const n = (v: number) => new Intl.NumberFormat("ru-RU").format(Math.round(v));
 const rub = (v: number) => `${n(v)} ₽`;
@@ -16,13 +17,32 @@ type Row = { label: string; hint: string; ad: number | null; all: number | null;
 
 /** Сквозная аналитика за месяц: реклама → сайт → CRM → деньги. */
 export async function AdFunnel({ month }: { month: string }) {
-  const [f, inq] = [await adFunnel(month), monthInquiries(month)];
+  // Сравнение с прошлым месяцем: если текущий ещё идёт — берём те же дни (1..сегодня).
+  const today = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Yekaterinburg" }).format(new Date());
+  const ongoing = today.startsWith(month);
+  const untilDay = ongoing ? Number(today.slice(8, 10)) : undefined;
+  const [py, pm] = month.split("-").map(Number);
+  const prevMonth = new Date(Date.UTC(py, pm - 2, 1)).toISOString().slice(0, 7);
+  const prevLast = new Date(Date.UTC(py, pm - 1, 0)).getUTCDate();
+  const prevTo = `${prevMonth}-${String(Math.min(prevLast, untilDay || prevLast)).padStart(2, "0")}`;
+  const prevName = new Intl.DateTimeFormat("ru-RU", { month: "long", timeZone: "UTC" }).format(new Date(`${prevMonth}-15T12:00:00Z`));
+  const GEN = ["января", "февраля", "марта", "апреля", "мая", "июня", "июля", "августа", "сентября", "октября", "ноября", "декабря"];
+  const prevLabel = ongoing ? `за 1–${untilDay} ${GEN[Number(prevMonth.slice(5)) - 1]}` : `в ${prevName}е`.replace(/ье$/, "е").replace(/йе$/, "е");
+  const [f, inq, pf] = [await adFunnel(month), monthInquiries(month), await adFunnel(prevMonth, untilDay)];
+  const pinq = rangeInquiries(`${prevMonth}-01`, prevTo);
   const s = metrikaSettings();
   const adInq = inq.filter(isAd);
   const crm = (l: Inquiry[]) => ({ inq: l.length, work: l.filter((i) => i.status === "work").length, paid: l.filter((i) => i.paid).length, revenue: l.reduce((x, i) => x + i.received, 0) / 100 });
   const A = crm(adInq), T = crm(inq);
   const ad = f.ad, all = f.all;
   const adActions = ad ? ad.messengers + ad.leads + ad.orders : 0;
+  const P = crm(pinq), PA = crm(pinq.filter(isAd));
+  const pad = pf.ad;
+  const pActions = pad ? pad.messengers + pad.leads + pad.orders : 0;
+  const period = (x: typeof f, a: typeof ad, act: number, c: typeof T, ca: typeof A): Period => ({ cost: x.cost, visits: a?.visits ?? null, actions: a ? act : null, messengers: a?.messengers ?? null, leads: a?.leads ?? null, orders: a?.orders ?? null, inq: c.inq, work: c.work, paid: c.paid, revenue: c.revenue, adInq: ca.inq });
+  const insights = buildInsights(period(f, ad, adActions, T, A), period(pf, pad, pActions, P, PA), f.daily, prevLabel);
+  const d = (cur: number | null | undefined, prev: number | null | undefined, goodUp = true) => (cur == null || prev == null ? null : { ch: change(cur, prev), goodUp, prev });
+  const cpa = f.cost && adActions ? f.cost / adActions : null, pcpa = pf.cost && pActions ? pf.cost / pActions : null;
 
   const site: Row[] = [
     { label: "Визиты на сайт", hint: "по Метрике", ad: ad?.visits ?? null, all: all?.visits ?? null },
@@ -53,10 +73,28 @@ export async function AdFunnel({ month }: { month: string }) {
           {!f.configured && <div className="space-y-3 rounded-xl bg-slate-50 p-4 dark:bg-white/[.04]"><p className="text-[13px] text-slate-600 dark:text-slate-300">Подключи Метрику — появятся визиты и действия на сайте. Часть CRM ниже работает и без неё.</p><MetrikaSetup configured={false} counterId={s.counterId} month={month} spend={manualAdSpend(month)} /></div>}
           {f.error && <div className="rounded-lg bg-rose-50 px-3 py-2 text-[13px] text-rose-700">Метрика: {f.error}</div>}
 
+          {insights.length > 0 && (
+            <div className="rounded-xl border border-slate-200/80 p-4 dark:border-white/[.08]">
+              <div className="mb-2.5 flex items-baseline justify-between gap-2"><span className="text-[13px] font-semibold">Главное за месяц</span><span className="text-[11.5px] text-slate-400">сравниваю {prevLabel}</span></div>
+              <ul className="space-y-2">
+                {insights.map((x, i) => {
+                  const Icon = x.tone === "bad" ? AlertTriangle : x.tone === "good" ? CheckCircle2 : Info;
+                  const color = x.tone === "bad" ? "text-rose-600" : x.tone === "good" ? "text-emerald-600" : "text-slate-400";
+                  return (
+                    <li key={i} className="flex gap-2.5 text-[13.5px] leading-5">
+                      <Icon className={`mt-0.5 h-4 w-4 shrink-0 ${color}`} aria-label={x.tone === "bad" ? "плохо" : x.tone === "good" ? "хорошо" : "к сведению"} />
+                      <span>{x.text}{x.action && <span className="block text-[12.5px] text-slate-500">→ {x.action}</span>}</span>
+                    </li>
+                  );
+                })}
+              </ul>
+            </div>
+          )}
+
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <Kpi label="Расход на рекламу" value={f.cost != null ? rub(f.cost) : "—"} hint={f.costSource === "direct" ? "из Директа" : f.costSource === "manual" ? "введено вручную" : f.costError ? `Директ: ${f.costError}` : "впиши в настройках ниже"} />
-            <Kpi label="Цена действия с рекламы" value={f.cost && adActions ? rub(f.cost / adActions) : "—"} hint={`${n(adActions)}: написали, заявки, заказы`} />
-            <Kpi label="Получено за месяц" value={rub(T.revenue)} hint={`${T.paid} оплат · с рекламы ${rub(A.revenue)}`} />
+            <Kpi delta={d(f.cost, pf.cost, false)} vs={prevLabel} fmt={rub} label="Расход на рекламу" value={f.cost != null ? rub(f.cost) : "—"} hint={f.costSource === "direct" ? "из Директа" : f.costSource === "manual" ? "введено вручную" : f.costError ? `Директ: ${f.costError}` : "впиши в настройках ниже"} />
+            <Kpi delta={d(cpa, pcpa, false)} vs={prevLabel} fmt={rub} label="Цена действия с рекламы" value={f.cost && adActions ? rub(f.cost / adActions) : "—"} hint={`${n(adActions)}: написали, заявки, заказы`} />
+            <Kpi delta={d(T.revenue, P.revenue)} vs={prevLabel} fmt={rub} label="Получено за месяц" value={rub(T.revenue)} hint={`${T.paid} оплат · с рекламы ${rub(A.revenue)}`} />
             <Kpi label="Доля рекламы в выручке" value={f.cost && T.revenue ? pct(f.cost, T.revenue) : "—"} hint="расход ÷ все деньги месяца (ДРР)" />
           </div>
 
@@ -64,15 +102,15 @@ export async function AdFunnel({ month }: { month: string }) {
           <div>
             <div className="mb-2 text-[12px] font-medium text-slate-500">Путь клиента за месяц</div>
             <div className="flex flex-col gap-2 lg:flex-row lg:items-stretch">
-              <Step tone="ad" label="С рекламы" value={ad ? n(ad.visits) : "—"} sub={all ? `из ${n(all.visits)} визитов` : "визиты по Метрике"} />
+              <Step delta={d(ad?.visits, pad?.visits)} tone="ad" label="С рекламы" value={ad ? n(ad.visits) : "—"} sub={all ? `из ${n(all.visits)} визитов` : "визиты по Метрике"} />
               <Arrow v={ad ? pct(adActions, ad.visits) : null} />
-              <Step tone="ad" label="Написали, заявки" value={ad ? n(adActions) : "—"} sub={ad ? `написали ${ad.messengers}, заявки ${ad.leads}, заказы ${ad.orders}` : ""} />
+              <Step delta={d(ad ? adActions : null, pad ? pActions : null)} tone="ad" label="Написали, заявки" value={ad ? n(adActions) : "—"} sub={ad ? `написали ${ad.messengers}, заявки ${ad.leads}, заказы ${ad.orders}` : ""} />
               <Arrow v={null} gap />
-              <Step label="Обращения" value={n(T.inq)} sub="в CRM, все каналы" />
+              <Step delta={d(T.inq, P.inq)} label="Обращения" value={n(T.inq)} sub="в CRM, все каналы" />
               <Arrow v={pct(T.work, T.inq)} />
-              <Step label="В работе" value={n(T.work)} sub="дальше 1-го этапа" />
+              <Step delta={d(T.work, P.work)} label="В работе" value={n(T.work)} sub="дальше 1-го этапа" />
               <Arrow v={pct(T.paid, T.work)} />
-              <Step tone="money" label="Оплатили" value={n(T.paid)} sub={`получено ${rub(T.revenue)}`} />
+              <Step delta={d(T.paid, P.paid)} tone="money" label="Оплатили" value={n(T.paid)} sub={`получено ${rub(T.revenue)}`} />
             </div>
           </div>
 
@@ -155,16 +193,33 @@ function Line({ r, baseAd, baseAll }: { r: Row; baseAd?: number | null; baseAll?
   );
 }
 
-function Kpi({ label, value, hint }: { label: string; value: string; hint: string }) {
-  return <div className="rounded-xl bg-slate-50 px-4 py-3 dark:bg-white/[.04]"><div className="text-[12px] text-slate-500">{label}</div><div className="mt-0.5 text-xl font-semibold tracking-tight tabular-nums">{value}</div><div className="mt-0.5 truncate text-[11.5px] text-slate-400" title={hint}>{hint}</div></div>;
+type Delta = { ch: number | null; goodUp: boolean; prev: number } | null;
+
+function DeltaBadge({ delta, vs, fmt = n }: { delta: Delta; vs: string; fmt?: (v: number) => string }) {
+  if (!delta || delta.ch == null) return null;
+  const { ch, goodUp, prev } = delta;
+  if (ch === 0) return <span className="text-[11.5px] font-normal text-slate-400" title={`${vs}: ${fmt(prev)}`}>{vs ? `= как ${vs}` : "как было"}</span>;
+  // Маленькая база — проценты врут (1 → 38 это «+3700%»), показываем было/стало.
+  if (prev < 5 || Math.abs(ch) > 300) return <span className="text-[11.5px] font-normal text-slate-400" title={vs}>было {fmt(prev)}{vs ? ` ${vs}` : ""}</span>;
+  const good = ch > 0 === goodUp;
+  const Icon = ch > 0 ? ArrowUp : ArrowDown;
+  return (
+    <span title={`${vs}: ${fmt(prev)}`} className={`inline-flex items-center gap-0.5 text-[11.5px] font-medium ${good ? "text-emerald-700 dark:text-emerald-400" : "text-rose-600 dark:text-rose-400"}`}>
+      <Icon className="h-3 w-3" />{Math.abs(ch)}%<span className="font-normal text-slate-400">&nbsp;{vs}</span>
+    </span>
+  );
 }
 
-function Step({ label, value, sub, tone }: { label: string; value: string; sub: string; tone?: "ad" | "money" }) {
+function Kpi({ label, value, hint, delta = null, vs = "", fmt }: { label: string; value: string; hint: string; delta?: Delta; vs?: string; fmt?: (v: number) => string }) {
+  return <div className="rounded-xl bg-slate-50 px-4 py-3 dark:bg-white/[.04]"><div className="text-[12px] text-slate-500">{label}</div><div className="mt-0.5 flex flex-wrap items-baseline gap-x-2 text-xl font-semibold tracking-tight tabular-nums">{value}<DeltaBadge delta={delta} vs={vs} fmt={fmt} /></div><div className="mt-0.5 truncate text-[11.5px] text-slate-400" title={hint}>{hint}</div></div>;
+}
+
+function Step({ label, value, sub, tone, delta = null }: { label: string; value: string; sub: string; tone?: "ad" | "money"; delta?: Delta }) {
   const ring = tone === "ad" ? "border-violet-200 bg-violet-50/60 dark:border-violet-500/25 dark:bg-violet-500/[.07]" : tone === "money" ? "border-emerald-200 bg-emerald-50/60 dark:border-emerald-500/25 dark:bg-emerald-500/[.07]" : "border-slate-200/80 bg-white dark:border-white/[.08] dark:bg-transparent";
   return (
     <div className={`min-w-0 flex-1 rounded-xl border px-4 py-3 ${ring}`}>
       <div className="text-[12px] text-slate-500">{label}</div>
-      <div className="mt-0.5 text-2xl font-semibold tracking-tight tabular-nums">{value}</div>
+      <div className="mt-0.5 flex flex-wrap items-baseline gap-x-2 text-2xl font-semibold tracking-tight tabular-nums">{value}<DeltaBadge delta={delta} vs="" /></div>
       <div className="mt-0.5 truncate text-[11.5px] text-slate-400" title={sub}>{sub}</div>
     </div>
   );

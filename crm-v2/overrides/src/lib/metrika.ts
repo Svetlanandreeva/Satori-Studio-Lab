@@ -53,24 +53,27 @@ export type AdFunnel = {
   daily: Array<{ date: string; visits: number; messengers: number; leads: number; orders: number; cost: number | null }>;
 };
 
-function monthRange(month: string) {
+function monthRange(month: string, untilDay?: number) {
   const [y, m] = month.split("-").map(Number);
   const last = new Date(Date.UTC(y, m, 0)).getUTCDate();
   const today = new Date().toISOString().slice(0, 10);
-  const end = `${month}-${String(last).padStart(2, "0")}`;
+  const end = `${month}-${String(Math.min(last, untilDay || last)).padStart(2, "0")}`;
   return { date1: `${month}-01`, date2: end > today ? today : end };
 }
 
 // Кэш на 15 минут — Метрика не любит частые запросы, а цифры меняются медленно.
 const cache = new Map<string, { at: number; value: AdFunnel }>();
 
-export async function adFunnel(month: string): Promise<AdFunnel> {
+/** untilDay — считать только дни 1..untilDay (для честного сравнения с незаконченным месяцем). */
+export async function adFunnel(month: string, untilDay?: number): Promise<AdFunnel> {
   const { configured, counterId } = metrikaSettings();
   const token = readSecret("metrika_token") || process.env.YANDEX_METRIKA_TOKEN || "";
-  const manual = manualAdSpend(month);
+  const [yy, mm] = month.split("-").map(Number);
+  const daysIn = new Date(Date.UTC(yy, mm, 0)).getUTCDate();
+  const manual = Math.round(manualAdSpend(month) * (untilDay ? Math.min(1, untilDay / daysIn) : 1));
   const base: AdFunnel = { month, configured, ad: null, all: null, cost: manual || null, costSource: manual ? "manual" : null, clicks: null, missingGoals: [], daily: [] };
   if (!configured) return base;
-  const key = `${counterId}:${month}:${manual}`;
+  const key = `${counterId}:${month}:${manual}:${untilDay || ""}`;
   const hit = cache.get(key);
   if (hit && Date.now() - hit.at < 15 * 60 * 1000) return hit.value;
   try {
@@ -81,7 +84,7 @@ export async function adFunnel(month: string): Promise<AdFunnel> {
     const found = all.filter((g) => byIdent.has(g));
     base.missingGoals = all.filter((g) => !byIdent.has(g));
     const metrics = ["ym:s:visits", ...found.map((g) => `ym:s:goal${byIdent.get(g)}reaches`)];
-    const { date1, date2 } = monthRange(month);
+    const { date1, date2 } = monthRange(month, untilDay);
     const q = new URLSearchParams({ ids: counterId, date1, date2, metrics: metrics.join(","), dimensions: "ym:s:lastsignTrafficSource", accuracy: "full", limit: "50" });
     const report = await api<Report>(`/stat/v1/data?${q}`, token);
     const sum = (vals: number[], group: readonly string[]) => group.reduce((s, g) => { const i = found.indexOf(g); return s + (i >= 0 ? Number(vals[i + 1] || 0) : 0); }, 0);
