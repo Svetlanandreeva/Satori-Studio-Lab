@@ -49,6 +49,8 @@ export type AdFunnel = {
   ad: FunnelRow | null; all: FunnelRow | null;
   cost: number | null; costSource: "direct" | "manual" | null; clicks: number | null; costError?: string;
   missingGoals: string[];
+  /** По дням месяца: визиты и действия с рекламы, расход Директа. */
+  daily: Array<{ date: string; visits: number; messengers: number; leads: number; orders: number; cost: number | null }>;
 };
 
 function monthRange(month: string) {
@@ -66,7 +68,7 @@ export async function adFunnel(month: string): Promise<AdFunnel> {
   const { configured, counterId } = metrikaSettings();
   const token = readSecret("metrika_token") || process.env.YANDEX_METRIKA_TOKEN || "";
   const manual = manualAdSpend(month);
-  const base: AdFunnel = { month, configured, ad: null, all: null, cost: manual || null, costSource: manual ? "manual" : null, clicks: null, missingGoals: [] };
+  const base: AdFunnel = { month, configured, ad: null, all: null, cost: manual || null, costSource: manual ? "manual" : null, clicks: null, missingGoals: [], daily: [] };
   if (!configured) return base;
   const key = `${counterId}:${month}:${manual}`;
   const hit = cache.get(key);
@@ -87,6 +89,16 @@ export async function adFunnel(month: string): Promise<AdFunnel> {
     base.all = row(report.totals || []);
     const adRow = report.data.find((d) => d.dimensions[0]?.id === "ad");
     base.ad = adRow ? row(adRow.metrics) : { visits: 0, messengers: 0, leads: 0, orders: 0 };
+    // По дням — только реклама.
+    try {
+      const dq = new URLSearchParams({ ids: counterId, date1, date2, metrics: metrics.join(","), dimensions: "ym:s:date", filters: "ym:s:lastsignTrafficSource=='ad'", accuracy: "full", limit: "62", sort: "ym:s:date" });
+      const d = await api<Report>(`/stat/v1/data?${dq}`, token);
+      const byDay = new Map(d.data.map((x) => [String(x.dimensions[0]?.name || x.dimensions[0]?.id || ""), row(x.metrics)]));
+      for (let t = Date.parse(`${date1}T12:00:00Z`); t <= Date.parse(`${date2}T12:00:00Z`); t += 86_400_000) {
+        const date = new Date(t).toISOString().slice(0, 10);
+        base.daily.push({ date, ...(byDay.get(date) || { visits: 0, messengers: 0, leads: 0, orders: 0 }), cost: null });
+      }
+    } catch { /* без графика по дням */ }
     if (!manual) {
       // Расход Директа: сначала новый отчёт «Источники, расходы и ROI» (ym:ev:expenses),
       // затем старые метрики Директа (ym:ad) — им иногда нужен логин клиента Директа.
@@ -102,7 +114,17 @@ export async function adFunnel(month: string): Promise<AdFunnel> {
           const cq = new URLSearchParams({ ids: counterId, date1, date2, accuracy: "full", ...t });
           const c = await api<Report>(`/stat/v1/data?${cq}`, token);
           const cost = Number(c.totals?.[0] || 0);
-          if (cost > 0) { base.cost = Math.round(cost); base.costSource = "direct"; base.clicks = Number(c.totals?.[1] || 0) || null; break; }
+          if (cost > 0) {
+            base.cost = Math.round(cost); base.costSource = "direct"; base.clicks = Number(c.totals?.[1] || 0) || null;
+            try { // тот же запрос по дням
+              const dim = t.metrics.startsWith("ym:ev") ? "ym:ev:date" : "ym:ad:date";
+              const dq = new URLSearchParams({ ids: counterId, date1, date2, accuracy: "full", ...t, metrics: t.metrics.split(",")[0], dimensions: dim, limit: "62" });
+              const d = await api<Report>(`/stat/v1/data?${dq}`, token);
+              const m = new Map(d.data.map((x) => [String(x.dimensions[0]?.name || x.dimensions[0]?.id || "").slice(0, 10), Number(x.metrics[0] || 0)]));
+              for (const day of base.daily) day.cost = Math.round(m.get(day.date) || 0);
+            } catch { /* расход по дням не обязателен */ }
+            break;
+          }
         } catch (e) { errors.push(e instanceof Error ? e.message : String(e)); }
       }
       if (base.cost == null && errors.length) base.costError = errors[0].slice(0, 200);
