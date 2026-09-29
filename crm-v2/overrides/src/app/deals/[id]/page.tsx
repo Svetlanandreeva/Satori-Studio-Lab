@@ -1,8 +1,8 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { eq } from "drizzle-orm";
-import { ArrowLeft, Boxes, Clock3 } from "lucide-react";
-import { db } from "@/db";
+import { ArrowLeft, Boxes, Clock3, Globe } from "lucide-react";
+import { db, sqlite } from "@/db";
 import { contacts, deals, pipelineStages, teamMembers } from "@/db/schema";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -60,6 +60,9 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
   const procurement = listDealPurchases(id);
   const procurementSummary = getDealProcurementSummary(id);
   const history = listDealHistory(id) as Array<any>;
+  // Текст заявок с форм сайта — чтобы видеть, что человек написал, прямо в сделке.
+  const siteLeads = (sqlite.prepare("SELECT id, description, created_at AS at FROM activities WHERE deal_id=? AND type='note' AND description LIKE '%[site-lead:%' ORDER BY created_at DESC").all(id) as Array<{ id: string; description: string; at: number }>)
+    .map((r) => ({ id: r.id, text: r.description.replace(/\n?\[site-lead:[^\]]+\]/g, "").trim(), at: new Date((Number(r.at) > 1e12 ? Number(r.at) : Number(r.at) * 1000)) }));
   const members = listTeamMembers() as Array<any>;
   const documents = deal.contactId ? listClientDocuments(deal.contactId) : [];
   const ai = getDealAiSummary(deal.id);
@@ -97,6 +100,12 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(360px,1fr)]">
         <div className="space-y-4">
+          {siteLeads.map((l) => (
+            <section key={l.id} className="rounded-2xl border border-violet-200/70 bg-violet-50/40 p-5 shadow-sm dark:border-violet-500/20 dark:bg-violet-500/[.06]">
+              <div className="mb-2 flex items-center gap-2 text-sm font-semibold"><Globe className="h-4 w-4 text-violet-500" />Заявка с сайта<span className="ml-auto text-xs font-normal text-slate-400">{new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "long", hour: "2-digit", minute: "2-digit", timeZone: "Asia/Yekaterinburg" }).format(l.at)}</span></div>
+              <div className="whitespace-pre-line text-[13.5px] leading-6 text-slate-700 dark:text-slate-200">{l.text}</div>
+            </section>
+          ))}
           <DealMoneyDates
             dealId={deal.id}
             value={deal.value}

@@ -13,7 +13,7 @@ import { login, requireAdmin } from "./auth.js";
 import { sendVkMessage } from "./vk.js";
 import { listGallery, addGalleryPhoto, removeGalleryPhoto } from "./gallery.js";
 import { listPromoCodes, getPromoCode, createPromoCode, updatePromoCode, deletePromoCode, isPromoUsable, computeDiscount } from "./promocodes.js";
-import { createLead, listLeads, deleteLead, markAllLeadsRead } from "./leads.js";
+import { createLead, listLeads, deleteLead, markAllLeadsRead, syncLeadToCrmV2 } from "./leads.js";
 import { getHero, setHero } from "./hero.js";
 import { sendOfflineConversion } from "./metrika.js";
 import { createImageResizeRoute } from "./imageResize.js";
@@ -238,6 +238,7 @@ app.post("/api/leads", async (req, res) => {
     }
     const lead = await createLead({ type, ...fields });
     notifyOwnerLead(lead);
+    syncLeadToCrmV2(lead);
     res.json({ ok: true });
   } catch (err) {
     console.error(err);

@@ -66,6 +66,34 @@ jobs:
               raise RuntimeError(f'CRM storefront sync endpoint did not become ready: {last_error}')
           PY
 
+      - name: Deliver recent website form leads into CRM
+        run: |
+          ssh root@194.226.97.103 'python3 -' <<'PY'
+          import json, urllib.request
+          from datetime import datetime, timedelta, timezone
+          from pathlib import Path
+
+          # Заявки с форм «На заказ» / «Бизнесу» за последние 60 дней. Повторная отправка не дублирует,
+          # а тех, кто уже есть в CRM, только дополняет текстом заявки (backfill).
+          path = Path('/var/www/satori/backend/data/leads.json')
+          leads = json.loads(path.read_text()) if path.exists() else []
+          since = datetime.now(timezone.utc) - timedelta(days=60)
+          def recent(l):
+              try:
+                  return datetime.fromisoformat(str(l.get('createdAt', '')).replace('Z', '+00:00')) >= since
+              except Exception:
+                  return False
+          leads = [l for l in leads if recent(l)]
+          payload = json.dumps({'leads': leads, 'backfill': True}, ensure_ascii=False).encode('utf-8')
+          req = urllib.request.Request('http://127.0.0.1:3020/api/integrations/site-leads', data=payload, headers={'Content-Type': 'application/json'}, method='POST')
+          try:
+              with urllib.request.urlopen(req, timeout=60) as r:
+                  res = json.loads(r.read().decode('utf-8'))
+              print(f"Site leads: {res.get('processed', 0)} checked, {res.get('failed', 0)} failed")
+          except Exception as exc:
+              print(f'Site leads sync skipped: {exc}')
+          PY
+
       - name: Verify paid orders are confirmed projects and failed payments are not deals
         run: |
           ssh root@194.226.97.103 'python3 -' <<'PY'

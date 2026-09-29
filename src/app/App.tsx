@@ -87,8 +87,13 @@ function pushEcommerce(payload: Record<string, unknown>) {
 // ── Metrika identifiers — captured once per visit, used for server-side offline-conversion fallback ──
 function captureMetrikaIdentifiers() {
   try {
-    const yclid = new URLSearchParams(window.location.search).get("yclid");
+    const params = new URLSearchParams(window.location.search);
+    const yclid = params.get("yclid");
     if (yclid) localStorage.setItem("satori_yclid", yclid);
+    // UTM-метки последнего рекламного захода — чтобы CRM знала, что заявка с рекламы.
+    const utm: Record<string, string> = {};
+    for (const k of ["utm_source", "utm_medium", "utm_campaign", "utm_term"]) { const v = params.get(k); if (v) utm[k] = v.slice(0, 200); }
+    if (Object.keys(utm).length) localStorage.setItem("satori_utm", JSON.stringify(utm));
   } catch {}
   try {
     (window as any).ym?.(110458266, "getClientID", (clientID: string) => {
@@ -101,6 +106,7 @@ function getMetrikaTracking() {
     return {
       yclid: localStorage.getItem("satori_yclid") || undefined,
       clientId: localStorage.getItem("satori_cid") || undefined,
+      ...(JSON.parse(localStorage.getItem("satori_utm") || "{}") as Record<string, string>),
     };
   } catch { return {}; }
 }
@@ -1623,7 +1629,7 @@ function CustomOrderPage({ setPage }: { setPage: (p: Page) => void }) {
     try {
       const res = await fetch("/api/leads", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type: "custom", ...form }),
+        body: JSON.stringify({ type: "custom", ...form, tracking: getMetrikaTracking() }),
       });
       if (!res.ok) throw new Error((await res.json())?.error || "Не удалось отправить");
       setSent(true);
@@ -1726,7 +1732,7 @@ function BusinessPage({ setPage }: { setPage: (p: Page) => void }) {
       const { type: inquiryType, ...rest } = form;
       const res = await fetch("/api/leads", {
         method: "POST", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ type: "business", inquiryType, ...rest }),
+        body: JSON.stringify({ type: "business", inquiryType, ...rest, tracking: getMetrikaTracking() }),
       });
       if (!res.ok) throw new Error((await res.json())?.error || "Не удалось отправить");
       setSent(true);

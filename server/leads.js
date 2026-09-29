@@ -41,6 +41,27 @@ async function enrichLeads(leads) {
   }));
 }
 
+const CRM_V2_INTERNAL_URL = process.env.CRM_V2_INTERNAL_URL || "http://127.0.0.1:3020";
+
+// Заявка сразу уходит в CRM (сделка на первом этапе + задача «связаться»).
+// Если CRM недоступна — заявка всё равно сохранена в leads.json и дойдёт при следующей сверке.
+export async function syncLeadToCrmV2(lead) {
+  try {
+    const response = await fetch(`${CRM_V2_INTERNAL_URL}/api/integrations/site-leads`, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(lead),
+      signal: AbortSignal.timeout(15000),
+    });
+    if (!response.ok) {
+      const detail = await response.text().catch(() => "");
+      console.error("CRM v2 lead sync failed:", response.status, detail.slice(0, 200));
+    }
+  } catch (error) {
+    console.error("CRM v2 lead sync unavailable:", error?.message || error);
+  }
+}
+
 function withWriteLock(fn) {
   writeQueue = writeQueue.then(fn, fn);
   return writeQueue;

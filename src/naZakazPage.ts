@@ -383,6 +383,7 @@ function bindPage(root: HTMLElement) {
           referenceName,
           referenceDataUrl,
           source: "na-zakaz",
+          tracking: readTracking(),
         }),
       });
       const payload = await response.json().catch(() => ({}));
@@ -443,4 +444,20 @@ export function startNaZakazPage() {
   window.addEventListener("satori-route-change", schedule);
   window.addEventListener("hashchange", scrollToHash);
   window.addEventListener("pageshow", schedule);
+}
+
+// Рекламный клик и UTM: из адреса страницы или из того, что сайт запомнил раньше.
+function readTracking(): Record<string, string> {
+  const out: Record<string, string> = {};
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const saved = JSON.parse(localStorage.getItem("satori_utm") || "{}") as Record<string, string>;
+    Object.assign(out, saved);
+    for (const k of ["utm_source", "utm_medium", "utm_campaign", "utm_term"]) { const v = params.get(k); if (v) out[k] = v.slice(0, 200); }
+    const yclid = params.get("yclid") || localStorage.getItem("satori_yclid");
+    if (yclid) out.yclid = yclid;
+    const cid = localStorage.getItem("satori_cid");
+    if (cid) out.clientId = cid;
+  } catch { /* приватный режим — без меток */ }
+  return out;
 }
