@@ -15,11 +15,14 @@ export function MetrikaSetup({ configured, counterId, month, spend }: { configur
   async function save(body: Record<string, unknown>, ok: string) {
     setBusy(true);
     try {
-      const r = await fetch("/api/metrika", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
+      const r = await fetch("/api/funnel-settings", { method: "PUT", headers: { "content-type": "application/json" }, body: JSON.stringify(body) });
       const d = await r.json().catch(() => ({}));
       if (!r.ok) throw new Error(d.error || "Не удалось сохранить");
       toast.success(ok); setToken(""); router.refresh();
-    } catch (e) { toast.error(e instanceof Error ? e.message : "Ошибка"); } finally { setBusy(false); }
+    } catch (e) {
+      const blocked = e instanceof TypeError; // сетевой отказ: чаще всего блокировщик рекламы или нет связи
+      toast.error(blocked ? "Запрос не дошёл до CRM — проверь интернет или отключи блокировщик рекламы для этого сайта" : e instanceof Error ? e.message : "Ошибка");
+    } finally { setBusy(false); }
   }
   const field = "h-9 rounded-lg border border-slate-200 bg-white px-2.5 text-[13px] outline-none focus:border-slate-400 dark:border-white/[.1] dark:bg-transparent";
   return (
