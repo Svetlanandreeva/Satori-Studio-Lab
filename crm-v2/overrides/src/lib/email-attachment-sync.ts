@@ -44,7 +44,7 @@ function findContactId(remoteEmail: string, messageId: string): string | null {
     // conversation and analyzed by the AI manager without a manual "Добавить в CRM".
     if (thread && !thread.isService) {
       try {
-        return promoteEmailThreadToCrm(thread.id).contact.id;
+        return promoteEmailThreadToCrm(thread.id, { createDeal: false }).contact.id;
       } catch (error) {
         console.warn("Email attachment lead promotion skipped", remoteEmail, error instanceof Error ? error.message : error);
       }

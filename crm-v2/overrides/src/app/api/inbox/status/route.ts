@@ -1,0 +1,88 @@
+import { NextRequest, NextResponse } from "next/server";
+import { sqlite } from "@/db";
+import { promoteEmailThreadToCrm, setEmailThreadService } from "@/lib/email-crm-policy";
+import { getRequestActor } from "@/lib/request-actor";
+import { writeAuditLog } from "@/lib/operations";
+
+export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
+
+/**
+ * Статус обращения из «Сообщений»:
+ *  new    — просто написал (контакт считается, в сделках его нет);
+ *  work   — взят в работу: карточка появляется в сделках на этапе «Расчёт»;
+ *  ignore — не клиент (спам, реклама, поставщик) — скрывается из списков.
+ */
+type Status = "new" | "work" | "ignore";
+
+function openDealFor(contactId: string) {
+  return sqlite.prepare(`SELECT d.id, d.stage_id AS stageId, ps.name AS stageName FROM deals d JOIN pipeline_stages ps ON ps.id=d.stage_id
+    WHERE d.contact_id=? AND COALESCE(ps.is_won,0)=0 AND COALESCE(ps.is_lost,0)=0 ORDER BY d.updated_at DESC LIMIT 1`).get(contactId) as { id: string; stageId: string; stageName: string } | undefined;
+}
+
+/** Этап «взят в работу» — первый после «Новый запрос» (обычно «Расчёт»). */
+function workStage() {
+  const open = sqlite.prepare(`SELECT id, name FROM pipeline_stages WHERE COALESCE(is_won,0)=0 AND COALESCE(is_lost,0)=0
+    AND lower(name) NOT LIKE '%песочн%' AND lower(name) NOT LIKE '%спам%' ORDER BY "order"`).all() as Array<{ id: string; name: string }>;
+  return { first: open[0], work: open.find((s) => /расч/i.test(s.name)) || open[1] || open[0] };
+}
+
+function state(contactId: string | null) {
+  if (!contactId) return { status: "new" as Status, stageName: null, dealId: null };
+  const contact = sqlite.prepare("SELECT qualification FROM contacts WHERE id=?").get(contactId) as { qualification?: string } | undefined;
+  const deal = openDealFor(contactId);
+  if (deal) return { status: (deal.stageId === workStage().first?.id ? "new" : "work") as Status, stageName: deal.stageName, dealId: deal.id };
+  if (["ignore", "spam", "unqualified"].includes(String(contact?.qualification || ""))) return { status: "ignore" as Status, stageName: null, dealId: null };
+  return { status: "new" as Status, stageName: null, dealId: null };
+}
+
+export async function GET(request: NextRequest) {
+  const contactId = new URL(request.url).searchParams.get("contactId");
+  return NextResponse.json(state(contactId));
+}
+
+export async function POST(request: NextRequest) {
+  const actor = getRequestActor(request);
+  let body: Record<string, unknown>;
+  try { body = await request.json(); } catch { return NextResponse.json({ error: "Некорректный JSON" }, { status: 400 }); }
+  const status = String(body.status || "") as Status;
+  const channel = String(body.channel || "");
+  const threadId = body.threadId ? String(body.threadId) : null;
+  let contactId = body.contactId ? String(body.contactId) : null;
+  const title = String(body.title || "").trim();
+  if (!["new", "work", "ignore"].includes(status)) return NextResponse.json({ error: "Неизвестный статус" }, { status: 400 });
+
+  try {
+    const now = Math.floor(Date.now() / 1000);
+    if (status === "work") {
+      const stages = workStage();
+      if (!stages.work) return NextResponse.json({ error: "В воронке нет этапов" }, { status: 400 });
+      if (channel === "email" && threadId) {
+        const result = promoteEmailThreadToCrm(threadId);
+        contactId = result.contact.id;
+      }
+      if (!contactId) return NextResponse.json({ error: "Нет клиента для этого диалога" }, { status: 400 });
+      const existing = openDealFor(contactId);
+      if (!existing) {
+        const contact = sqlite.prepare("SELECT name FROM contacts WHERE id=?").get(contactId) as { name?: string } | undefined;
+        sqlite.prepare(`INSERT INTO deals(id,title,value,stage_id,contact_id,probability,notes,created_at,updated_at) VALUES(?,?,0,?,?,30,?,?,?)`)
+          .run(crypto.randomUUID(), title || `${channel === "telegram" ? "Telegram" : "Заявка"} · ${contact?.name || "клиент"}`, stages.work.id, contactId, "Взято в работу из «Сообщений»", now, now);
+      } else if (stages.first && existing.stageId === stages.first.id) {
+        // Лид с первого этапа — переводим в работу.
+        sqlite.prepare("UPDATE deals SET stage_id=?, updated_at=? WHERE id=?").run(stages.work.id, now, existing.id);
+      }
+      if (contactId) sqlite.prepare("UPDATE contacts SET qualification=CASE WHEN qualification IN ('qualified') THEN qualification ELSE 'working' END, updated_at=? WHERE id=?").run(now, contactId);
+    } else if (status === "ignore") {
+      const open = contactId ? openDealFor(contactId) : undefined;
+      if (open && open.stageId !== workStage().first?.id) return NextResponse.json({ error: `У клиента открыта сделка (${open.stageName}). Переведите её в «Отказ» в карточке сделки.` }, { status: 409 });
+      if (contactId) sqlite.prepare("UPDATE contacts SET qualification='ignore', updated_at=? WHERE id=?").run(now, contactId);
+      else if (channel === "email" && threadId) setEmailThreadService(threadId, true);
+    } else if (contactId) {
+      sqlite.prepare("UPDATE contacts SET qualification='new', updated_at=? WHERE id=? AND qualification IN ('ignore','spam','unqualified')").run(now, contactId);
+    }
+    writeAuditLog(actor, "inbox_status", "contact", contactId, { status, channel, threadId });
+    return NextResponse.json({ ok: true, contactId, ...state(contactId) });
+  } catch (error) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : "Не удалось изменить статус" }, { status: 400 });
+  }
+}

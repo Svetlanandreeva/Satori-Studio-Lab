@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { NewDealButton } from "@/components/deals/DealActions";
 import { LEAD_QUALIFICATION_LABELS } from "@/lib/lead-qualification";
+import { normalizeLegacyDate } from "@/lib/date-normalization";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ActivityForm } from "@/components/activities/ActivityForm";
@@ -40,11 +41,11 @@ interface Props { contact: Contact; deals: Deal[]; activities: Activity[]; docum
 
 function money(value: number) { return `${Math.round((value || 0) / 100).toLocaleString("ru-RU")} ₽`; }
 function date(value: number | Date | string) {
-  const d = value instanceof Date ? value : new Date(value);
-  return Number.isNaN(d.getTime()) ? String(value) : new Intl.DateTimeFormat("ru-RU", { dateStyle: "medium" }).format(d);
+  const d = normalizeLegacyDate(value);
+  return !d ? "—" : new Intl.DateTimeFormat("ru-RU", { dateStyle: "medium" }).format(d);
 }
 function relative(value: number | Date) {
-  const ms = value instanceof Date ? value.getTime() : new Date(value).getTime();
+  const ms = normalizeLegacyDate(value)?.getTime() ?? Date.now();
   const days = Math.floor((Date.now() - ms) / 86_400_000);
   if (days <= 0) return "сегодня"; if (days === 1) return "вчера"; if (days < 7) return `${days} дн. назад`; return date(value);
 }

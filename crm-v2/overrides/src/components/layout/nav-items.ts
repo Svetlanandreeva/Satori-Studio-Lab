@@ -1,13 +1,13 @@
 import {
   BarChart3, Banknote, Boxes, CalendarClock, Factory, Handshake, Kanban,
-  LayoutDashboard, MessageCircle, PhoneCall, ShieldCheck, Sparkles, Sun, Users,
+  LayoutDashboard, MessageCircle, PhoneCall, ShieldCheck, Sparkles, Users,
 } from "lucide-react";
 
 export type NavItem = { href: string; label: string; icon: typeof LayoutDashboard; hint?: string };
 
 /** Ежедневная работа — всегда на виду. */
 export const PRIMARY_NAV: NavItem[] = [
-  { href: "/", label: "Сегодня", icon: Sun, hint: "Что горит сегодня" },
+  { href: "/", label: "Сводка", icon: LayoutDashboard, hint: "Цифры, календарь, воронка" },
   { href: "/pipeline", label: "Воронка", icon: Kanban, hint: "Сделки по этапам" },
   { href: "/deals", label: "Сделки", icon: Handshake, hint: "Список заказов" },
   { href: "/production", label: "Производство", icon: Factory, hint: "Сроки и дедлайны" },
@@ -21,7 +21,6 @@ export const SECONDARY_NAV: NavItem[] = [
   { href: "/economics", label: "Деньги", icon: Banknote, hint: "Поступления и расходы" },
   { href: "/procurement", label: "Закупки", icon: Boxes, hint: "Материалы" },
   { href: "/analytics", label: "Аналитика", icon: BarChart3, hint: "Продажи и источники" },
-  { href: "/summary", label: "Сводка", icon: LayoutDashboard, hint: "Цифры за день и месяц" },
   { href: "/assistant", label: "AI помощник", icon: Sparkles, hint: "Срез по CRM" },
   { href: "/call-list", label: "Обзвон", icon: PhoneCall, hint: "Лиды на обработку" },
   { href: "/control", label: "Контроль", icon: ShieldCheck, hint: "Сотрудники и доступы" },

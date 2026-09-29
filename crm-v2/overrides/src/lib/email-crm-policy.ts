@@ -152,7 +152,7 @@ export function getContactPipelineContext(contactId: string | null | undefined) 
   return stage ? { id: deal.id, title: deal.title, stageId: stage.id, stageName: stage.name } : null;
 }
 
-export function promoteEmailThreadToCrm(threadId: string) {
+export function promoteEmailThreadToCrm(threadId: string, options: { createDeal?: boolean } = {}) {
   cleanupLegacyAutoEmailContacts();
   const thread = db.select().from(emailThreads).where(eq(emailThreads.id, threadId)).get();
   if (!thread) throw new Error("Диалог не найден");
@@ -205,6 +205,14 @@ export function promoteEmailThreadToCrm(threadId: string) {
       createdAt: now,
       updatedAt: now,
     }).returning().get();
+  }
+
+  // Без явного «В работу» переписка — это только обращение: клиент есть, карточки в воронке нет.
+  if (options.createDeal === false) {
+    for (const siblingId of siblingThreadIds) {
+      db.update(emailThreads).set({ contactId: contact.id, isService: false, updatedAt: now }).where(eq(emailThreads.id, siblingId)).run();
+    }
+    return { contact, deal: null, stageName: null };
   }
 
   if (!deal) deal = latestDealForContact(contact.id);

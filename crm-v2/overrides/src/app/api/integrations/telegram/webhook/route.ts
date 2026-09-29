@@ -313,6 +313,7 @@ export async function POST(request: NextRequest) {
     businessConnectionId: businessConnectionId || null,
   });
 
+  const isNewContact = !contact;
   if (!contact) {
     contact = db
       .insert(contacts)
@@ -369,53 +370,21 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ ok: true, contactId: contact.id, outgoing: true });
   }
 
-  const activeDeals = db
-    .select({ deal: deals, stage: pipelineStages })
-    .from(deals)
-    .innerJoin(pipelineStages, eq(deals.stageId, pipelineStages.id))
-    .all()
-    .filter((row) => row.deal.contactId === contact.id && !row.stage.isWon && !row.stage.isLost);
-
-  let newDealId: string | null = null;
-  // Контакты из Need Number живут в «Обзвоне», пока не подтверждена заявка.
+  // Новое сообщение — это обращение (контакт), а не сделка. Карточку в воронке
+  // создаёт Светлана кнопкой «В работу» в «Сообщениях».
   const isCallListLead = contact.source === "need_number" && contact.qualification !== "qualified";
-  if (!activeDeals.length && !body.startsWith("/") && !isCallListLead) {
-    const firstStage = db
-      .select()
-      .from(pipelineStages)
-      .orderBy(asc(pipelineStages.order))
-      .all()
-      .find((stage) => !stage.isWon && !stage.isLost && !/песоч/i.test(stage.name));
-    if (firstStage) {
-      const createdDeal = db
-        .insert(deals)
-        .values({
-          title: `Telegram · ${displayName(message)}`,
-          value: 0,
-          stageId: firstStage.id,
-          contactId: contact.id,
-          probability: 20,
-          notes: `${isBusiness ? "Источник: личный Telegram" : "Источник: Telegram-бот"}${
-            username ? `\nПользователь: ${username}` : ""
-          }`,
-          createdAt: now,
-          updatedAt: now,
-        })
-        .returning()
-        .get();
-      newDealId = createdDeal.id;
-    }
-  }
+  const newDealId: string | null = null;
+  const notifyNewInquiry = isNewContact && !isCallListLead && !body.startsWith("/");
 
   // The admin bot is an alert channel, not a copy of every conversation.
-  // Notify only when this inbound message actually creates a new CRM application/deal.
-  if (newDealId) {
+  // Notify only about a new inquiry (first message from a new person).
+  if (notifyNewInquiry) {
     const contactUrl = `${externalOrigin(request)}/contacts/${contact.id}`;
     await sendTelegramMessage({
       text: [
         isBusiness
-          ? "🟢 <b>Новая заявка из личного Telegram</b>"
-          : "🟢 <b>Новая заявка из Telegram-бота</b>",
+          ? "🟢 <b>Новое обращение в личный Telegram</b>"
+          : "🟢 <b>Новое обращение в Telegram-бот</b>",
         `От: ${escapeTelegramHtml(displayName(message))}${
           username ? ` (${escapeTelegramHtml(username)})` : ""
         }`,
@@ -430,7 +399,7 @@ export async function POST(request: NextRequest) {
     contactId: contact.id,
     business: isBusiness,
     dealId: newDealId,
-    adminNotified: Boolean(newDealId),
+    adminNotified: notifyNewInquiry,
   });
 }
 
