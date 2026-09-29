@@ -251,6 +251,27 @@ jobs:
           systemctl reload nginx
           REMOTE
 
+      - name: Let the CRM open as an installed web app (app login instead of nginx Basic Auth)
+        run: |
+          ssh root@194.226.97.103 'bash -se' <<'REMOTE'
+          set -eu
+          cfg=/etc/nginx/conf.d/satori-crm.conf
+          test -f "$cfg"
+          # Установленное веб-приложение (iPhone / Android / рабочий стол) не умеет проходить
+          # Basic Auth. У CRM свой вход по паролю с сессией и защитой от подбора, поэтому
+          # Basic Auth для CRM снимаем. Резервная копия конфига остаётся рядом.
+          if grep -Eq '^[[:space:]]*auth_basic[[:space:]]+"' "$cfg"; then
+            cp "$cfg" "$cfg.bak-basic-auth"
+            sed -i -E 's/^([[:space:]]*)(auth_basic[[:space:]]+"[^"]*"[[:space:]]*;)/\1# SATORI PWA: \2/; s/^([[:space:]]*)(auth_basic_user_file[[:space:]]+[^;]+;)/\1# SATORI PWA: \2/' "$cfg"
+            if ! nginx -t; then
+              cp "$cfg.bak-basic-auth" "$cfg"
+              echo 'nginx config test failed; Basic Auth left as it was'
+            fi
+          fi
+          nginx -t
+          systemctl reload nginx
+          REMOTE
+
       - name: Initialize Satori pipeline only for an empty database
         run: |
           ssh root@194.226.97.103 'bash -se' <<'REMOTE'

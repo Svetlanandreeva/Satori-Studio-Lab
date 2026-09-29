@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { BookmarkPlus, ChevronDown, FileText, FolderOpen, Loader2, MessageSquareText, Paperclip, Plus, Search, Send, Upload, X } from "lucide-react";
+import { ProposalDialog } from "@/components/documents/ProposalDialog";
+import { Sparkles, BookmarkPlus, ChevronDown, FileText, FolderOpen, Loader2, MessageSquareText, Paperclip, Plus, Search, Send, Upload, X } from "lucide-react";
 
 export interface Template { id: string; title: string; channel: "all" | "email" | "telegram"; body: string; sortOrder: number; }
 type ClientDoc = { id: string; name: string; sizeBytes?: number; createdAt?: number; mimeType?: string | null };
@@ -34,6 +35,7 @@ export function Composer({ channel, contactId, clientName, templates, sending, o
   const [docs, setDocs] = useState<ClientDoc[] | null>(null);
   const [loadingDoc, setLoadingDoc] = useState<string | null>(null);
   const [q, setQ] = useState("");
+  const [proposalOpen, setProposalOpen] = useState(false);
   const area = useRef<HTMLTextAreaElement | null>(null);
   const fileInput = useRef<HTMLInputElement | null>(null);
   const box = useRef<HTMLDivElement | null>(null);
@@ -104,6 +106,7 @@ export function Composer({ channel, contactId, clientName, templates, sending, o
               <button type="button" className={item} onClick={() => { setMenu(null); fileInput.current?.click(); }}><Upload className="h-4 w-4 text-slate-500" />Файл с компьютера<span className="ml-auto text-[11px] text-slate-400">до 20 МБ</span></button>
               <button type="button" className={item} disabled={!contactId} onClick={() => void openClientFiles()}><FolderOpen className="h-4 w-4 text-slate-500" />Из файлов клиента<span className="ml-auto text-[11px] text-slate-400">КП, договоры, фото</span></button>
               <button type="button" className={item} onClick={() => setMenu("templates")}><MessageSquareText className="h-4 w-4 text-slate-500" />Шаблон сообщения</button>
+              <button type="button" className={item} disabled={!contactId} onClick={() => { setMenu(null); setProposalOpen(true); }}><Sparkles className="h-4 w-4 text-violet-500" />КП от AI<span className="ml-auto text-[11px] text-slate-400">из переписки и файлов</span></button>
             </div>
           )}
           {menu === "client" && (
@@ -147,6 +150,7 @@ export function Composer({ channel, contactId, clientName, templates, sending, o
           <button type="button" onClick={() => void submit()} disabled={sending || (!draft.trim() && !file)} className="flex h-9 w-9 items-center justify-center rounded-full bg-slate-900 text-white transition hover:bg-slate-700 disabled:bg-slate-300 dark:bg-white dark:text-slate-900" aria-label="Отправить">{sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}</button>
         </div>
       </div>
+      {contactId && <ProposalDialog open={proposalOpen} contactId={contactId} onClose={() => setProposalOpen(false)} saveLabel="Сохранить и приложить" onSaved={(doc) => { setProposalOpen(false); void pickClientDoc(doc); }} />}
       <input ref={fileInput} type="file" className="hidden" onChange={(e) => { setFile(e.target.files?.[0] || null); e.target.value = ""; }} />
     </div>
   );

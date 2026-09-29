@@ -121,12 +121,9 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
             </section>
           )}
 
-          {documents.length > 0 && (
-            <section className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm dark:border-white/[.08] dark:bg-[#16181d]">
-              <h2 className="mb-3 text-sm font-semibold">Файлы и КП</h2>
-              <DealFiles contactId={deal.contactId || ""} documents={documents.map((d: any) => ({ id: d.id, name: d.name, mimeType: d.mimeType, sizeBytes: d.sizeBytes }))} />
-            </section>
-          )}
+          <section className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm dark:border-white/[.08] dark:bg-[#16181d]">
+            <DealFiles contactId={deal.contactId || ""} dealId={deal.id} documents={documents.map((d: any) => ({ id: d.id, name: d.name, mimeType: d.mimeType, sizeBytes: d.sizeBytes }))} />
+          </section>
 
           <details className="group rounded-2xl border border-slate-200/80 bg-white shadow-sm dark:border-white/[.08] dark:bg-[#16181d]">
             <summary className="flex cursor-pointer list-none items-center gap-2 px-5 py-3.5 text-sm font-semibold"><Clock3 className="h-4 w-4 text-slate-400" />История этапов <span className="font-normal text-slate-400">{history.length}</span><span className="ml-auto text-xs font-normal text-slate-400 group-open:hidden">показать</span></summary>
