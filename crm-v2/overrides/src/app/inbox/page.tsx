@@ -6,6 +6,7 @@ import { Bot, FileText, Loader2, Mail, MessageCircle, Paperclip, RefreshCw, Sear
 import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { InboxStatus } from "@/components/inbox/InboxStatus";
+import { DocumentPreview } from "@/components/documents/DocumentPreview";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { emitUnreadMessagesChanged, useUnreadMessages } from "@/lib/use-unread-messages";
@@ -14,7 +15,7 @@ type Channel = "email" | "telegram";
 type Filter = "all" | "telegram" | "email" | "service";
 interface UnifiedThread { key: string; id: string; channel: Channel; contactId: string | null; title: string; subtitle: string; isService: boolean; unreadCount: number; lastMessageAt: string; lastSnippet: string | null; lastDirection: string; telegramKind?: string; }
 interface UnifiedMessage { id: string; direction: "incoming" | "outgoing"; bodyText: string; receivedAt: string; sender?: string | null; sourceMessageId?: string | null; }
-interface UnifiedDocument { id:string; name:string; sizeBytes:number; createdAt:number; sourceMessageId:string|null; kind:string; }
+interface UnifiedDocument { id:string; name:string; mimeType?:string|null; sizeBytes:number; createdAt:number; sourceMessageId:string|null; kind:string; }
 interface UnifiedDetail { channel: Channel; threadId: string; contactId: string | null; title: string; subtitle: string; isService: boolean; pipelineStage: string | null; messages: UnifiedMessage[]; documents: UnifiedDocument[]; }
 interface Template { id: string; title: string; channel: "all" | "email" | "telegram"; body: string; sortOrder: number; }
 
@@ -166,7 +167,7 @@ export default function InboxPage() {
           {!detail.isService && <footer className="border-t bg-white p-3"><div className="mb-2 flex gap-1.5 overflow-x-auto pb-1">{visibleTemplates.map((template) => <button key={template.id} type="button" onClick={() => setDraft(template.body)} className="shrink-0 rounded-full border border-slate-200 bg-slate-50 px-3 py-1.5 text-[11px] font-medium text-slate-600 hover:bg-white hover:text-slate-900">{template.title}</button>)}</div>{file && <div className="mb-2 flex items-center gap-2 rounded-xl border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-600"><FileText className="h-4 w-4" /><span className="min-w-0 flex-1 truncate">{file.name}</span><span className="text-slate-400">{Math.max(1, Math.round(file.size / 1024))} КБ</span><button onClick={() => setFile(null)} className="rounded p-1 hover:bg-white"><X className="h-3.5 w-3.5" /></button></div>}<div className="flex gap-2"><label className="flex h-auto w-11 shrink-0 cursor-pointer items-center justify-center rounded-md border bg-background hover:bg-muted" title="Приложить файл"><Paperclip className="h-4 w-4" /><input type="file" className="hidden" onChange={(event) => setFile(event.target.files?.[0] || null)} /></label><textarea rows={3} value={draft} onChange={(event) => setDraft(event.target.value)} onKeyDown={(event) => { if ((event.metaKey || event.ctrlKey) && event.key === "Enter") void send(); }} placeholder={detail.channel === "telegram" ? "Ответить в Telegram..." : "Ответить по почте..."} className="min-h-[76px] flex-1 resize-y rounded-md border bg-background px-3 py-2 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring" /><Button className="h-auto px-4" onClick={send} disabled={sending || (!draft.trim() && !file)}>{sending ? <Loader2 className="h-4 w-4 animate-spin" /> : <Send className="h-4 w-4" />}</Button></div><div className="mt-1 flex items-center justify-between text-[10px] text-muted-foreground"><span>⌘/Ctrl + Enter — отправить</span><span><Paperclip className="mr-1 inline h-3 w-3" />файлы до 20 МБ</span></div></footer>}
         </> : null}</section>
       </div>
-      {previewDoc && detail?.contactId && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/55 p-4" onClick={()=>setPreviewDoc(null)}><div className="flex h-[92vh] w-[min(1100px,96vw)] flex-col overflow-hidden rounded-2xl bg-white shadow-2xl" onClick={(event)=>event.stopPropagation()}><div className="flex items-center gap-3 border-b px-4 py-3"><FileText className="h-4 w-4"/><div className="min-w-0 flex-1 truncate text-sm font-semibold">{previewDoc.name}</div><a href={`/api/contacts/${detail.contactId}/documents/${previewDoc.id}?download=1`} className="rounded-md border px-3 py-1.5 text-xs hover:bg-muted">Скачать</a><Button size="icon" variant="ghost" onClick={()=>setPreviewDoc(null)}><X className="h-4 w-4"/></Button></div><iframe title={previewDoc.name} src={`/api/contacts/${detail.contactId}/documents/${previewDoc.id}`} className="min-h-0 flex-1 bg-slate-100" /></div></div>}
+      {detail?.contactId && <DocumentPreview contactId={detail.contactId} doc={previewDoc} onClose={()=>setPreviewDoc(null)} />}
       
     </div>
   );

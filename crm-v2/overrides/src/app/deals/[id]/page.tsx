@@ -16,6 +16,7 @@ import { calculateDealFinancials } from "@/lib/deal-financials";
 import { listDealHistory, listTeamMembers } from "@/lib/operations";
 import { getDealProcurementSummary, listDealPurchases } from "@/lib/procurement";
 import { listClientDocuments } from "@/lib/client-documents";
+import { DealFiles } from "@/components/deals/DealFiles";
 import { analyzeDealWithAi, dealAiNeedsRefresh, getDealAiSummary } from "@/lib/deal-ai";
 
 export const dynamic = "force-dynamic";
@@ -123,7 +124,7 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
           {documents.length > 0 && (
             <section className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm dark:border-white/[.08] dark:bg-[#16181d]">
               <h2 className="mb-3 text-sm font-semibold">Файлы и КП</h2>
-              <div className="flex flex-wrap gap-2">{documents.slice(0, 12).map((d: any) => <a key={d.id} href={`/api/contacts/${deal.contactId}/documents/${d.id}`} target="_blank" className="rounded-lg border bg-slate-50 px-3 py-1.5 text-[13px] text-slate-700 hover:bg-white">{d.name}</a>)}</div>
+              <DealFiles contactId={deal.contactId || ""} documents={documents.map((d: any) => ({ id: d.id, name: d.name, mimeType: d.mimeType, sizeBytes: d.sizeBytes }))} />
             </section>
           )}
 
