@@ -20,8 +20,9 @@ export const dynamic = "force-dynamic";
 type Status = "new" | "work" | "ignore" | "contractor";
 
 function openDealFor(contactId: string) {
-  return sqlite.prepare(`SELECT d.id, d.stage_id AS stageId, ps.name AS stageName FROM deals d JOIN pipeline_stages ps ON ps.id=d.stage_id
-    WHERE d.contact_id=? AND COALESCE(ps.is_won,0)=0 AND COALESCE(ps.is_lost,0)=0 ORDER BY d.updated_at DESC LIMIT 1`).get(contactId) as { id: string; stageId: string; stageName: string } | undefined;
+  return sqlite.prepare(`SELECT d.id, d.stage_id AS stageId, ps.name AS stageName, d.owner_id AS ownerId, tm.name AS ownerName FROM deals d JOIN pipeline_stages ps ON ps.id=d.stage_id
+    LEFT JOIN team_members tm ON tm.id=d.owner_id
+    WHERE d.contact_id=? AND COALESCE(ps.is_won,0)=0 AND COALESCE(ps.is_lost,0)=0 ORDER BY d.updated_at DESC LIMIT 1`).get(contactId) as { id: string; stageId: string; stageName: string; ownerId: string | null; ownerName: string | null } | undefined;
 }
 
 function state(contactId: string | null) {
@@ -29,7 +30,7 @@ function state(contactId: string | null) {
   ensureReasonColumn();
   const contact = sqlite.prepare("SELECT qualification, qualification_reason AS reason FROM contacts WHERE id=?").get(contactId) as { qualification?: string; reason?: string | null } | undefined;
   const deal = openDealFor(contactId);
-  if (deal) return { status: (deal.stageId === workStage().first?.id ? "new" : "work") as Status, stageName: deal.stageName, dealId: deal.id };
+  if (deal) return { status: (deal.stageId === workStage().first?.id ? "new" : "work") as Status, stageName: deal.stageName, dealId: deal.id, ownerId: deal.ownerId, ownerName: deal.ownerName };
   if (contact?.qualification === "contractor") return { status: "contractor" as Status, stageName: null, dealId: null };
   if (["ignore", "spam", "unqualified", "not_target"].includes(String(contact?.qualification || ""))) return { status: "ignore" as Status, stageName: null, dealId: null, reason: contact?.reason || null };
   return { status: "new" as Status, stageName: null, dealId: null };
@@ -114,6 +115,12 @@ export async function POST(request: NextRequest) {
       sqlite.prepare("UPDATE contacts SET qualification='new', updated_at=? WHERE id=? AND qualification IN ('ignore','spam','unqualified','not_target','contractor')").run(now, contactId);
       ensureReasonColumn();
       sqlite.prepare("UPDATE contacts SET qualification_reason=NULL WHERE id=?").run(contactId);
+    }
+    // Владелец передаёт обращение менеджеру (или снимает): ответственный у открытой сделки.
+    if (status === "work" && actor.role === "owner" && body.ownerId !== undefined && contactId) {
+      const open = openDealFor(contactId);
+      const ownerId = String(body.ownerId || "").trim() || null;
+      if (open) sqlite.prepare("UPDATE deals SET owner_id=?, updated_at=? WHERE id=?").run(ownerId, now, open.id);
     }
     writeAuditLog(actor, "inbox_status", "contact", contactId, { status, channel, threadId, reason: body.reason || null });
     return NextResponse.json({ ok: true, contactId, ...state(contactId) });

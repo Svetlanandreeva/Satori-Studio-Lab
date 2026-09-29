@@ -84,8 +84,9 @@ export default async function SummaryPage({ searchParams }: { searchParams?: Pro
   const noDates = production.filter((d) => !d.deadline).length;
 
   // 3. Задачи на сегодня и просроченные.
+  // Менеджер видит в «Сегодня» только свои задачи.
   const tasks = (sqlite.prepare(`SELECT a.id, a.description, a.scheduled_at AS scheduledAt, a.contact_id AS contactId, c.name AS contactName FROM activities a LEFT JOIN contacts c ON c.id=a.contact_id
-      WHERE a.completed_at IS NULL AND a.scheduled_at IS NOT NULL`).all() as Array<{ id: string; description: string; scheduledAt: unknown; contactId: string; contactName: string | null }>)
+      WHERE a.completed_at IS NULL AND a.scheduled_at IS NOT NULL ${owner ? "" : "AND a.owner_id = ?"}`).all(...(owner ? [] : [actor.id])) as Array<{ id: string; description: string; scheduledAt: unknown; contactId: string; contactName: string | null }>)
     .map((t) => ({ ...t, day: (() => { const d = normalizeLegacyDate(t.scheduledAt); return d ? ymd(d) : "9999"; })() }))
     .filter((t) => t.day <= today).sort((a, b) => a.day.localeCompare(b.day));
 

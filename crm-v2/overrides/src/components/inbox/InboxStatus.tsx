@@ -3,10 +3,11 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { Check, ChevronDown, Loader2 } from "lucide-react";
+import { Check, ChevronDown, Loader2, UserRound } from "lucide-react";
+import { useMe } from "@/components/layout/use-role";
 
 type Status = "new" | "work" | "ignore" | "contractor";
-type State = { status: Status; stageName: string | null; dealId: string | null; reason?: string | null };
+type State = { status: Status; stageName: string | null; dealId: string | null; reason?: string | null; ownerId?: string | null; ownerName?: string | null };
 
 const REASONS = ["Не наш профиль", "Серийное / массовое производство", "Не целевой запрос", "Спам / реклама"];
 const UNQUAL_TEMPLATE_TITLE = "Отказ — не наш профиль";
@@ -21,6 +22,25 @@ export function InboxStatus({ channel, threadId, contactId, title, onChanged }: 
   const [openMenu, setOpenMenu] = useState(false);
   const [unqual, setUnqual] = useState<null | { reason: string; custom: string; send: boolean; text: string }>(null);
   const box = useRef<HTMLDivElement | null>(null);
+  const me = useMe();
+  const [managers, setManagers] = useState<Array<{ id: string; name: string }>>([]);
+  useEffect(() => {
+    if (me?.role !== "owner") return;
+    fetch("/api/team", { cache: "no-store" }).then((r) => r.json()).then((d) => setManagers((d.members || []).filter((m: { role: string; active: boolean }) => m.role === "manager" && m.active))).catch(() => {});
+  }, [me?.role]);
+
+  /** Передать обращение менеджеру: берём в работу и ставим его ответственным. */
+  async function assign(ownerId: string | null) {
+    setOpenMenu(false); setBusy("work");
+    try {
+      const res = await fetch("/api/inbox/status", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status: "work", channel, threadId, contactId, title, ownerId }) });
+      const d = await res.json();
+      if (!res.ok) throw new Error(d.error || "Не удалось передать");
+      setState({ status: d.status, stageName: d.stageName, dealId: d.dealId, ownerId: d.ownerId, ownerName: d.ownerName });
+      toast.success(ownerId ? `Передано: ${d.ownerName || "менеджеру"}` : "Ответственный снят");
+      onChanged?.();
+    } catch (e) { toast.error(e instanceof Error ? e.message : "Ошибка"); } finally { setBusy(null); }
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -71,7 +91,7 @@ export function InboxStatus({ channel, threadId, contactId, title, onChanged }: 
       const res = await fetch("/api/inbox/status", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ status, channel, threadId, contactId, title, reason: extra.reason }) });
       const d = await res.json();
       if (!res.ok) throw new Error(d.error || "Не удалось изменить статус");
-      setState({ status: d.status, stageName: d.stageName, dealId: d.dealId, reason: d.reason ?? extra.reason ?? null });
+      setState({ status: d.status, stageName: d.stageName, dealId: d.dealId, reason: d.reason ?? extra.reason ?? null, ownerId: d.ownerId, ownerName: d.ownerName });
       if (extra.message?.trim()) {
         try { await sendToClient(extra.message.trim()); }
         catch (e) { setUnqual(null); onChanged?.(); toast.error(`Отмечено «не квал», но сообщение не ушло: ${e instanceof Error ? e.message : "ошибка"}`); return; }
@@ -102,6 +122,7 @@ export function InboxStatus({ channel, threadId, contactId, title, onChanged }: 
         {cur.label}
         {state.status === "work" && state.stageName && <span className="font-normal text-slate-500">· {state.stageName}</span>}
         {state.status === "ignore" && state.reason && <span className="max-w-[160px] truncate font-normal text-slate-500">· {state.reason}</span>}
+        {state.ownerName && <span className="inline-flex items-center gap-1 font-normal text-slate-500"><UserRound className="h-3 w-3" />{state.ownerName}</span>}
         <ChevronDown className="h-3.5 w-3.5 text-slate-400" />
       </button>
       {state.dealId && state.status === "work" && <Link href={`/deals/${state.dealId}`} className="text-[12px] text-slate-500 hover:text-slate-900 hover:underline">сделка →</Link>}
@@ -114,6 +135,18 @@ export function InboxStatus({ channel, threadId, contactId, title, onChanged }: 
               {state.status === v && <Check className="ml-auto h-3.5 w-3.5" />}
             </button>
           ))}
+          {managers.length > 0 && (
+            <>
+              <div className="mx-2 my-1 border-t dark:border-white/[.08]" />
+              <div className="px-2.5 pb-1 pt-1 text-[11px] font-medium uppercase tracking-wide text-slate-400">Передать менеджеру</div>
+              {managers.map((m) => (
+                <button key={m.id} type="button" onClick={() => void assign(m.id)} className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[13px] hover:bg-slate-100 dark:hover:bg-white/[.06]">
+                  <UserRound className="h-3.5 w-3.5 text-slate-400" />{m.name}{state.ownerId === m.id && <Check className="ml-auto h-3.5 w-3.5" />}
+                </button>
+              ))}
+              {state.ownerId && <button type="button" onClick={() => void assign(null)} className="w-full rounded-lg px-2.5 py-2 text-left text-[13px] text-slate-500 hover:bg-slate-100 dark:hover:bg-white/[.06]">Снять ответственного</button>}
+            </>
+          )}
         </div>
       )}
 

@@ -10,8 +10,9 @@ import { canSeeDealMoney, pageActor } from "@/lib/access";
 
 export const dynamic = "force-dynamic";
 
-export default async function PipelinePage() {
+export default async function PipelinePage({ searchParams }: { searchParams?: Promise<{ who?: string }> }) {
   const actor = await pageActor();
+  const mineOnly = (await searchParams)?.who === "mine";
 
   const stages = db.select().from(pipelineStages).orderBy(asc(pipelineStages.order)).all().filter((stage) => stage.name !== SPAM_STAGE_NAME);
   const visibleStageIds = new Set(stages.map((stage) => stage.id));
@@ -43,7 +44,8 @@ export default async function PipelinePage() {
     // Need Number — это список обзвона, в воронку попадает только после подтверждённой заявки.
     .filter((deal) => deal.contactSource !== "need_number" || deal.contactQualification === "qualified")
     // Менеджер не видит суммы чужих сделок (-1 = скрыто).
-    .map((deal) => (canSeeDealMoney(actor, deal.ownerId) ? deal : { ...deal, value: -1 }));
+    .map((deal) => (canSeeDealMoney(actor, deal.ownerId) ? deal : { ...deal, value: -1 }))
+    .filter((deal) => !mineOnly || deal.ownerId === actor.id);
 
   // В колонках «Завершено» и «Отказ» — только последние 14 дней, иначе они разрастаются бесконечно.
   // Все закрытые сделки остаются в разделе «Сделки».
@@ -69,6 +71,10 @@ export default async function PipelinePage() {
         <h1 className="text-2xl font-semibold tracking-tight text-slate-950 dark:text-white">Воронка</h1>
         <span className="text-sm text-slate-500">Сделок в работе {total.length}{actor.role === "owner" ? "" : " · мои"} на {new Intl.NumberFormat("ru-RU", { style: "currency", currency: "RUB", maximumFractionDigits: 0 }).format(sum / 100)} · лидов {leadsCount}</span>
         {hiddenClosed > 0 && <a href="/deals" className="text-xs text-slate-400 hover:text-slate-700">старые закрытые ({hiddenClosed}) — в «Сделках»</a>}
+        <div className="flex rounded-xl bg-slate-100 p-1 text-[12.5px] dark:bg-white/[.06]">
+          <a href="/pipeline" className={`rounded-lg px-3 py-1 font-medium ${!mineOnly ? "bg-white text-slate-900 shadow-sm dark:bg-white/[.12] dark:text-white" : "text-slate-500"}`}>Все</a>
+          <a href="/pipeline?who=mine" className={`rounded-lg px-3 py-1 font-medium ${mineOnly ? "bg-white text-slate-900 shadow-sm dark:bg-white/[.12] dark:text-white" : "text-slate-500"}`}>Мои</a>
+        </div>
         <div className="ml-auto"><NewDealButton /></div>
       </div>
       <KanbanBoard initialColumns={columns} />

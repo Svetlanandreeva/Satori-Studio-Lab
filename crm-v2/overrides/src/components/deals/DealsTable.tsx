@@ -15,6 +15,7 @@ export type DealRow = {
   stageId: string | null; stageName: string | null; stageColor: string | null; isWon: boolean | null; isLost: boolean | null;
   isLead?: boolean;
   ownerName?: string | null;
+  ownerId?: string | null;
 };
 type StageLite = { id: string; name: string; color: string; isWon: boolean; isLost: boolean };
 
@@ -24,11 +25,13 @@ const shortDate = (v: string) => new Intl.DateTimeFormat("ru-RU", { day: "numeri
 
 type Scope = "active" | "leads" | "won" | "lost" | "all";
 
-export function DealsTable({ rows, stages, members = [] }: { rows: DealRow[]; stages: StageLite[]; members?: Array<{ id: string; name: string }> }) {
+export function DealsTable({ rows, stages, members = [], meId = null, isOwner = true }: { rows: DealRow[]; stages: StageLite[]; members?: Array<{ id: string; name: string }>; meId?: string | null; isOwner?: boolean }) {
   const router = useRouter();
   const [q, setQ] = useState("");
   const [scope, setScope] = useState<Scope>("active");
   const [stage, setStage] = useState("");
+  // Ответственный: "" — все; "mine" — мои; "none" — без ответственного; иначе id сотрудника.
+  const [who, setWho] = useState<string>(isOwner ? "" : "mine");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [confirm, setConfirm] = useState<string[] | null>(null);
   const [busy, setBusy] = useState(false);
@@ -97,6 +100,9 @@ export function DealsTable({ rows, stages, members = [] }: { rows: DealRow[]; st
       if (scope === "won" && !r.isWon) return false;
       if (scope === "lost" && !r.isLost) return false;
       if (stage && r.stageId !== stage) return false;
+      if (who === "mine" && r.ownerId !== meId) return false;
+      if (who === "none" && r.ownerId) return false;
+      if (who && who !== "mine" && who !== "none" && r.ownerId !== who) return false;
       if (!needle) return true;
       return [r.title, r.contactName].some((v) => String(v || "").toLowerCase().includes(needle)) ||
         (digits.length >= 3 && String(r.contactPhone || "").replace(/\D/g, "").includes(digits));
@@ -142,6 +148,18 @@ export function DealsTable({ rows, stages, members = [] }: { rows: DealRow[]; st
               </button>
             ))}
           </div>
+          {isOwner ? (
+            <select value={who} onChange={(e) => setWho(e.target.value)} aria-label="Ответственный" className="h-9 rounded-xl border border-slate-200 bg-white px-3 text-[13px] text-slate-600 outline-none dark:border-white/[.08] dark:bg-transparent dark:text-slate-300">
+              <option value="">Все ответственные</option>
+              <option value="mine">Мои</option>
+              <option value="none">Без ответственного</option>
+              {members.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+            </select>
+          ) : (
+            <div className="flex rounded-xl bg-slate-100 p-1 text-[12.5px] dark:bg-white/[.06]">
+              {([["mine", "Мои"], ["", "Все"]] as const).map(([v, l]) => <button key={v} type="button" onClick={() => setWho(v)} className={`rounded-lg px-3 py-1 font-medium ${who === v ? "bg-white text-slate-900 shadow-sm dark:bg-white/[.12] dark:text-white" : "text-slate-500"}`}>{l}</button>)}
+            </div>
+          )}
           <select value={stage} onChange={(e) => setStage(e.target.value)} className="h-9 rounded-xl border border-slate-200 bg-white px-3 text-[13px] text-slate-600 outline-none dark:border-white/[.08] dark:bg-transparent dark:text-slate-300">
             <option value="">Все этапы</option>
             {stages.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}

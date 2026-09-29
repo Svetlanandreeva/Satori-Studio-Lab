@@ -5,10 +5,15 @@ import { desc, eq } from "drizzle-orm";
 import { getRequestActor } from "@/lib/request-actor";
 import { writeAuditLog } from "@/lib/operations";
 import { isoDate } from "@/lib/date-normalization";
+import { commentStats, ensureTaskChat } from "@/lib/task-chat";
+import { sqlite } from "@/db";
 
 export const dynamic = "force-dynamic";
 
-export async function GET() {
+export async function GET(request: NextRequest) {
+  const actor = getRequestActor(request);
+  ensureTaskChat();
+  const stats = commentStats(actor.id);
   const tasks = db.select({
     id: activities.id,
     type: activities.type,
@@ -30,8 +35,12 @@ export async function GET() {
     .orderBy(desc(activities.scheduledAt))
     .all()
     .filter((item) => item.scheduledAt || item.type === "task")
+    // Менеджер видит только задачи, где он исполнитель. Задачи владельца «себе» ему не видны.
+    .filter((item) => actor.role === "owner" || item.ownerId === actor.id)
     .map((item) => ({
       ...item,
+      comments: stats.get(item.id)?.count || 0,
+      unread: stats.get(item.id)?.unread || 0,
       scheduledAt: isoDate(item.scheduledAt),
       completedAt: isoDate(item.completedAt),
       createdAt: isoDate(item.createdAt),
@@ -50,8 +59,9 @@ export async function POST(request: NextRequest) {
     const scheduledAt = body.scheduledAt ? new Date(String(body.scheduledAt)) : new Date();
     if (Number.isNaN(scheduledAt.getTime())) return NextResponse.json({ error: "Некорректная дата" }, { status: 400 });
     const priority = ["low", "normal", "high", "urgent"].includes(String(body.priority)) ? String(body.priority) : "normal";
-    const ownerId = String(body.ownerId || "").trim() || null;
     const actor = getRequestActor(request);
+    // Менеджер ставит задачи только себе.
+    const ownerId = actor.role === "owner" ? (String(body.ownerId || "").trim() || null) : actor.id;
     const result = db.insert(activities).values({
       id: crypto.randomUUID(), type: "task", description, contactId,
       dealId: body.dealId ? String(body.dealId) : null,
@@ -61,6 +71,8 @@ export async function POST(request: NextRequest) {
       completedAt: null,
       createdAt: new Date(),
     }).returning().get();
+    ensureTaskChat();
+    sqlite.prepare("UPDATE activities SET created_by=? WHERE id=?").run(actor.id, result.id);
     writeAuditLog(actor, "create_task", "activity", result.id, { description, contactId, scheduledAt: scheduledAt.toISOString(), priority, ownerId: ownerId || actor.id });
     return NextResponse.json({
       ...result,
