@@ -29,7 +29,9 @@ export function Sidebar() {
   const { summary } = useUnreadMessages();
   const me = useMe();
   const owner = me?.role === "owner";
-  const secondary = SECONDARY_NAV.filter((i) => owner || !OWNER_ONLY.includes(i.href));
+  const earnings = SECONDARY_NAV.find((i) => i.href === "/earnings");
+  const primary = me && !owner && earnings ? [...PRIMARY_NAV, earnings] : PRIMARY_NAV;
+  const secondary = SECONDARY_NAV.filter((i) => (owner || !OWNER_ONLY.includes(i.href)) && !(me && !owner && i.href === "/earnings"));
   const secondaryActive = secondary.some((item) => isActive(pathname, item.href));
   const [moreOpen, setMoreOpen] = useState(false);
 
@@ -52,7 +54,7 @@ export function Sidebar() {
       </div>
 
       <nav className="min-h-0 flex-1 space-y-0.5 overflow-y-auto px-2.5 pb-4 pt-2">
-        {PRIMARY_NAV.map((item) => <NavLink key={item.href} item={item} pathname={pathname} badge={item.href === "/inbox" ? summary.all : 0} />)}
+        {primary.map((item) => <NavLink key={item.href} item={item} pathname={pathname} badge={item.href === "/inbox" ? summary.all : 0} />)}
 
         <button onClick={toggleMore} className="mt-4 flex w-full items-center gap-2 rounded-lg px-3 py-1.5 text-[11px] font-semibold uppercase tracking-[.14em] text-white/35 hover:text-white/70">
           <span className="flex-1 text-left">Ещё</span>

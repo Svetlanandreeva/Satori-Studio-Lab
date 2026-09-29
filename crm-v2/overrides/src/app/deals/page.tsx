@@ -1,6 +1,6 @@
 import { asc, desc, eq } from "drizzle-orm";
 import { db } from "@/db";
-import { contacts, deals, pipelineStages } from "@/db/schema";
+import { contacts, deals, pipelineStages, teamMembers } from "@/db/schema";
 import { DealsTable, type DealRow } from "@/components/deals/DealsTable";
 import { SPAM_STAGE_NAME } from "@/lib/lead-qualification";
 import { canSeeDealMoney, pageActor } from "@/lib/access";
@@ -12,9 +12,9 @@ export default async function DealsPage() {
   const rows = db.select({
     id: deals.id, title: deals.title, value: deals.value, ownerId: deals.ownerId, createdAt: deals.createdAt, updatedAt: deals.updatedAt, notes: deals.notes,
     contactId: contacts.id, contactName: contacts.name, contactPhone: contacts.phone, contactSource: contacts.source, qualification: contacts.qualification,
-    stageId: pipelineStages.id, stageName: pipelineStages.name, stageColor: pipelineStages.color, isLost: pipelineStages.isLost, isWon: pipelineStages.isWon,
+    ownerName: teamMembers.name, stageId: pipelineStages.id, stageName: pipelineStages.name, stageColor: pipelineStages.color, isLost: pipelineStages.isLost, isWon: pipelineStages.isWon,
   })
-    .from(deals).leftJoin(contacts, eq(deals.contactId, contacts.id)).leftJoin(pipelineStages, eq(deals.stageId, pipelineStages.id))
+    .from(deals).leftJoin(contacts, eq(deals.contactId, contacts.id)).leftJoin(teamMembers, eq(deals.ownerId, teamMembers.id)).leftJoin(pipelineStages, eq(deals.stageId, pipelineStages.id))
     .orderBy(desc(deals.updatedAt)).all()
     .filter((d) => {
       // Спам, парсер и служебные письма в список сделок не попадают.
@@ -36,7 +36,8 @@ export default async function DealsPage() {
     contactId: r.contactId, contactName: r.contactName, contactPhone: r.contactPhone,
     stageId: r.stageId, stageName: r.stageName, stageColor: r.stageColor, isWon: Boolean(r.isWon), isLost: Boolean(r.isLost),
     isLead: Boolean(firstStageId && r.stageId === firstStageId),
+    ownerName: r.ownerName,
   }));
 
-  return <div className="mx-auto max-w-[1400px] pb-10"><DealsTable rows={data} stages={stages} /></div>;
+  return <div className="mx-auto max-w-[1400px] pb-10"><DealsTable rows={data} stages={stages} members={actor.role === "owner" ? db.select({ id: teamMembers.id, name: teamMembers.name, active: teamMembers.active }).from(teamMembers).all().filter((m) => m.active && m.id !== "owner").map(({ id, name }) => ({ id, name })) : []} /></div>;
 }

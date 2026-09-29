@@ -14,6 +14,7 @@ export type DealRow = {
   contactId: string | null; contactName: string | null; contactPhone: string | null;
   stageId: string | null; stageName: string | null; stageColor: string | null; isWon: boolean | null; isLost: boolean | null;
   isLead?: boolean;
+  ownerName?: string | null;
 };
 type StageLite = { id: string; name: string; color: string; isWon: boolean; isLost: boolean };
 
@@ -23,7 +24,7 @@ const shortDate = (v: string) => new Intl.DateTimeFormat("ru-RU", { day: "numeri
 
 type Scope = "active" | "leads" | "won" | "lost" | "all";
 
-export function DealsTable({ rows, stages }: { rows: DealRow[]; stages: StageLite[] }) {
+export function DealsTable({ rows, stages, members = [] }: { rows: DealRow[]; stages: StageLite[]; members?: Array<{ id: string; name: string }> }) {
   const router = useRouter();
   const [q, setQ] = useState("");
   const [scope, setScope] = useState<Scope>("active");
@@ -31,6 +32,18 @@ export function DealsTable({ rows, stages }: { rows: DealRow[]; stages: StageLit
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [confirm, setConfirm] = useState<string[] | null>(null);
   const [busy, setBusy] = useState(false);
+  async function assignOwner(ownerId: string) {
+    const ids = [...selected];
+    setBusy(true);
+    try {
+      for (const id of ids) {
+        const r = await fetch(`/api/deals/${id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ownerId: ownerId || null }) });
+        if (!r.ok) throw new Error((await r.json().catch(() => ({}))).error || "Не удалось назначить");
+      }
+      toast.success(ownerId ? `Ответственный назначен: ${ids.length}` : `Ответственный снят: ${ids.length}`);
+      setSelected(new Set()); router.refresh();
+    } catch (e) { toast.error(e instanceof Error ? e.message : "Ошибка"); } finally { setBusy(false); }
+  }
   useEffect(() => {
     const initial = new URLSearchParams(window.location.search).get("q");
     if (initial) { setQ(initial); setScope("all"); }
@@ -143,6 +156,13 @@ export function DealsTable({ rows, stages }: { rows: DealRow[]; stages: StageLit
           <div className="flex items-center gap-3 border-b border-slate-100 bg-slate-950 px-4 py-2 text-[13px] text-white dark:border-white/[.06]">
             <span>Выбрано: {selected.size}</span>
             {selected.size >= 2 && <button onClick={() => openMerge([...selected])} className="inline-flex items-center gap-1.5 rounded-lg bg-white px-3 py-1 font-medium text-slate-900 hover:bg-slate-100"><Combine className="h-3.5 w-3.5" />Объединить в одну</button>}
+            {members.length > 0 && (
+              <select value="" disabled={busy} onChange={(e) => { const v = e.target.value; if (v !== "") void assignOwner(v === "-" ? "" : v); }} className="h-7 rounded-lg bg-white px-2 text-[12.5px] font-medium text-slate-900" aria-label="Назначить ответственного">
+                <option value="">Ответственный…</option>
+                {members.map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
+                <option value="-">— снять</option>
+              </select>
+            )}
             <button onClick={() => setConfirm([...selected])} className="inline-flex items-center gap-1.5 rounded-lg bg-rose-500 px-3 py-1 font-medium hover:bg-rose-600"><Trash2 className="h-3.5 w-3.5" />Удалить</button>
             <button onClick={() => setSelected(new Set())} className="ml-auto inline-flex items-center gap-1 text-white/70 hover:text-white"><X className="h-3.5 w-3.5" />Снять выбор</button>
           </div>
@@ -159,7 +179,7 @@ export function DealsTable({ rows, stages }: { rows: DealRow[]; stages: StageLit
               <input type="checkbox" checked={selected.has(d.id)} onChange={() => toggle(d.id)} aria-label="Выбрать" className="h-4 w-4 accent-slate-900" />
               <Link href={`/deals/${d.id}`} className="min-w-0">
                 <div className="truncate text-[14px] font-medium text-slate-900 group-hover:underline dark:text-white">{d.title || "Без названия"}</div>
-                <div className="truncate text-[12px] text-slate-500">{d.contactName || "Без клиента"}{d.contactPhone ? ` · ${d.contactPhone}` : ""}{d.contactId && (openByContact.get(d.contactId) || 0) > 1 && !d.isWon && !d.isLost ? <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); setQ(d.contactName || ""); setScope("all"); }} className="ml-2 rounded bg-amber-50 px-1.5 py-0.5 text-[11px] font-medium text-amber-800 hover:bg-amber-100">у клиента {openByContact.get(d.contactId)} открытых — дубли?</button> : null}</div>
+                <div className="truncate text-[12px] text-slate-500">{d.contactName || "Без клиента"}{d.contactPhone ? ` · ${d.contactPhone}` : ""}{d.ownerName ? <span className="ml-1.5 rounded bg-slate-100 px-1.5 py-0.5 text-[11px] text-slate-600 dark:bg-white/[.06] dark:text-slate-300">{d.ownerName}</span> : null}{d.contactId && (openByContact.get(d.contactId) || 0) > 1 && !d.isWon && !d.isLost ? <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); setQ(d.contactName || ""); setScope("all"); }} className="ml-2 rounded bg-amber-50 px-1.5 py-0.5 text-[11px] font-medium text-amber-800 hover:bg-amber-100">у клиента {openByContact.get(d.contactId)} открытых — дубли?</button> : null}</div>
               </Link>
               <div className="hidden md:block"><span className="inline-flex max-w-full items-center gap-1.5 truncate rounded-full bg-slate-100 px-2.5 py-1 text-[12px] text-slate-700 dark:bg-white/[.06] dark:text-slate-300"><span className="h-2 w-2 shrink-0 rounded-full" style={{ background: d.stageColor || "#94a3b8" }} />{d.stageName || "Без этапа"}</span></div>
               <div className="text-right text-[14px] font-semibold tabular-nums text-slate-900 dark:text-white">{money(d.value)}<div className="text-[11px] font-normal text-slate-400 md:hidden">{d.stageName}</div></div>
