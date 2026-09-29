@@ -52,7 +52,7 @@ export async function AdFunnel({ month }: { month: string }) {
           {f.error && <div className="rounded-lg bg-rose-50 px-3 py-2 text-[13px] text-rose-700">Метрика: {f.error}</div>}
 
           <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-            <Kpi label="Расход на рекламу" value={f.cost != null ? rub(f.cost) : "—"} hint={f.costSource === "direct" ? "из Директа" : f.costSource === "manual" ? "введено вручную" : "впиши в настройках ниже"} />
+            <Kpi label="Расход на рекламу" value={f.cost != null ? rub(f.cost) : "—"} hint={f.costSource === "direct" ? "из Директа" : f.costSource === "manual" ? "введено вручную" : f.costError ? `Директ: ${f.costError}` : "впиши в настройках ниже"} />
             <Kpi label="Цена действия с рекламы" value={f.cost && adActions ? rub(f.cost / adActions) : "—"} hint={`${n(adActions)}: написали, заявки, заказы`} />
             <Kpi label="Получено за месяц" value={rub(T.revenue)} hint={`${T.paid} оплат · с рекламы ${rub(A.revenue)}`} />
             <Kpi label="Доля рекламы в выручке" value={f.cost && T.revenue ? pct(f.cost, T.revenue) : "—"} hint="расход ÷ все деньги месяца (ДРР)" />

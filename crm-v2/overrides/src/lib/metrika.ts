@@ -47,7 +47,7 @@ export type FunnelRow = { visits: number; messengers: number; leads: number; ord
 export type AdFunnel = {
   month: string; configured: boolean; error?: string;
   ad: FunnelRow | null; all: FunnelRow | null;
-  cost: number | null; costSource: "direct" | "manual" | null; clicks: number | null;
+  cost: number | null; costSource: "direct" | "manual" | null; clicks: number | null; costError?: string;
   missingGoals: string[];
 };
 
@@ -88,12 +88,24 @@ export async function adFunnel(month: string): Promise<AdFunnel> {
     const adRow = report.data.find((d) => d.dimensions[0]?.id === "ad");
     base.ad = adRow ? row(adRow.metrics) : { visits: 0, messengers: 0, leads: 0, orders: 0 };
     if (!manual) {
-      try {
-        const cq = new URLSearchParams({ ids: counterId, date1, date2, metrics: "ym:ad:RUBAdCost,ym:ad:clicks", accuracy: "full" });
-        const c = await api<Report>(`/stat/v1/data?${cq}`, token);
-        const cost = Number(c.totals?.[0] || 0);
-        if (cost > 0) { base.cost = Math.round(cost); base.costSource = "direct"; base.clicks = Number(c.totals?.[1] || 0) || null; }
-      } catch { /* Директ не связан со счётчиком — расход можно вписать вручную */ }
+      // Расход Директа: сначала новый отчёт «Источники, расходы и ROI» (ym:ev:expenses),
+      // затем старые метрики Директа (ym:ad) — им иногда нужен логин клиента Директа.
+      const login = setting("metrika_direct_login") || "studiosatori";
+      const tries: Array<Record<string, string>> = [
+        { metrics: "ym:ev:expenses<currency>,ym:ev:clicks", currency: "RUB" },
+        { metrics: "ym:ev:expenses<currency>", currency: "RUB" },
+        { metrics: "ym:ad:RUBAdCost,ym:ad:clicks", ...(login ? { direct_client_logins: login } : {}) },
+      ];
+      const errors: string[] = [];
+      for (const t of tries) {
+        try {
+          const cq = new URLSearchParams({ ids: counterId, date1, date2, accuracy: "full", ...t });
+          const c = await api<Report>(`/stat/v1/data?${cq}`, token);
+          const cost = Number(c.totals?.[0] || 0);
+          if (cost > 0) { base.cost = Math.round(cost); base.costSource = "direct"; base.clicks = Number(c.totals?.[1] || 0) || null; break; }
+        } catch (e) { errors.push(e instanceof Error ? e.message : String(e)); }
+      }
+      if (base.cost == null && errors.length) base.costError = errors[0].slice(0, 200);
     }
   } catch (e) {
     base.error = e instanceof Error ? e.message : "Метрика не ответила";
