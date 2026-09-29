@@ -25,7 +25,7 @@ export function DealManualEditor({dealId,value,stageId,stages,lossReason}:{dealI
      r.refresh();
    }catch(e:any){toast.error(e.message)}finally{setBusy(false)}
  }
- return <div className="rounded-[24px] border border-slate-200/80 bg-white p-4 shadow-sm">
+ return <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm">
    <div className="mb-3 text-sm font-semibold">Этап и оплата</div>
    <div className="grid gap-3 md:grid-cols-[1fr_1fr_1fr_auto]">
      <label className="text-xs text-slate-500">Оговоренная сумма, ₽<input value={v} onChange={e=>setV(e.target.value)} inputMode="decimal" className="mt-1 w-full rounded-xl border px-3 py-2 text-sm text-slate-900"/></label>

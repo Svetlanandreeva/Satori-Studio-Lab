@@ -9,7 +9,8 @@ import { Search, Download, Mail, Phone, Users, Trash2, X } from "lucide-react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { LEAD_QUALIFICATION_OPTIONS, type LeadQualification } from "@/lib/lead-qualification";
-import type { Contact, Temperature } from "@/types";
+import type { Contact } from "@/types";
+import { Avatar } from "@/components/inbox/InboxParts";
 
 interface ExtendedContact extends Contact {
   activeDealId?: string | null;
@@ -28,7 +29,6 @@ const sourceLabels: Record<string, string> = {
   need_number: "Парсер", website: "Сайт", order: "Сайт", ads: "Реклама", email: "Почта", telegram: "Telegram-бот",
   telegram_account: "Telegram", instagram: "Instagram", linkedin: "LinkedIn", referral: "Рекомендация", other: "Другое", otro: "Другое",
 };
-const tempLabels: Record<string, string> = { hot: "Горячий", warm: "Тёплый", cold: "Холодный" };
 const qualificationLabels: Record<string, string> = Object.fromEntries(LEAD_QUALIFICATION_OPTIONS.map((x) => [x.value, x.label]));
 
 export function ContactsTable({ contacts, onChanged }: ContactsTableProps) {
@@ -51,7 +51,6 @@ export function ContactsTable({ contacts, onChanged }: ContactsTableProps) {
   }
   const toggle = (id: string) => setSelected((prev) => { const next = new Set(prev); if (next.has(id)) next.delete(id); else next.add(id); return next; });
   const [search, setSearch] = useState("");
-  const [filterTemp, setFilterTemp] = useState<Temperature | "">("");
   const [filterQualification, setFilterQualification] = useState<LeadQualification | "">("");
   const [filterStage, setFilterStage] = useState("");
 
@@ -59,11 +58,11 @@ export function ContactsTable({ contacts, onChanged }: ContactsTableProps) {
   const filtered = useMemo(() => contacts.filter((c) => {
     const q = search.trim().toLowerCase();
     const matchesSearch = !q || [c.name, c.email, c.company, c.phone, c.activeDealTitle, c.stageName, c.ownerName].some((v) => String(v || "").toLowerCase().includes(q));
-    return matchesSearch && (!filterTemp || c.temperature === filterTemp) && (!filterQualification || c.qualification === filterQualification) && (!filterStage || c.stageName === filterStage);
-  }), [contacts, search, filterTemp, filterQualification, filterStage]);
+    return matchesSearch && (!filterQualification || c.qualification === filterQualification) && (!filterStage || c.stageName === filterStage);
+  }), [contacts, search, filterQualification, filterStage]);
 
   if (!contacts.length) {
-    return <div className="rounded-[24px] border border-slate-200/80 bg-white px-6 py-16 text-center shadow-sm"><div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-slate-100"><Users className="h-5 w-5 text-slate-500" /></div><h2 className="mt-4 font-semibold text-slate-900">Пока нет клиентов</h2><p className="mx-auto mt-1 max-w-sm text-sm leading-5 text-slate-500">Клиенты появятся из заявок или после ручного добавления из переписки.</p></div>;
+    return <div className="rounded-2xl border border-slate-200/80 bg-white px-6 py-16 text-center shadow-sm"><div className="mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-slate-100"><Users className="h-5 w-5 text-slate-500" /></div><h2 className="mt-4 font-semibold text-slate-900">Пока нет клиентов</h2><p className="mx-auto mt-1 max-w-sm text-sm leading-5 text-slate-500">Клиенты появятся из заявок или после ручного добавления из переписки.</p></div>;
   }
 
   return (
@@ -76,7 +75,6 @@ export function ContactsTable({ contacts, onChanged }: ContactsTableProps) {
         <div className="flex gap-1.5 overflow-x-auto pb-1">
           <select value={filterQualification} onChange={(e) => setFilterQualification(e.target.value as LeadQualification | "")} className="h-9 shrink-0 rounded-xl border border-slate-200 bg-white px-3 text-xs text-slate-600 outline-none"><option value="">Все статусы лида</option>{LEAD_QUALIFICATION_OPTIONS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}</select>
           <select value={filterStage} onChange={(e) => setFilterStage(e.target.value)} className="h-9 shrink-0 rounded-xl border border-slate-200 bg-white px-3 text-xs text-slate-600 outline-none"><option value="">Все этапы воронки</option>{stages.map((stage) => <option key={stage} value={stage}>{stage}</option>)}</select>
-          {(["", "hot", "warm", "cold"] as const).map((temp) => <Button key={temp || "all"} variant="outline" size="sm" onClick={() => setFilterTemp(temp)} className={`h-9 shrink-0 rounded-xl border-slate-200 px-3 text-xs ${filterTemp === temp ? "bg-slate-950 text-white hover:bg-slate-900 hover:text-white" : "bg-white text-slate-500"}`}>{temp ? tempLabels[temp] : "Любая температура"}</Button>)}
         </div>
       </div>
 
@@ -88,19 +86,25 @@ export function ContactsTable({ contacts, onChanged }: ContactsTableProps) {
           <button onClick={() => setSelected(new Set())} className="ml-auto inline-flex items-center gap-1 text-white/70 hover:text-white"><X className="h-3.5 w-3.5" />Снять выбор</button>
         </div>
       )}
+      <div className="hidden grid-cols-[20px_minmax(240px,1.3fr)_minmax(110px,.5fr)_minmax(180px,1fr)_90px_32px] gap-3 border-b border-slate-100 px-4 py-2 text-[11px] font-medium text-slate-400 md:grid dark:border-white/[.06]"><span /><span>Клиент</span><span>Источник</span><span>Сделка</span><span className="text-right">Добавлен</span><span /></div>
       <div className="divide-y divide-slate-100 dark:divide-white/[.06]">
         {filtered.map((contact) => (
-          <div key={contact.id} className={`group grid grid-cols-[28px_minmax(0,1fr)_auto] items-center gap-3 px-4 py-2.5 transition-colors hover:bg-slate-50/80 dark:hover:bg-white/[.03] md:grid-cols-[28px_minmax(220px,1.2fr)_minmax(140px,.8fr)_minmax(160px,.9fr)_40px] ${selected.has(contact.id) ? "bg-violet-50/60" : ""}`}>
+          <div key={contact.id} className={`group grid grid-cols-[20px_minmax(0,1fr)_auto] items-center gap-3 px-4 py-2.5 transition-colors hover:bg-slate-50/80 dark:hover:bg-white/[.03] md:grid-cols-[20px_minmax(240px,1.3fr)_minmax(110px,.5fr)_minmax(180px,1fr)_90px_32px] ${selected.has(contact.id) ? "bg-violet-50/60 dark:bg-violet-500/10" : ""}`}>
             <input type="checkbox" checked={selected.has(contact.id)} onChange={() => toggle(contact.id)} aria-label="Выбрать" className="h-4 w-4 accent-slate-900" />
-            <Link href={`/contacts/${contact.id}`} className="min-w-0">
-              <div className="flex items-center gap-2"><span className="truncate text-[14px] font-medium text-slate-900 group-hover:underline dark:text-white">{contact.name || "Без имени"}</span><span className={`h-2 w-2 shrink-0 rounded-full ${contact.temperature === "hot" ? "bg-rose-500" : contact.temperature === "warm" ? "bg-amber-400" : "bg-slate-300"}`} title={tempLabels[String(contact.temperature)] || ""} /></div>
-              <div className="mt-0.5 flex flex-wrap gap-x-3 text-[12px] text-slate-500">{contact.phone && <span className="inline-flex items-center gap-1"><Phone className="h-3 w-3" />{contact.phone}</span>}{contact.email && <span className="inline-flex max-w-[240px] items-center gap-1 truncate"><Mail className="h-3 w-3" />{contact.email}</span>}{!contact.phone && !contact.email && <span className="text-slate-400">нет контактов</span>}</div>
+            <Link href={`/contacts/${contact.id}`} className="flex min-w-0 items-center gap-3">
+              <Avatar name={contact.name || "?"} channel={null} size={34} src={String(contact.source || "").startsWith("telegram") ? `/api/contacts/${contact.id}/avatar` : null} />
+              <div className="min-w-0">
+                <div className="truncate text-[14px] font-medium text-slate-900 group-hover:underline dark:text-white">{contact.name || "Без имени"}{contact.company ? <span className="font-normal text-slate-400"> · {contact.company}</span> : null}</div>
+                <div className="mt-0.5 flex min-w-0 gap-x-3 text-[12px] text-slate-500">{contact.phone && <span className="inline-flex shrink-0 items-center gap-1"><Phone className="h-3 w-3" />{contact.phone}</span>}{contact.email && <span className="inline-flex min-w-0 items-center gap-1 truncate"><Mail className="h-3 w-3 shrink-0" /><span className="truncate">{contact.email}</span></span>}{!contact.phone && !contact.email && <span className="text-slate-400">{String(contact.notes || "").match(/\[telegram-user:([^\]]+)\]/)?.[1] || "нет контактов"}</span>}</div>
+              </div>
             </Link>
-            <div className="hidden min-w-0 truncate text-[13px] text-slate-600 md:block">{contact.company || <span className="text-slate-300">—</span>}</div>
+            <div className="hidden truncate text-[12.5px] text-slate-500 md:block">{sourceLabels[String(contact.source)] || "—"}</div>
             <div className="min-w-0 text-right md:text-left">
-              {contact.activeDealId ? <Link href={`/deals/${contact.activeDealId}`} className="block truncate text-[13px] text-slate-700 hover:underline dark:text-slate-300">{contact.activeDealTitle}</Link> : <span className="text-[13px] text-slate-400">нет сделки</span>}
-              <div className={`truncate text-[11px] ${contact.stageIsLost ? "text-rose-600" : contact.stageIsWon ? "text-emerald-600" : "text-slate-400"}`}>{contact.stageName || qualificationLabels[String(contact.qualification)] || ""}</div>
+              {contact.activeDealId
+                ? <Link href={`/deals/${contact.activeDealId}`} className="block min-w-0"><span className="block truncate text-[13px] text-slate-800 hover:underline dark:text-slate-200">{contact.activeDealTitle}</span><span className={`mt-0.5 inline-flex rounded-md px-1.5 py-px text-[11px] font-medium ${contact.stageIsLost ? "bg-rose-50 text-rose-700" : contact.stageIsWon ? "bg-emerald-50 text-emerald-700" : "bg-slate-100 text-slate-600 dark:bg-white/[.06] dark:text-slate-300"}`}>{contact.stageName}</span></Link>
+                : <span className="text-[12.5px] text-slate-400">{qualificationLabels[String(contact.qualification)] || "без сделки"}</span>}
             </div>
+            <div className="hidden text-right text-[12px] tabular-nums text-slate-400 md:block">{(() => { const v = Number(contact.createdAt as unknown) || new Date(contact.createdAt as unknown as string).getTime() || 0; const ms = v > 1e14 ? v / 1000 : v > 1e12 ? v : v * 1000; return ms ? new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short" }).format(new Date(ms)) : ""; })()}</div>
             <button onClick={() => setConfirm([contact.id])} className="hidden h-8 w-8 items-center justify-center rounded-lg text-slate-300 opacity-0 transition hover:bg-rose-50 hover:text-rose-600 group-hover:opacity-100 md:flex" aria-label="Удалить клиента"><Trash2 className="h-4 w-4" /></button>
           </div>
         ))}

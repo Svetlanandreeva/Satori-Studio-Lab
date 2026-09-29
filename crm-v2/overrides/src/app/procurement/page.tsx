@@ -1,5 +1,6 @@
 "use client";
 
+import { PageHeader } from "@/components/layout/PageHeader";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { Boxes, Edit3, ExternalLink, Loader2, Plus, Search, Trash2 } from "lucide-react";
@@ -220,14 +221,7 @@ export default function ProcurementPage() {
 
   return (
     <div className="mx-auto max-w-[1500px] space-y-5 pb-10">
-      <section className="flex flex-col gap-4 rounded-[28px] border border-slate-200/80 bg-white p-5 shadow-sm sm:flex-row sm:items-end sm:justify-between sm:p-7">
-        <div>
-          <div className="mb-2 flex items-center gap-2 text-[12px] font-medium text-slate-400"><Boxes className="h-4 w-4" /> Материалы и комплектующие</div>
-          <h1 className="text-3xl font-semibold tracking-[-.035em] text-slate-950">Закупки</h1>
-          <p className="mt-2 max-w-3xl text-[15px] leading-6 text-slate-500">План показывает ожидаемую себестоимость. В финансовый результат сделки попадает фактическая стоимость — она автоматически уменьшает прибыль и маржу.</p>
-        </div>
-        <Button onClick={() => add()} className="h-11 rounded-xl"><Plus className="mr-2 h-4 w-4" />Добавить материал</Button>
-      </section>
+      <PageHeader title="Закупки" subtitle="Материалы по всем проектам. Фактическая стоимость сразу уменьшает прибыль сделки." actions={<Button onClick={() => add()} className="rounded-xl"><Plus className="mr-1.5 h-4 w-4" />Добавить материал</Button>} />
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
         <Stat label="План закупок" value={rubles(dealFilter ? visiblePlanned : data?.plannedTotal || 0)} />
@@ -236,7 +230,7 @@ export default function ProcurementPage() {
         <Stat label="Позиций" value={String(visible.length)} />
       </div>
 
-      <section className="overflow-hidden rounded-[24px] border border-slate-200/80 bg-white shadow-sm">
+      <section className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm">
         <div className="grid gap-3 border-b border-slate-100 p-4 md:grid-cols-[1fr_320px]">
           <div className="relative"><Search className="absolute left-3.5 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" /><Input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Материал, поставщик, клиент, сделка или статус" className="h-11 rounded-xl pl-10" /></div>
           <select value={dealFilter} onChange={(e) => setDealFilter(e.target.value)} className="h-11 rounded-xl border border-slate-200 bg-white px-3 text-sm">
@@ -272,7 +266,7 @@ export default function ProcurementPage() {
         </div>
       </section>
 
-      {open && <div className="fixed inset-0 z-[100] flex items-center justify-center overflow-y-auto bg-slate-950/35 p-4 backdrop-blur-sm"><div className="my-auto w-full max-w-3xl rounded-[28px] bg-white p-6 shadow-2xl">
+      {open && <div className="fixed inset-0 z-[100] flex items-center justify-center overflow-y-auto bg-slate-950/35 p-4 backdrop-blur-sm"><div className="my-auto w-full max-w-3xl rounded-2xl bg-white p-6 shadow-2xl">
         <div className="flex items-start justify-between gap-4"><div><h2 className="text-xl font-semibold text-slate-950">{form.id ? "Изменить закупку" : "Добавить закупку"}</h2><p className="mt-1 text-sm text-slate-400">План нужен для оценки бюджета, факт — для реальной себестоимости сделки.</p></div><Badge variant="outline">Закупки</Badge></div>
         <div className="mt-5 space-y-4">
           <Field label="Сделка"><select value={form.dealId} onChange={(e) => setForm((f) => ({ ...f, dealId: e.target.value }))} className="h-11 w-full rounded-xl border border-slate-200 bg-white px-3 text-sm"><option value="">Выберите сделку</option>{(data?.deals || []).map((deal) => <option key={deal.dealId} value={deal.dealId}>{deal.contactName} · {deal.dealTitle} · {deal.stageName}</option>)}</select></Field>
@@ -314,7 +308,7 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
   return <div><label className="mb-1.5 block text-xs font-medium text-slate-600">{label}</label>{children}</div>;
 }
 function Stat({ label, value, tone = "text-slate-950" }: { label: string; value: string; tone?: string }) {
-  return <div className="rounded-[22px] border border-slate-200/80 bg-white p-4 shadow-sm"><div className="text-[11px] text-slate-400">{label}</div><div className={`mt-1 text-xl font-semibold ${tone}`}>{value}</div></div>;
+  return <div className="rounded-2xl border border-slate-200/80 bg-white p-4 shadow-sm"><div className="text-[11px] text-slate-400">{label}</div><div className={`mt-1 text-xl font-semibold ${tone}`}>{value}</div></div>;
 }
 function Preview({ label, value }: { label: string; value: string }) {
   return <div className="rounded-2xl bg-slate-50 px-4 py-3"><div className="text-[11px] text-slate-400">{label}</div><div className="mt-1 font-semibold text-slate-900">{value}</div></div>;

@@ -14,7 +14,7 @@ export function initials(name: string) {
   return ((parts[0]?.[0] || "?") + (parts[1]?.[0] || "")).toUpperCase();
 }
 
-export function Avatar({ name, channel, service, size = 40, src }: { name: string; channel: Channel; service?: boolean; size?: number; src?: string | null }) {
+export function Avatar({ name, channel, service, size = 40, src }: { name: string; channel: Channel | null; service?: boolean; size?: number; src?: string | null }) {
   const Icon = service ? Bot : channel === "telegram" ? Send : Mail;
   const [photo, setPhoto] = useState<"loading" | "ok" | "none">(src ? "loading" : "none");
   useEffect(() => { setPhoto(src ? "loading" : "none"); }, [src]);
@@ -23,7 +23,7 @@ export function Avatar({ name, channel, service, size = 40, src }: { name: strin
       <div className="flex h-full w-full items-center justify-center rounded-full text-[13px] font-semibold text-white" style={{ background: service ? "#94a3b8" : PALETTE[hash(name) % PALETTE.length], fontSize: size * 0.34 }}>{initials(name)}</div>
       {/* eslint-disable-next-line @next/next/no-img-element */}
       {src && photo !== "none" && <img src={src} alt="" loading="lazy" onLoad={() => setPhoto("ok")} onError={() => setPhoto("none")} className={`absolute inset-0 h-full w-full rounded-full object-cover transition-opacity ${photo === "ok" ? "opacity-100" : "opacity-0"}`} />}
-      <span className={`absolute -bottom-0.5 -right-0.5 flex h-[18px] w-[18px] items-center justify-center rounded-full border-2 border-white text-white dark:border-[#16181d] ${service ? "bg-slate-400" : channel === "telegram" ? "bg-sky-500" : "bg-blue-600"}`}><Icon className="h-2.5 w-2.5" /></span>
+      {channel && <span className={`absolute -bottom-0.5 -right-0.5 flex h-[18px] w-[18px] items-center justify-center rounded-full border-2 border-white text-white dark:border-[#16181d] ${service ? "bg-slate-400" : channel === "telegram" ? "bg-sky-500" : "bg-blue-600"}`}><Icon className="h-2.5 w-2.5" /></span>}
     </div>
   );
 }

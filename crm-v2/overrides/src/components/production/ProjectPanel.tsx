@@ -4,6 +4,7 @@ import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
 import { Check, ExternalLink, Loader2, Pencil, Plus, Trash2, X } from "lucide-react";
+import { autosaveLabel, useAutosave } from "@/lib/use-autosave";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { deadlineBadge } from "@/components/deals/DealMoneyDates";
 
@@ -56,18 +57,6 @@ export function ProjectPanel({ dealId, onClose, onChanged }: { dealId: string | 
 
   useEffect(() => { setData(null); setRow({ name: "", quantity: "1", unit: "шт.", price: "" }); void load(); }, [load]);
 
-  async function saveDates() {
-    if (!data) return;
-    const term = Number(dates.term) || 0;
-    if (dates.term && (term < 1 || term > 365)) return toast.error("Срок — от 1 до 365 дней");
-    setBusy("dates");
-    try {
-      const res = await fetch(`/api/deals/${data.deal.id}`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ paidAt: dates.paidAt || null, termDays: dates.term ? term : null }) });
-      if (!res.ok) throw new Error((await res.json()).error || "Не удалось сохранить");
-      toast.success("Сроки сохранены"); await load(); onChanged?.();
-    } catch (e) { toast.error(e instanceof Error ? e.message : "Ошибка"); } finally { setBusy(null); }
-  }
-
   async function addPurchase() {
     if (!data || !row.name.trim()) return toast.error("Напиши, что за материал");
     setBusy("add");
@@ -88,25 +77,38 @@ export function ProjectPanel({ dealId, onClose, onChanged }: { dealId: string | 
     } catch (e) { toast.error(e instanceof Error ? e.message : "Ошибка"); } finally { setBusy(null); }
   }
 
-  async function saveCosts() {
-    if (!data) return;
-    setBusy("costs");
-    try {
-      const body: Record<string, unknown> = { dealId: data.deal.id };
-      for (const [k] of COSTS) body[k] = toKop(costs[k] || "");
-      body.receivedAmount = toKop(costs.receivedAmount || "");
-      const res = await fetch("/api/production/project", { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
-      const d = await res.json();
-      if (!res.ok) throw new Error(d.error || "Не удалось сохранить");
-      setData(d); toast.success("Расходы сохранены"); onChanged?.();
-    } catch (e) { toast.error(e instanceof Error ? e.message : "Ошибка"); } finally { setBusy(null); }
-  }
-
   const term = Number(dates.term) || 0;
   const deadline = dates.paidAt && term ? addDays(dates.paidAt, term) : data?.schedule.deadline || null;
   const badge = deadlineBadge(deadline, data?.schedule.shippedAt || null);
-  const datesDirty = data && (dates.paidAt !== (data.schedule.paidAt || "") || dates.term !== (data.schedule.termDays ? String(data.schedule.termDays) : ""));
-  const costsDirty = data && [...COSTS.map(([k]) => k), "receivedAmount" as const].some((k) => toKop(costs[k] || "") !== (data.costs as Record<string, number>)[k]);
+  const termInvalid = Boolean(dates.term) && (term < 1 || term > 365);
+  const datesDirty = Boolean(data && !termInvalid && (dates.paidAt !== (data.schedule.paidAt || "") || dates.term !== (data.schedule.termDays ? String(data.schedule.termDays) : "")));
+  const costsDirty = Boolean(data && [...COSTS.map(([k]) => k), "receivedAmount" as const].some((k) => toKop(costs[k] || "") !== (data.costs as Record<string, number>)[k]));
+
+  // Автосохранение: сроки и расходы сохраняются сами, без кнопок.
+  const datesAuto = useAutosave({ dealId: data?.deal.id, ...dates }, datesDirty, async (d, { keepalive }) => {
+    if (!d.dealId) return;
+    const t = Number(d.term) || 0;
+    const res = await fetch(`/api/deals/${d.dealId}`, { method: "PUT", keepalive, headers: { "Content-Type": "application/json" }, body: JSON.stringify({ paidAt: d.paidAt || null, termDays: d.term ? t : null }) });
+    if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || "ошибка сервера");
+    const fresh = await fetch(`/api/production/project?dealId=${encodeURIComponent(d.dealId)}`, { cache: "no-store" }).then((r) => r.json()).catch(() => null);
+    if (fresh?.deal?.id === d.dealId) setData(fresh);
+    onChanged?.();
+  });
+  const costsAuto = useAutosave({ dealId: data?.deal.id, ...costs } as Record<string, string | undefined>, costsDirty, async (c, { keepalive }) => {
+    if (!c.dealId) return;
+    const body: Record<string, unknown> = { dealId: c.dealId };
+    for (const [k] of COSTS) body[k] = toKop(String(c[k] || ""));
+    body.receivedAmount = toKop(String(c.receivedAmount || ""));
+    const res = await fetch("/api/production/project", { method: "PUT", keepalive, headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+    const d = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(d.error || "ошибка сервера");
+    if (d?.deal?.id === c.dealId) setData(d);
+    onChanged?.();
+  });
+  const SaveState = ({ a, invalid }: { a: ReturnType<typeof useAutosave>; invalid?: string }) => {
+    const l = invalid ? { text: invalid, tone: "text-rose-600" } : autosaveLabel(a.status, a.error);
+    return <span className={`flex items-center gap-1 text-[11.5px] font-normal ${l.tone}`}>{(a.status === "saving" || a.status === "pending") && !invalid ? <Loader2 className="h-3 w-3 animate-spin" /> : a.status === "saved" && !invalid ? <Check className="h-3 w-3" /> : null}{l.text}{a.status === "error" && <button type="button" onClick={() => void a.flush()} className="ml-1 underline">Повторить</button>}</span>;
+  };
 
   return (
     <Sheet open={Boolean(dealId)} onOpenChange={(v) => !v && onClose()}>
@@ -125,7 +127,7 @@ export function ProjectPanel({ dealId, onClose, onChanged }: { dealId: string | 
 
             {/* Сроки */}
             <section className="rounded-xl border border-slate-200 p-4 dark:border-white/[.08]">
-              <h3 className="mb-3 text-sm font-semibold">Сроки</h3>
+              <div className="mb-3 flex items-center justify-between gap-2"><h3 className="text-sm font-semibold">Сроки</h3><SaveState a={datesAuto} invalid={termInvalid ? "Срок — от 1 до 365 дней" : undefined} /></div>
               <div className="grid gap-3 sm:grid-cols-[1fr_1fr_1.3fr] sm:items-end">
                 <label className="text-[12px] text-slate-500">Дата оплаты · старт<input type="date" value={dates.paidAt} onChange={(e) => setDates((d) => ({ ...d, paidAt: e.target.value }))} className={`${input} mt-1`} /></label>
                 <label className="text-[12px] text-slate-500">Срок, дней<input type="number" min={1} max={365} value={dates.term} onChange={(e) => setDates((d) => ({ ...d, term: e.target.value }))} placeholder="14" className={`${input} mt-1`} /></label>
@@ -134,7 +136,6 @@ export function ProjectPanel({ dealId, onClose, onChanged }: { dealId: string | 
                   {deadline ? <><div className="text-[15px] font-semibold">{longDate(deadline)}</div>{badge && <span className={`mt-0.5 inline-flex rounded px-1.5 py-0.5 text-[11px] font-medium ${toneClass[badge.tone]}`}>{badge.text}</span>}</> : <div className="text-[12px] text-slate-400">укажи оплату и срок</div>}
                 </div>
               </div>
-              {datesDirty && <div className="mt-3 flex justify-end"><button onClick={() => void saveDates()} disabled={busy === "dates"} className="h-9 rounded-lg bg-slate-950 px-4 text-[13px] font-medium text-white disabled:opacity-40 dark:bg-white dark:text-slate-950">{busy === "dates" ? "Сохраняю…" : "Сохранить сроки"}</button></div>}
             </section>
 
             {/* Материалы */}
@@ -159,14 +160,13 @@ export function ProjectPanel({ dealId, onClose, onChanged }: { dealId: string | 
 
             {/* Прочие расходы */}
             <section className="rounded-xl border border-slate-200 p-4 dark:border-white/[.08]">
-              <h3 className="mb-3 text-sm font-semibold">Прочие расходы и оплата</h3>
+              <div className="mb-3 flex items-center justify-between gap-2"><h3 className="text-sm font-semibold">Прочие расходы и оплата</h3><SaveState a={costsAuto} /></div>
               <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
                 {COSTS.map(([k, label]) => (
                   <label key={k} className="text-[12px] text-slate-500">{label}, ₽<input inputMode="decimal" value={costs[k] || ""} onChange={(e) => setCosts((c) => ({ ...c, [k]: e.target.value }))} placeholder="0" className={`${input} mt-1`} /></label>
                 ))}
                 <label className="text-[12px] font-medium text-emerald-700">Получено от клиента, ₽<input inputMode="decimal" value={costs.receivedAmount || ""} onChange={(e) => setCosts((c) => ({ ...c, receivedAmount: e.target.value }))} placeholder="0" className={`${input} mt-1`} /></label>
               </div>
-              {costsDirty && <div className="mt-3 flex justify-end"><button onClick={() => void saveCosts()} disabled={busy === "costs"} className="h-9 rounded-lg bg-slate-950 px-4 text-[13px] font-medium text-white disabled:opacity-40 dark:bg-white dark:text-slate-950">{busy === "costs" ? "Сохраняю…" : "Сохранить расходы"}</button></div>}
             </section>
 
             {/* Итог */}

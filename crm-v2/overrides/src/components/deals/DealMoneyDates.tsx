@@ -1,9 +1,9 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
+import { autosaveLabel, useAutosave } from "@/lib/use-autosave";
 import { useRouter } from "next/navigation";
-import { toast } from "sonner";
-import { CalendarClock } from "lucide-react";
+import { CalendarClock, Check, Loader2 } from "lucide-react";
 
 type Member = { id: string; name: string; active: boolean };
 export type ScheduleView = { paidAt: string | null; termDays: number | null; deadline: string | null; shippedAt: string | null };
@@ -53,31 +53,33 @@ export function DealMoneyDates({ dealId, value, received, schedule, ownerId, mem
     value: toRub(value), received: toRub(received), paidAt: schedule.paidAt || "", term: schedule.termDays ? String(schedule.termDays) : "", owner: ownerId || "",
   }), [value, received, schedule.paidAt, schedule.termDays, ownerId]);
   const [form, setForm] = useState(initial);
-  const [busy, setBusy] = useState(false);
-  const dirty = JSON.stringify(form) !== JSON.stringify(initial);
-
+  // Что уже лежит на сервере — от этого считаем «есть несохранённое».
+  const [savedSnapshot, setSavedSnapshot] = useState(initial);
+  const refreshTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const term = Number(form.term) || 0;
+  const termInvalid = Boolean(form.term) && (!Number.isFinite(term) || term < 1 || term > 365);
+  const dirty = !termInvalid && JSON.stringify(form) !== JSON.stringify(savedSnapshot);
+
   const deadline = form.paidAt && term > 0 ? addDays(form.paidAt, term) : (!form.paidAt && !term ? schedule.deadline : null);
   const badge = deadlineBadge(deadline, schedule.shippedAt);
   const paidPct = toKop(form.value) ? Math.min(100, Math.round((toKop(form.received) / toKop(form.value)) * 100)) : 0;
 
   const set = (k: keyof typeof form) => (e: { target: { value: string } }) => setForm((f) => ({ ...f, [k]: e.target.value }));
 
-  async function save() {
-    if (form.term && (!Number.isFinite(term) || term < 1 || term > 365)) { toast.error("Срок — от 1 до 365 дней"); return; }
-    setBusy(true);
-    try {
-      const res = await fetch(`/api/deals/${dealId}`, {
-        method: "PUT", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ value: toKop(form.value), receivedAmount: toKop(form.received), paidAt: form.paidAt || null, termDays: form.term ? term : null, ownerId: form.owner || null }),
-      });
-      const data = await res.json().catch(() => null);
-      if (!res.ok) throw new Error(data?.error || "Не удалось сохранить");
-      toast.success("Сохранено");
-      router.refresh();
-    } catch (error) { toast.error(error instanceof Error ? error.message : "Ошибка сохранения"); }
-    finally { setBusy(false); }
-  }
+  const autosave = useAutosave(form, dirty, async (f, { keepalive }) => {
+    const t = Number(f.term) || 0;
+    const res = await fetch(`/api/deals/${dealId}`, {
+      method: "PUT", headers: { "Content-Type": "application/json" }, keepalive,
+      body: JSON.stringify({ value: toKop(f.value), receivedAmount: toKop(f.received), paidAt: f.paidAt || null, termDays: f.term ? t : null, ownerId: f.owner || null }),
+    });
+    const data = await res.json().catch(() => null);
+    if (!res.ok) throw new Error(data?.error || "ошибка сервера");
+    setSavedSnapshot(f);
+    // Остальные блоки страницы (этап, прибыль, производство) обновим чуть позже, чтобы не мешать вводу.
+    if (refreshTimer.current) clearTimeout(refreshTimer.current);
+    refreshTimer.current = setTimeout(() => router.refresh(), 1500);
+  });
+  const saveState = termInvalid ? { text: "Срок — от 1 до 365 дней", tone: "text-rose-600" } : autosaveLabel(autosave.status, autosave.error);
 
   return (
     <section className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm dark:border-white/[.08] dark:bg-[#16181d]">
@@ -133,9 +135,10 @@ export function DealMoneyDates({ dealId, value, received, schedule, ownerId, mem
             {members.filter((m) => m.active).map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
           </select>
         </label>
-        <div className="ml-auto flex items-center gap-2">
-          {dirty && <button type="button" onClick={() => setForm(initial)} disabled={busy} className="h-10 rounded-lg px-3 text-sm text-slate-500 hover:text-slate-900">Отменить</button>}
-          <button type="button" onClick={() => void save()} disabled={busy || !dirty} className="h-10 rounded-lg bg-slate-950 px-5 text-sm font-medium text-white transition disabled:opacity-30 dark:bg-white dark:text-slate-950">{busy ? "Сохраняю…" : "Сохранить"}</button>
+        <div className={`ml-auto flex h-10 items-center gap-1.5 text-[12px] ${saveState.tone}`}>
+          {autosave.status === "saving" || autosave.status === "pending" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : autosave.status === "saved" ? <Check className="h-3.5 w-3.5" /> : null}
+          {saveState.text}
+          {autosave.status === "error" && <button type="button" onClick={() => void autosave.flush()} className="ml-1 font-medium underline">Повторить</button>}
         </div>
       </div>
     </section>

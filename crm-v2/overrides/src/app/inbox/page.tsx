@@ -244,7 +244,7 @@ export default function InboxPage() {
                 </div>
               </header>
               <div className="min-h-0 flex-1 overflow-y-auto bg-[#f4f5f8] px-3 pb-4 sm:px-5 dark:bg-black/20">{body}</div>
-              {!detail.isService && <Composer key={detail.threadId} channel={detail.channel} contactId={detail.contactId} clientName={detail.title} templates={templates} sending={sending} onSend={send} onTemplatesChanged={() => void loadTemplates()} />}
+              {!detail.isService && <Composer key={detail.threadId} draftKey={`${detail.channel}:${detail.threadId}`} channel={detail.channel} contactId={detail.contactId} clientName={detail.title} templates={templates} sending={sending} onSend={send} onTemplatesChanged={() => void loadTemplates()} />}
             </> : null}
         </section>
       </div>

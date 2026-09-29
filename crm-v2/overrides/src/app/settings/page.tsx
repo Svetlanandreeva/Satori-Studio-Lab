@@ -1,4 +1,5 @@
 "use client";
+import { PageHeader } from "@/components/layout/PageHeader";
 import { StageManager } from "@/components/settings/StageManager";
 
 import { useEffect, useMemo, useState } from "react";
@@ -129,7 +130,7 @@ export default function SettingsPage() {
   const [openAiModels, setOpenAiModels] = useState<string[]>([]);
   const [openAiModelsError, setOpenAiModelsError] = useState("");
   const [openAi, setOpenAi] = useState<{configured:boolean;masked:string;model:string;baseUrl:string}>({configured:false,masked:"",model:"gpt-5.4-mini",baseUrl:"https://api.openai.com/v1"});
-  const [openSections,setOpenSections]=useState<Record<string,boolean>>({ai:true});
+  const [openSections,setOpenSections]=useState<Record<string,boolean>>({pipeline:true});
   const [health,setHealth]=useState<Record<string,"ok"|"error"|"unknown">>({telegram:"unknown",email:"unknown",ai:"unknown",need:"unknown"});
   const toggleSection=(key:string)=>setOpenSections(v=>({...v,[key]:!v[key]}));
   const statusBadge=(state:"ok"|"error"|"unknown",configured:boolean,label="Подключено") => (
@@ -378,13 +379,14 @@ export default function SettingsPage() {
   return (
     <div className="space-y-6">
       <div>
-        <h1 className="text-2xl font-bold tracking-tight">Настройки</h1>
-        <p className="text-muted-foreground">
-          Подключения, автоматизация и системные параметры
-        </p>
+        <PageHeader title="Настройки" subtitle="Этапы воронки, подключения, уведомления и AI" />
       </div>
 
       <div className="grid grid-cols-1 gap-3">
+        <Card className="overflow-hidden">
+          <CardHeader className="cursor-pointer" onClick={()=>toggleSection("pipeline")}><CardTitle className="text-base flex items-center justify-between"><span className="flex items-center gap-2"><Kanban className="h-4 w-4"/>Этапы воронки</span><ChevronDown className={`h-4 w-4 transition-transform ${openSections.pipeline?"rotate-180":""}`}/></CardTitle></CardHeader>
+          {openSections.pipeline && <CardContent><StageManager /></CardContent>}
+        </Card>
         <Card>
           <CardHeader className="cursor-pointer" onClick={()=>toggleSection("ai")}>
             <CardTitle className="text-base flex items-center justify-between gap-3">
@@ -432,10 +434,6 @@ export default function SettingsPage() {
             </div>
             <p className="text-xs text-muted-foreground">Ключ используется сервером для разбора переписок, КП и документов. В браузер сохранённый ключ не возвращается.</p>
           </CardContent>}
-        </Card>
-        <Card className="overflow-hidden">
-          <CardHeader className="cursor-pointer" onClick={()=>toggleSection("pipeline")}><CardTitle className="text-base flex items-center justify-between"><span className="flex items-center gap-2"><Kanban className="h-4 w-4"/>Этапы воронки</span><ChevronDown className={`h-4 w-4 transition-transform ${openSections.pipeline?"rotate-180":""}`}/></CardTitle></CardHeader>
-          {openSections.pipeline && <CardContent><StageManager /></CardContent>}
         </Card>
 
         <Card className="overflow-hidden">

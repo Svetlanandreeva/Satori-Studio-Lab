@@ -21,11 +21,14 @@ function useOutside(ref: React.RefObject<HTMLElement | null>, close: () => void,
 const kb = (n?: number) => (n ? (n > 1024 * 1024 ? `${(n / 1024 / 1024).toFixed(1)} МБ` : `${Math.max(1, Math.round(n / 1024))} КБ`) : "");
 
 /** Поле ответа: текст, вложение (с компьютера или из файлов клиента) и шаблоны. */
-export function Composer({ channel, contactId, clientName, templates, sending, onSend, onTemplatesChanged }: {
-  channel: "email" | "telegram"; contactId: string | null; clientName: string; templates: Template[]; sending: boolean;
+export function Composer({ channel, contactId, clientName, templates, sending, onSend, onTemplatesChanged, draftKey }: {
+  draftKey?: string; channel: "email" | "telegram"; contactId: string | null; clientName: string; templates: Template[]; sending: boolean;
   onSend: (text: string, file: File | null) => Promise<boolean>; onTemplatesChanged: () => void;
 }) {
-  const [draft, setDraft] = useState("");
+  // Черновик хранится в браузере для каждого диалога — не потеряется при переходах и перезагрузке.
+  const storageKey = `crm-draft:${draftKey || `${channel}:${contactId || ""}`}`;
+  const [draft, setDraft] = useState(() => { try { return typeof window === "undefined" ? "" : localStorage.getItem(storageKey) || ""; } catch { return ""; } });
+  useEffect(() => { try { if (draft.trim()) localStorage.setItem(storageKey, draft); else localStorage.removeItem(storageKey); } catch {} }, [draft, storageKey]);
   const [file, setFile] = useState<File | null>(null);
   const [menu, setMenu] = useState<null | "attach" | "client" | "templates">(null);
   const [docs, setDocs] = useState<ClientDoc[] | null>(null);
@@ -37,7 +40,7 @@ export function Composer({ channel, contactId, clientName, templates, sending, o
   useOutside(box, () => setMenu(null), Boolean(menu));
 
   // Черновик — свой для каждого диалога.
-  useEffect(() => { setDraft(""); setFile(null); setDocs(null); setMenu(null); }, [contactId, channel]);
+  useEffect(() => { setFile(null); setDocs(null); setMenu(null); }, [contactId, channel]);
   useEffect(() => {
     const el = area.current; if (!el) return;
     el.style.height = "auto"; el.style.height = `${Math.min(220, Math.max(44, el.scrollHeight))}px`;

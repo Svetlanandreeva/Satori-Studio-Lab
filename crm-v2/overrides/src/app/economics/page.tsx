@@ -1,5 +1,6 @@
 "use client";
 
+import { PageHeader } from "@/components/layout/PageHeader";
 import Link from "next/link";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { Building2, Calculator, CheckCircle2, Edit3, Eye, Loader2, Plus, Search, Trash2, WalletCards } from "lucide-react";
@@ -293,7 +294,7 @@ export default function EconomicsPage() {
 
   return <div className="space-y-6">
     <div className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
-      <div><div className="flex items-center gap-2"><Calculator className="h-6 w-6" /><h1 className="text-2xl font-bold tracking-tight">Экономика</h1></div><p className="mt-1 text-sm text-muted-foreground">Фактические оплаты, прямые расходы, закупки, зарплата менеджера и ежемесячные расходы бизнеса.</p></div>
+      <PageHeader title="Деньги" subtitle="Оплаты, прямые расходы, закупки, зарплата менеджера и ежемесячные расходы бизнеса." />
       <div className="relative w-full lg:w-96"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" /><Input className="pl-9" placeholder="Клиент или сделка..." value={search} onChange={(e) => setSearch(e.target.value)} /></div>
     </div>
 

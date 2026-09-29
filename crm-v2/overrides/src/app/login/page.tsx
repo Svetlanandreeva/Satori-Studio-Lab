@@ -19,7 +19,7 @@ export default function LoginPage() {
 
   return (
     <div className="min-h-dvh bg-[#f4f5f7] px-4 py-8 sm:grid sm:place-items-center">
-      <div className="mx-auto w-full max-w-[430px] overflow-hidden rounded-[30px] border border-slate-200/80 bg-white shadow-[0_24px_80px_rgba(15,23,42,.10)]">
+      <div className="mx-auto w-full max-w-[430px] overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-[0_24px_80px_rgba(15,23,42,.10)]">
         <div className="border-b border-slate-100 bg-gradient-to-br from-slate-50 via-white to-indigo-50/70 px-7 pb-7 pt-8">
           <div className="mb-8 flex items-center gap-3">
             <div className="flex h-11 w-11 items-center justify-center rounded-2xl bg-slate-950 text-[12px] font-semibold tracking-[.16em] text-white shadow-sm">S</div>

@@ -72,7 +72,7 @@
   --chart-3: #f8a94f;
   --chart-4: #d85cff;
   --chart-5: #788294;
-  --radius: 0.95rem;
+  --radius: 0.75rem;
   --sidebar: #17191f;
   --sidebar-foreground: #f7f7f8;
   --sidebar-primary: #ffffff;
@@ -120,17 +120,24 @@
 @layer base {
   * { @apply border-border outline-ring/50; }
   html { @apply font-sans; text-rendering: optimizeLegibility; }
-  body { @apply bg-background text-foreground; }
+  body { @apply bg-background text-foreground; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; font-feature-settings: "cv11", "ss01"; }
+  table { font-variant-numeric: tabular-nums; }
+  /* Тонкие аккуратные скроллбары */
+  * { scrollbar-width: thin; scrollbar-color: rgba(100,116,139,.35) transparent; }
+  *::-webkit-scrollbar { width: 8px; height: 8px; }
+  *::-webkit-scrollbar-thumb { background: rgba(100,116,139,.3); border-radius: 8px; border: 2px solid transparent; background-clip: padding-box; }
+  *::-webkit-scrollbar-track { background: transparent; }
+  input[type="checkbox"] { accent-color: #17191f; }
   button, a, input, textarea, select { -webkit-tap-highlight-color: transparent; }
   ::selection { background: #8a7cff; color: #fff; }
 }
 
 @layer components {
   .studio-card {
-    @apply rounded-[24px] border border-black/[.055] bg-white shadow-[0_12px_40px_rgba(16,24,40,.035)] dark:border-white/[.08] dark:bg-[#171a20] dark:shadow-none;
+    @apply rounded-2xl border border-black/[.055] bg-white shadow-[0_12px_40px_rgba(16,24,40,.035)] dark:border-white/[.08] dark:bg-[#171a20] dark:shadow-none;
   }
   .studio-card-soft {
-    @apply rounded-[22px] border border-black/[.045] bg-[#f8f8fa] dark:border-white/[.07] dark:bg-[#1c2027];
+    @apply rounded-2xl border border-black/[.045] bg-[#f8f8fa] dark:border-white/[.07] dark:bg-[#1c2027];
   }
   .studio-muted { @apply text-slate-500 dark:text-slate-400; }
   .studio-title { @apply text-slate-950 dark:text-white; }
