@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { activities, contacts } from "@/db/schema";
-import { importTelegramAttachmentsFromUpdate } from "@/lib/telegram-attachment-import";
 import {
   INTEGRATION_KEYS,
   ensureNeedNumberSecret,
@@ -150,9 +149,6 @@ function notesFrom(input: {
 async function proxyTelegramWebhook(request: NextRequest) {
   const body = await request.text();
   const secret = request.headers.get("x-telegram-bot-api-secret-token") || "";
-  let update: unknown = null;
-  try { update = body ? JSON.parse(body) : null; } catch {}
-
   const response = await fetch("http://127.0.0.1:3020/api/integrations/telegram/webhook", {
     method: "POST",
     headers: {
@@ -164,14 +160,7 @@ async function proxyTelegramWebhook(request: NextRequest) {
   });
   const responseText = await response.text();
 
-  if (response.ok && update) {
-    try {
-      const payload = JSON.parse(responseText) as { contactId?: string };
-      if (payload.contactId) await importTelegramAttachmentsFromUpdate(update, payload.contactId);
-    } catch (error) {
-      console.error("Telegram attachment import failed", error);
-    }
-  }
+  // Вложения (фото, документы) сохраняет сам webhook — второй импорт здесь давал гонку и дубли.
 
   return new NextResponse(responseText, {
     status: response.status,

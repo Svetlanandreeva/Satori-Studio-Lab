@@ -66,11 +66,12 @@ export function DealConversation({ contactId, threadId }: { contactId: string; t
               {detail.messages.map((m) => {
                 const out = m.direction === "outgoing";
                 const docs = docsFor(m);
+                const text = docs.length && /^(🖼 Фото|📎 Документ)/.test(m.bodyText || "") ? "" : m.bodyText;
                 return (
                   <div key={m.id} className={`flex ${out ? "justify-end" : "justify-start"}`}>
                     <div className={`max-w-[82%] rounded-2xl px-3.5 py-2.5 text-sm ${out ? "bg-slate-900 text-white" : "border bg-white text-slate-700"}`}>
-                      {(m.bodyText || !docs.length) && <div className="whitespace-pre-wrap break-words">{m.bodyText || "—"}</div>}
-                      {docs.length > 0 && <div className={`${m.bodyText ? "mt-2" : ""} flex flex-col gap-1.5`}>{docs.map((d) => <DocumentChip key={d.id} doc={d} onOpen={setPreview} dark={out} />)}</div>}
+                      {(text || !docs.length) && <div className="whitespace-pre-wrap break-words">{text || "—"}</div>}
+                      {docs.length > 0 && <div className={`${text ? "mt-2" : ""} flex flex-col gap-1.5`}>{docs.map((d) => <DocumentChip key={d.id} doc={d} onOpen={setPreview} dark={out} contactId={detail.docContactId || contactId} />)}</div>}
                     </div>
                   </div>
                 );
@@ -78,7 +79,7 @@ export function DealConversation({ contactId, threadId }: { contactId: string; t
               {orphanDocs.length > 0 && (
                 <div className="mt-3 rounded-xl border border-dashed bg-white p-3">
                   <div className="mb-2 flex items-center gap-1.5 text-xs font-semibold text-slate-600"><Paperclip className="h-3.5 w-3.5" />Вложения из переписки</div>
-                  <div className="flex flex-wrap gap-2">{orphanDocs.map((d) => <DocumentChip key={d.id} doc={d} onOpen={setPreview} />)}</div>
+                  <div className="flex flex-wrap gap-2">{orphanDocs.map((d) => <DocumentChip key={d.id} doc={d} onOpen={setPreview} contactId={detail.docContactId || contactId} />)}</div>
                 </div>
               )}
               <div ref={end} />

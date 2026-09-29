@@ -41,9 +41,21 @@ function state(contactId: string | null) {
 
 export async function GET(request: NextRequest) {
   const url = new URL(request.url);
-  if (url.searchParams.get("list") === "contractors") {
-    const rows = sqlite.prepare("SELECT id FROM contacts WHERE qualification='contractor'").all() as Array<{ id: string }>;
-    return NextResponse.json({ contactIds: rows.map((r) => r.id) });
+  if (url.searchParams.get("list")) {
+    const contractors = (sqlite.prepare("SELECT id FROM contacts WHERE qualification='contractor'").all() as Array<{ id: string }>).map((r) => r.id);
+    // В архив чатов: «Не клиент» или сделка ушла в «Отказ» и открытых сделок нет.
+    const rows = sqlite.prepare(`SELECT c.id, c.updated_at AS cu,
+        (SELECT MAX(d.updated_at) FROM deals d JOIN pipeline_stages ps ON ps.id=d.stage_id WHERE d.contact_id=c.id AND COALESCE(ps.is_lost,0)=1) AS lostAt,
+        (SELECT MAX(a.created_at) FROM audit_log a WHERE a.action='inbox_status' AND a.entity_id=c.id) AS markedAt
+      FROM contacts c WHERE
+        (c.qualification IN ('ignore','spam','unqualified','not_target')
+         OR EXISTS (SELECT 1 FROM deals d JOIN pipeline_stages ps ON ps.id=d.stage_id WHERE d.contact_id=c.id AND COALESCE(ps.is_lost,0)=1))
+        AND NOT EXISTS (SELECT 1 FROM deals d JOIN pipeline_stages ps ON ps.id=d.stage_id WHERE d.contact_id=c.id AND COALESCE(ps.is_lost,0)=0 AND COALESCE(ps.is_won,0)=0)
+        AND COALESCE(c.qualification,'') <> 'contractor'`).all() as Array<{ id: string; cu: number | null; lostAt: number | null; markedAt: number | null }>;
+    // Момент отказа (мс): чат вернётся в список, только если клиент напишет после него.
+    const ms = (v: number | null) => { const n = Number(v) || 0; return n > 1e12 ? n : n * 1000; };
+    const archived = Object.fromEntries(rows.map((r) => [r.id, Math.max(ms(r.lostAt), ms(r.markedAt)) || ms(r.cu)]));
+    return NextResponse.json({ contactIds: contractors, contractors, archived });
   }
   const contactId = url.searchParams.get("contactId");
   return NextResponse.json(state(contactId));

@@ -63,8 +63,16 @@ export function DocumentPreview({ contactId, doc, onClose }: { contactId: string
   );
 }
 
-/** Чип вложения: по клику открывает предпросмотр. */
-export function DocumentChip({ doc, onOpen, dark = false }: { doc: PreviewDoc; onOpen: (d: PreviewDoc) => void; dark?: boolean }) {
+/** Вложение в сообщении: фото — миниатюрой, остальное — чипом. По клику открывается просмотр. */
+export function DocumentChip({ doc, onOpen, dark = false, contactId }: { doc: PreviewDoc; onOpen: (d: PreviewDoc) => void; dark?: boolean; contactId?: string | null }) {
+  if (contactId && previewKind(doc.name, doc.mimeType) === "image") {
+    return (
+      <button type="button" onClick={() => onOpen(doc)} className="block overflow-hidden rounded-lg border bg-slate-100 transition hover:opacity-90" title={doc.name}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={`/api/contacts/${encodeURIComponent(contactId)}/documents/${encodeURIComponent(doc.id)}`} alt={doc.name} loading="lazy" className="max-h-64 w-auto max-w-full object-contain" />
+      </button>
+    );
+  }
   return (
     <button type="button" onClick={() => onOpen(doc)} className={`flex max-w-full items-center gap-2 rounded-lg border px-2.5 py-1.5 text-left text-xs transition ${dark ? "border-slate-700 bg-slate-800 text-white hover:bg-slate-700" : "bg-slate-50 text-slate-700 hover:bg-white"}`}>
       <FileText className="h-3.5 w-3.5 shrink-0 opacity-70" />

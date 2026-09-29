@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { importTelegramAttachmentsFromUpdate } from "@/lib/telegram-attachment-import";
 import { asc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { activities, contacts, deals, pipelineStages } from "@/db/schema";
@@ -363,6 +364,12 @@ export async function POST(request: NextRequest) {
       createdAt: message.date ? new Date(message.date * 1000) : now,
     })
     .run();
+
+  // Фото и документы: скачиваем через Bot API и прикрепляем к клиенту — они видны прямо в чате.
+  if (message.photo?.length || message.document) {
+    void importTelegramAttachmentsFromUpdate(update, contact.id, fromOwner ? "outgoing" : "incoming")
+      .catch((error) => console.warn("Telegram attachment import failed", error instanceof Error ? error.message : error));
+  }
 
   // Outgoing messages written in the Telegram app are mirrored into CRM, but
   // they should not create a sales deal by themselves or trigger a notification.

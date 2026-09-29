@@ -75,11 +75,11 @@ export async function importTelegramAttachmentsFromUpdate(
   if (!token) return 0;
 
   const fileInfo = await telegramApiRequest<TelegramGetFile>(token, "getFile", { file_id: attachment.ref.file_id });
-  if (!fileInfo.ok || !fileInfo.result?.file_path) return 0;
+  if (!fileInfo.ok || !fileInfo.result?.file_path) { console.warn("Telegram getFile failed", attachment.name, (fileInfo as { description?: string }).description || ""); return 0; }
   if (Number(fileInfo.result.file_size || attachment.ref.file_size || 0) > 20 * 1024 * 1024) return 0;
 
   const response = await fetch(`https://api.telegram.org/file/bot${token}/${fileInfo.result.file_path}`, { cache: "no-store" });
-  if (!response.ok) return 0;
+  if (!response.ok) { console.warn("Telegram file download failed", attachment.name, response.status); return 0; }
   const bytes = new Uint8Array(await response.arrayBuffer());
   const chatId = String(message.chat?.id || "telegram");
   const messageKey = `${chatId}:${message.message_id}`;

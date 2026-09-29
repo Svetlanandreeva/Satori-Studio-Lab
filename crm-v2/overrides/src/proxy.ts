@@ -8,6 +8,9 @@ const PUBLIC_PATHS = [
   "/api/integrations/need-number",
   "/api/integrations/telegram/webhook",
   "/sw.js",
+  "/app-sw.js",
+  "/manifest.webmanifest",
+  "/pwa",
   "/favicon.ico",
 ];
 
