@@ -4,6 +4,7 @@ import { promoteEmailThreadToCrm, setEmailThreadService } from "@/lib/email-crm-
 import { getRequestActor } from "@/lib/request-actor";
 import { writeAuditLog } from "@/lib/operations";
 import { deleteDealsCascade } from "@/lib/safe-delete";
+import { workStage } from "@/lib/work-stage";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -11,7 +12,7 @@ export const dynamic = "force-dynamic";
 /**
  * Статус обращения из «Сообщений»:
  *  new    — просто написал (контакт считается, в сделках его нет);
- *  work   — взят в работу: карточка появляется в сделках на этапе «Расчёт»;
+ *  work   — взят в работу: карточка появляется в сделках на этапе из настроек (по умолчанию — следующий после «Новый запрос»);
  *  ignore — не клиент (спам, реклама) — не считается обращением;
  *  contractor — подрядчик/поставщик: переписка во вкладке «Подрядчики», не клиент и не обращение.
  */
@@ -20,13 +21,6 @@ type Status = "new" | "work" | "ignore" | "contractor";
 function openDealFor(contactId: string) {
   return sqlite.prepare(`SELECT d.id, d.stage_id AS stageId, ps.name AS stageName FROM deals d JOIN pipeline_stages ps ON ps.id=d.stage_id
     WHERE d.contact_id=? AND COALESCE(ps.is_won,0)=0 AND COALESCE(ps.is_lost,0)=0 ORDER BY d.updated_at DESC LIMIT 1`).get(contactId) as { id: string; stageId: string; stageName: string } | undefined;
-}
-
-/** Этап «взят в работу» — первый после «Новый запрос» (обычно «Расчёт»). */
-function workStage() {
-  const open = sqlite.prepare(`SELECT id, name FROM pipeline_stages WHERE COALESCE(is_won,0)=0 AND COALESCE(is_lost,0)=0
-    AND lower(name) NOT LIKE '%песочн%' AND lower(name) NOT LIKE '%спам%' ORDER BY "order"`).all() as Array<{ id: string; name: string }>;
-  return { first: open[0], work: open.find((s) => /расч/i.test(s.name)) || open[1] || open[0] };
 }
 
 function state(contactId: string | null) {

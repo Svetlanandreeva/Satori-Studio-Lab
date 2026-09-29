@@ -43,11 +43,11 @@ export function InboxStatus({ channel, threadId, contactId, title, onChanged }: 
   ];
 
   return (
-    <div className="flex items-center gap-2">
+    <div className="flex flex-wrap items-center gap-2">
       <div className="flex rounded-lg bg-muted p-0.5" role="group" aria-label="Статус обращения">
         {options.map(([value, label, active]) => (
           <button key={value} type="button" onClick={() => void set(value)} disabled={Boolean(busy)}
-            className={`inline-flex h-7 items-center gap-1 rounded-md px-2.5 text-xs font-medium transition ${state.status === value ? active : "text-muted-foreground hover:text-foreground"}`}>
+            className={`inline-flex h-7 items-center gap-1 whitespace-nowrap rounded-md px-2 text-xs font-medium transition sm:px-2.5 ${state.status === value ? active : "text-muted-foreground hover:text-foreground"}`}>
             {busy === value && <Loader2 className="h-3 w-3 animate-spin" />}{label}
           </button>
         ))}

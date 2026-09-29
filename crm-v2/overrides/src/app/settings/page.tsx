@@ -1,4 +1,5 @@
 "use client";
+import { StageManager } from "@/components/settings/StageManager";
 
 import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -434,23 +435,7 @@ export default function SettingsPage() {
         </Card>
         <Card className="overflow-hidden">
           <CardHeader className="cursor-pointer" onClick={()=>toggleSection("pipeline")}><CardTitle className="text-base flex items-center justify-between"><span className="flex items-center gap-2"><Kanban className="h-4 w-4"/>Этапы воронки</span><ChevronDown className={`h-4 w-4 transition-transform ${openSections.pipeline?"rotate-180":""}`}/></CardTitle></CardHeader>
-          {openSections.pipeline && <CardContent>
-            <div className="space-y-2">
-              {stages.map((stage) => (
-                <div
-                  key={stage.id}
-                  className="flex items-center gap-3 p-2 rounded-lg bg-muted/50"
-                >
-                  <div
-                    className="w-3 h-3 rounded-full shrink-0"
-                    style={{ backgroundColor: stage.color }}
-                  />
-                  <span className="text-sm flex-1">{stage.name}</span>
-                  <Badge variant="outline" className="text-xs">#{stage.order}</Badge>
-                </div>
-              ))}
-            </div>
-          </CardContent>}
+          {openSections.pipeline && <CardContent><StageManager /></CardContent>}
         </Card>
 
         <Card className="overflow-hidden">

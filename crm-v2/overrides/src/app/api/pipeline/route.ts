@@ -96,7 +96,15 @@ export async function POST(request: NextRequest) {
     const existing = db.select().from(pipelineStages).all().find(s => s.name.trim().toLowerCase() === name.toLowerCase());
     if (existing) return NextResponse.json({ error: "Этап с таким названием уже существует" }, { status: 409 });
     const rows = visibleStages();
-    const order = rows.length ? Math.max(...rows.map(s => s.order)) + 1 : 0;
+    // Новый этап можно вставить сразу после выбранного (например, «Уточнение» после «Новый запрос»).
+    const after = body.afterStageId ? rows.find((s) => s.id === String(body.afterStageId)) : null;
+    const firstClosed = rows.find((s) => s.isWon || s.isLost);
+    const anchorOrder = after && !after.isWon && !after.isLost ? after.order : firstClosed ? firstClosed.order - 1 : null;
+    let order = rows.length ? Math.max(...rows.map(s => s.order)) + 1 : 0;
+    if (anchorOrder !== null) {
+      order = anchorOrder + 1;
+      for (const s of rows) if (s.order >= order) db.update(pipelineStages).set({ order: s.order + 1 }).where(eq(pipelineStages.id, s.id)).run();
+    }
     const created = db.insert(pipelineStages).values({
       id: crypto.randomUUID(), name, order, color: safeColor(body.color), isWon: false, isLost: false,
     }).returning().get();
@@ -126,7 +134,18 @@ export async function PATCH(request: NextRequest) {
     }
     if (body.color !== undefined) updates.color = safeColor(body.color);
     if (body.order !== undefined && Number.isFinite(Number(body.order))) updates.order = Math.max(0, Math.round(Number(body.order)));
-    const result = db.update(pipelineStages).set(updates).where(eq(pipelineStages.id, stage.id)).returning().get();
+    if (body.move === "up" || body.move === "down") {
+      // Двигаем только рабочие этапы между собой; «Новый запрос» всегда первый, закрытые — в конце.
+      const rows = visibleStages();
+      const idx = rows.findIndex((s) => s.id === stage.id);
+      const other = rows[body.move === "up" ? idx - 1 : idx + 1];
+      const movable = (s?: typeof stage) => Boolean(s && !s.isWon && !s.isLost && s.name !== "Новый запрос");
+      if (!movable(stage) || !movable(other)) return NextResponse.json({ error: "Этот этап нельзя сдвинуть дальше" }, { status: 400 });
+      db.update(pipelineStages).set({ order: other!.order }).where(eq(pipelineStages.id, stage.id)).run();
+      db.update(pipelineStages).set({ order: stage.order }).where(eq(pipelineStages.id, other!.id)).run();
+      normalizeVisibleOrders();
+    }
+    const result = Object.keys(updates).length ? db.update(pipelineStages).set(updates).where(eq(pipelineStages.id, stage.id)).returning().get() : db.select().from(pipelineStages).where(eq(pipelineStages.id, stage.id)).get();
     return NextResponse.json(result);
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Не удалось сохранить этап" }, { status: 400 });
