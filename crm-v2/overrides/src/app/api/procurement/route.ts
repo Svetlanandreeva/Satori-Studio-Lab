@@ -7,6 +7,7 @@ import {
   saveDealPurchase,
 } from "@/lib/procurement";
 import { getRequestActor } from "@/lib/request-actor";
+import { sqlite } from "@/db";
 import { writeAuditLog } from "@/lib/operations";
 
 export const dynamic = "force-dynamic";
@@ -36,6 +37,11 @@ export async function POST(request: NextRequest) {
   try {
     const actor = assertCanEdit(request);
     const body = await request.json() as Record<string, unknown>;
+    if (body.id) {
+      // Правка позиции: поля, которые форма не прислала, оставляем как были.
+      const prev = sqlite.prepare(`SELECT supplier, status, purchase_date AS purchaseDate, source_url AS sourceUrl, notes FROM deal_purchases WHERE id=?`).get(String(body.id)) as Record<string, unknown> | undefined;
+      if (prev) for (const [k, v] of Object.entries(prev)) if (!(k in body) || body[k] === undefined) body[k] = v;
+    }
     const purchase = saveDealPurchase({
       id: body.id ? String(body.id) : undefined,
       dealId: String(body.dealId || ""),

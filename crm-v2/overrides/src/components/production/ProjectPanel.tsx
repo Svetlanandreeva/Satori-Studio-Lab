@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { ExternalLink, Loader2, Plus, Trash2 } from "lucide-react";
+import { Check, ExternalLink, Loader2, Pencil, Plus, Trash2, X } from "lucide-react";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { deadlineBadge } from "@/components/deals/DealMoneyDates";
 
@@ -143,12 +143,7 @@ export function ProjectPanel({ dealId, onClose, onChanged }: { dealId: string | 
               {data.purchases.length > 0 && (
                 <div className="mb-3 divide-y divide-slate-100 rounded-lg border border-slate-100 dark:divide-white/[.06] dark:border-white/[.06]">
                   {data.purchases.map((p) => (
-                    <div key={p.id} className="flex items-center gap-3 px-3 py-2 text-[13px]">
-                      <div className="min-w-0 flex-1 truncate">{p.name}</div>
-                      <div className="shrink-0 text-slate-500">{p.quantity} {p.unit} × {money(p.unitCost || p.plannedUnitCost)}</div>
-                      <div className="w-24 shrink-0 text-right font-medium tabular-nums">{money(p.totalCost)}</div>
-                      <button onClick={() => void removePurchase(p.id)} disabled={busy === p.id} className="rounded p-1 text-slate-300 hover:bg-rose-50 hover:text-rose-600" aria-label="Удалить материал"><Trash2 className="h-3.5 w-3.5" /></button>
-                    </div>
+                    <PurchaseRow key={p.id} p={p} dealId={data.deal.id} busy={busy === p.id} onRemove={() => void removePurchase(p.id)} onSaved={async () => { await load(); onChanged?.(); }} />
                   ))}
                 </div>
               )}
@@ -186,6 +181,56 @@ export function ProjectPanel({ dealId, onClose, onChanged }: { dealId: string | 
         )}
       </SheetContent>
     </Sheet>
+  );
+}
+
+/** Строка материала: по клику на карандаш (или на строку) — редактирование прямо в списке. */
+function PurchaseRow({ p, dealId, busy, onRemove, onSaved }: { p: Purchase; dealId: string; busy: boolean; onRemove: () => void; onSaved: () => Promise<void> }) {
+  const price = p.unitCost || p.plannedUnitCost;
+  const initial = { name: p.name, quantity: String(p.quantity), unit: p.unit, price: toRub(price) };
+  const [edit, setEdit] = useState<typeof initial | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  async function save() {
+    if (!edit) return;
+    if (!edit.name.trim()) return toast.error("Название не может быть пустым");
+    const quantity = Number(String(edit.quantity).replace(",", "."));
+    if (!(quantity > 0)) return toast.error("Количество должно быть больше нуля");
+    setSaving(true);
+    try {
+      const kop = toKop(edit.price);
+      const res = await fetch("/api/procurement", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ id: p.id, dealId, name: edit.name.trim(), quantity, unit: edit.unit || "шт.", unitCost: kop, plannedUnitCost: kop, status: p.status || "paid", supplier: p.supplier }) });
+      if (!res.ok) throw new Error((await res.json()).error || "Не удалось сохранить");
+      await onSaved(); setEdit(null); toast.success("Материал обновлён");
+    } catch (e) { toast.error(e instanceof Error ? e.message : "Ошибка"); } finally { setSaving(false); }
+  }
+
+  if (edit) {
+    const total = toKop(edit.price) * (Number(String(edit.quantity).replace(",", ".")) || 0);
+    return (
+      <form onSubmit={(e) => { e.preventDefault(); void save(); }} onKeyDown={(e) => { if (e.key === "Escape") { e.stopPropagation(); setEdit(null); } }} className="grid grid-cols-[1fr_64px_64px_96px_auto] items-center gap-2 bg-slate-50 px-2 py-2 dark:bg-white/[.03]">
+        <input autoFocus value={edit.name} onChange={(e) => setEdit({ ...edit, name: e.target.value })} className={input} aria-label="Материал" />
+        <input value={edit.quantity} onChange={(e) => setEdit({ ...edit, quantity: e.target.value })} inputMode="decimal" className={input} aria-label="Количество" />
+        <input value={edit.unit} onChange={(e) => setEdit({ ...edit, unit: e.target.value })} className={input} aria-label="Единица" />
+        <input value={edit.price} onChange={(e) => setEdit({ ...edit, price: e.target.value })} inputMode="decimal" placeholder="Цена, ₽" className={input} aria-label="Цена за единицу" />
+        <div className="flex items-center gap-1">
+          <button type="submit" disabled={saving} className="flex h-9 w-9 items-center justify-center rounded-lg bg-slate-950 text-white disabled:opacity-40 dark:bg-white dark:text-slate-950" aria-label="Сохранить" title={`Сохранить · ${money(Math.round(total))}`}>{saving ? <Loader2 className="h-4 w-4 animate-spin" /> : <Check className="h-4 w-4" />}</button>
+          <button type="button" onClick={() => setEdit(null)} className="flex h-9 w-9 items-center justify-center rounded-lg border border-slate-200 text-slate-500 hover:bg-white dark:border-white/[.1]" aria-label="Отмена"><X className="h-4 w-4" /></button>
+        </div>
+      </form>
+    );
+  }
+
+  return (
+    <div className="group flex items-center gap-3 px-3 py-2 text-[13px]">
+      <button type="button" onClick={() => setEdit(initial)} className="flex min-w-0 flex-1 items-center gap-3 text-left" title="Изменить">
+        <span className="min-w-0 flex-1 truncate">{p.name}</span>
+        <span className="shrink-0 text-slate-500">{p.quantity} {p.unit} × {money(price)}</span>
+        <span className="w-24 shrink-0 text-right font-medium tabular-nums">{money(p.totalCost)}</span>
+      </button>
+      <button onClick={() => setEdit(initial)} className="rounded p-1 text-slate-300 hover:bg-slate-100 hover:text-slate-700" aria-label="Изменить материал"><Pencil className="h-3.5 w-3.5" /></button>
+      <button onClick={onRemove} disabled={busy} className="rounded p-1 text-slate-300 hover:bg-rose-50 hover:text-rose-600" aria-label="Удалить материал"><Trash2 className="h-3.5 w-3.5" /></button>
+    </div>
   );
 }
 
