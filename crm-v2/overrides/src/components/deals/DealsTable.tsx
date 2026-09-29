@@ -1,10 +1,12 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { Handshake, Search, Trash2, X } from "lucide-react";
+import { Combine, Handshake, Search, Trash2, X } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 import { ConfirmDelete, deleteDeals, NewDealButton } from "./DealActions";
 
 export type DealRow = {
@@ -28,6 +30,41 @@ export function DealsTable({ rows, stages }: { rows: DealRow[]; stages: StageLit
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [confirm, setConfirm] = useState<string[] | null>(null);
   const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    const initial = new URLSearchParams(window.location.search).get("q");
+    if (initial) { setQ(initial); setScope("all"); }
+  }, []);
+  const [mergeIds, setMergeIds] = useState<string[] | null>(null);
+  const [keepId, setKeepId] = useState("");
+
+  // Сколько открытых сделок у каждого клиента — чтобы подсветить вероятные дубли.
+  const openByContact = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const r of rows) if (r.contactId && !r.isWon && !r.isLost) map.set(r.contactId, (map.get(r.contactId) || 0) + 1);
+    return map;
+  }, [rows]);
+
+  function openMerge(ids: string[]) {
+    const picked = rows.filter((r) => ids.includes(r.id));
+    // По умолчанию оставляем ту, что дальше всех по воронке (затем — с большей суммой).
+    const order = (id: string | null) => stages.findIndex((s) => s.id === id);
+    const best = [...picked].sort((a, b) => (order(b.stageId) - order(a.stageId)) || ((Number(b.value) || 0) - (Number(a.value) || 0)))[0];
+    setKeepId(best?.id || ids[0]);
+    setMergeIds(ids);
+  }
+  async function merge() {
+    if (!mergeIds || !keepId) return;
+    setBusy(true);
+    try {
+      const res = await fetch("/api/deals/merge", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ keepId, ids: mergeIds }) });
+      const data = await res.json().catch(() => null);
+      if (!res.ok) throw new Error(data?.error || "Не удалось объединить");
+      toast.success(`Объединено в одну сделку`);
+      setMergeIds(null); setSelected(new Set());
+      router.refresh();
+    } catch (error) { toast.error(error instanceof Error ? error.message : "Ошибка"); }
+    finally { setBusy(false); }
+  }
 
   const counts = useMemo(() => ({
     active: rows.filter((r) => !r.isWon && !r.isLost && !r.isLead).length,
@@ -104,6 +141,7 @@ export function DealsTable({ rows, stages }: { rows: DealRow[]; stages: StageLit
         {selected.size > 0 && (
           <div className="flex items-center gap-3 border-b border-slate-100 bg-slate-950 px-4 py-2 text-[13px] text-white dark:border-white/[.06]">
             <span>Выбрано: {selected.size}</span>
+            {selected.size >= 2 && <button onClick={() => openMerge([...selected])} className="inline-flex items-center gap-1.5 rounded-lg bg-white px-3 py-1 font-medium text-slate-900 hover:bg-slate-100"><Combine className="h-3.5 w-3.5" />Объединить в одну</button>}
             <button onClick={() => setConfirm([...selected])} className="inline-flex items-center gap-1.5 rounded-lg bg-rose-500 px-3 py-1 font-medium hover:bg-rose-600"><Trash2 className="h-3.5 w-3.5" />Удалить</button>
             <button onClick={() => setSelected(new Set())} className="ml-auto inline-flex items-center gap-1 text-white/70 hover:text-white"><X className="h-3.5 w-3.5" />Снять выбор</button>
           </div>
@@ -120,7 +158,7 @@ export function DealsTable({ rows, stages }: { rows: DealRow[]; stages: StageLit
               <input type="checkbox" checked={selected.has(d.id)} onChange={() => toggle(d.id)} aria-label="Выбрать" className="h-4 w-4 accent-slate-900" />
               <Link href={`/deals/${d.id}`} className="min-w-0">
                 <div className="truncate text-[14px] font-medium text-slate-900 group-hover:underline dark:text-white">{d.title || "Без названия"}</div>
-                <div className="truncate text-[12px] text-slate-500">{d.contactName || "Без клиента"}{d.contactPhone ? ` · ${d.contactPhone}` : ""}</div>
+                <div className="truncate text-[12px] text-slate-500">{d.contactName || "Без клиента"}{d.contactPhone ? ` · ${d.contactPhone}` : ""}{d.contactId && (openByContact.get(d.contactId) || 0) > 1 && !d.isWon && !d.isLost ? <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); setQ(d.contactName || ""); setScope("all"); }} className="ml-2 rounded bg-amber-50 px-1.5 py-0.5 text-[11px] font-medium text-amber-800 hover:bg-amber-100">у клиента {openByContact.get(d.contactId)} открытых — дубли?</button> : null}</div>
               </Link>
               <div className="hidden md:block"><span className="inline-flex max-w-full items-center gap-1.5 truncate rounded-full bg-slate-100 px-2.5 py-1 text-[12px] text-slate-700 dark:bg-white/[.06] dark:text-slate-300"><span className="h-2 w-2 shrink-0 rounded-full" style={{ background: d.stageColor || "#94a3b8" }} />{d.stageName || "Без этапа"}</span></div>
               <div className="text-right text-[14px] font-semibold tabular-nums text-slate-900 dark:text-white">{money(d.value)}<div className="text-[11px] font-normal text-slate-400 md:hidden">{d.stageName}</div></div>
@@ -142,6 +180,26 @@ export function DealsTable({ rows, stages }: { rows: DealRow[]; stages: StageLit
           <span>Сумма: <b className="font-semibold text-slate-900 dark:text-white">{money(total)}</b></span>
         </div>
       </section>
+
+      <Dialog open={Boolean(mergeIds)} onOpenChange={(v) => !v && !busy && setMergeIds(null)}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader><DialogTitle>Объединить в одну сделку</DialogTitle></DialogHeader>
+          <p className="text-sm text-muted-foreground">Выбери, какая остаётся. Остальные удалятся, а их переписка, задачи, закупки и файлы перейдут к ней. Если у основной нет оплаты или сроков — возьмутся с дубля.</p>
+          <div className="space-y-1.5">
+            {rows.filter((r) => mergeIds?.includes(r.id)).map((r) => (
+              <label key={r.id} className={`flex cursor-pointer items-center gap-3 rounded-lg border px-3 py-2 text-sm ${keepId === r.id ? "border-slate-900 bg-slate-50" : "border-slate-200"}`}>
+                <input type="radio" name="keep" checked={keepId === r.id} onChange={() => setKeepId(r.id)} className="accent-slate-900" />
+                <span className="min-w-0 flex-1"><span className="block truncate font-medium">{r.title || "Без названия"}</span><span className="block truncate text-xs text-slate-500">{r.contactName} · {r.stageName}</span></span>
+                <span className="shrink-0 tabular-nums">{money(r.value)}</span>
+              </label>
+            ))}
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" onClick={() => setMergeIds(null)} disabled={busy}>Отмена</Button>
+            <Button onClick={() => void merge()} disabled={busy}>{busy ? "Объединяю…" : "Объединить"}</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <ConfirmDelete open={Boolean(confirm)} busy={busy} onCancel={() => setConfirm(null)} onConfirm={() => confirm && void remove(confirm)}
         title={confirm && confirm.length > 1 ? `Удалить ${confirm.length} сделок?` : "Удалить сделку?"}

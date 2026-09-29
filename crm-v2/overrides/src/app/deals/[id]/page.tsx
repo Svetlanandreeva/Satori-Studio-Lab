@@ -68,6 +68,9 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
     .filter((st) => !/песочниц|спам/i.test(st.name))
     .map((st) => ({ id: st.id, name: st.name, color: st.color, isWon: Boolean(st.isWon), isLost: Boolean(st.isLost) }));
   const schedule = getDealSchedule(deal.id);
+  const siblingOpen = deal.contactId ? db.select({ id: deals.id, isWon: pipelineStages.isWon, isLost: pipelineStages.isLost }).from(deals)
+    .leftJoin(pipelineStages, eq(deals.stageId, pipelineStages.id)).where(eq(deals.contactId, deal.contactId)).all()
+    .filter((d) => d.id !== deal.id && !d.isWon && !d.isLost).length : 0;
 
   return (
     <div className="mx-auto max-w-[1320px] space-y-4 pb-10">
@@ -84,6 +87,11 @@ export default async function DealPage({ params }: { params: Promise<{ id: strin
       </div>
 
       <DealStageBar dealId={deal.id} stageId={deal.stageId} stages={stageList} />
+      {siblingOpen > 0 && !deal.isWon && !deal.isLost && (
+        <Link href={`/deals?q=${encodeURIComponent(deal.contactName || "")}`} className="block rounded-xl bg-amber-50 px-4 py-2.5 text-sm text-amber-900 hover:bg-amber-100">
+          У этого клиента ещё {siblingOpen} открыт{siblingOpen === 1 ? "ая сделка" : "ых сделки"}. Если это один заказ — отметь их в «Сделках» и нажми «Объединить в одну» →
+        </Link>
+      )}
       {deal.isLost && deal.lossReason && <div className="rounded-xl bg-rose-50 px-4 py-2.5 text-sm text-rose-700">Причина отказа: {deal.lossReason}</div>}
 
       <div className="grid gap-4 xl:grid-cols-[minmax(0,1.35fr)_minmax(360px,1fr)]">
