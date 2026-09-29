@@ -115,7 +115,7 @@ export async function GET(
       channel: "activity" as const,
       direction: "internal" as const,
       timestamp: iso(activity.createdAt),
-      body: activity.description,
+      body: String(activity.description || "").replace(/\n?\[tg-media:[A-Za-z0-9_-]+\]/g, "").trim(),
       sender: "CRM",
       address: activity.type,
       subject: activity.type,

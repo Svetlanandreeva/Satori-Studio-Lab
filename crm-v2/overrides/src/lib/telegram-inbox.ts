@@ -2,6 +2,7 @@ import { eq } from "drizzle-orm";
 import { db } from "@/db";
 import { activities, contacts } from "@/db/schema";
 import { getMessageIndicatorsStartedAt } from "@/lib/message-indicator-state";
+import { decodeMedia, stripMediaMarker } from "@/lib/telegram-media";
 
 const TELEGRAM_TYPES = new Set([
   "telegram_incoming",
@@ -11,7 +12,7 @@ const TELEGRAM_TYPES = new Set([
 ]);
 
 function bodyFromDescription(description: string): string {
-  const lines = String(description || "").split("\n");
+  const lines = stripMediaMarker(String(description || "")).split("\n");
   return lines.length > 1 ? lines.slice(1).join("\n").trim() : String(description || "").trim();
 }
 
@@ -119,6 +120,7 @@ export function getTelegramThread(contactId: string) {
     .map((item) => ({
       id: item.id,
       sourceMessageId: item.id.startsWith("tg:") ? item.id.slice(3) : null,
+      media: (() => { const m = decodeMedia(item.description); return m ? { kind: m.kind, name: m.name, mime: m.mime, size: m.size || null } : null; })(),
       direction: direction(item.type),
       bodyText: bodyFromDescription(item.description),
       receivedAt: item.createdAt.toISOString(),

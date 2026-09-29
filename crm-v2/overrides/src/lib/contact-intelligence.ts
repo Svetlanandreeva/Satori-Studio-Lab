@@ -200,7 +200,7 @@ function telegramDialogs(contact: ContactRow): DialogLine[] {
   `).all(contact.id) as Array<Record<string, unknown>>;
   return rows.map((row) => {
     const type = String(row.type || "").toLowerCase();
-    const raw = String(row.description || "");
+    const raw = String(row.description || "").replace(/\n?\[tg-media:[A-Za-z0-9_-]+\]/g, "");
     const body = raw.includes("\n") ? raw.slice(raw.indexOf("\n") + 1) : raw;
     return {
       channel: "telegram" as const,

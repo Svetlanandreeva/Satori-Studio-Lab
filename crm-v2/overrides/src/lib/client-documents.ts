@@ -46,6 +46,7 @@ const allowedExt = new Set([
   ".pdf", ".doc", ".docx", ".xls", ".xlsx", ".ppt", ".pptx", ".txt", ".csv",
   ".jpg", ".jpeg", ".png", ".webp", ".heic", ".zip", ".rar", ".7z",
   ".stl", ".step", ".stp", ".3mf",
+  ".mp4", ".mov", ".webm", ".ogg", ".oga", ".mp3", ".m4a", ".wav", ".gif",
 ]);
 
 export interface ClientDocumentRecord {
@@ -143,7 +144,9 @@ export function saveClientDocument(input: {
     ext = extensionFromMime(input.mimeType);
     if (ext) name = `${name}${ext}`;
   }
-  if (!allowedExt.has(ext)) throw new Error("Этот формат файла пока не поддерживается в карточке клиента");
+  // Из переписки принимаем любые файлы (чертежи, макеты…), кроме тех, что браузер может исполнить.
+  const dangerous = new Set([".html", ".htm", ".xhtml", ".svg", ".js", ".mjs", ".xml", ".exe", ".bat", ".cmd", ".sh", ".php"]);
+  if (!allowedExt.has(ext) && (!input.sourceChannel || dangerous.has(ext) || !ext)) throw new Error("Этот формат файла пока не поддерживается в карточке клиента");
 
   const requestedKind = String(input.kind || "");
   const kind = allowedKinds.has(requestedKind) ? requestedKind : detectClientDocumentKind(name);

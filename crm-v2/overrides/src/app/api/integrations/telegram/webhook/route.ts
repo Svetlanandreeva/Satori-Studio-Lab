@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import { importTelegramAttachmentsFromUpdate } from "@/lib/telegram-attachment-import";
+import { encodeMedia, ensureTelegramMedia, mediaFromMessage } from "@/lib/telegram-media";
 import { asc, eq } from "drizzle-orm";
 import { db } from "@/db";
 import { activities, contacts, deals, pipelineStages } from "@/db/schema";
@@ -347,6 +347,7 @@ export async function POST(request: NextRequest) {
   }
 
   const body = bodyOf(message);
+  const media = mediaFromMessage(message as unknown as Parameters<typeof mediaFromMessage>[0]);
   const channelLabel = isBusiness ? "Telegram аккаунт" : "Telegram бот";
   const direction = fromOwner ? "исходящее" : "входящее";
   const sender = fromOwner ? "Satori" : username || displayName(message);
@@ -359,16 +360,17 @@ export async function POST(request: NextRequest) {
           ? "telegram_business_outgoing"
           : "telegram_business_incoming"
         : "telegram_incoming",
-      description: `${channelLabel} · ${direction}${fromOwner ? "" : ` · ${sender}`}\n${body}`,
+      description: `${channelLabel} · ${direction}${fromOwner ? "" : ` · ${sender}`}\n${body}${media ? `\n${encodeMedia(media)}` : ""}`,
       contactId: contact.id,
       createdAt: message.date ? new Date(message.date * 1000) : now,
     })
     .run();
 
-  // Фото и документы: скачиваем через Bot API и прикрепляем к клиенту — они видны прямо в чате.
-  if (message.photo?.length || message.document) {
-    void importTelegramAttachmentsFromUpdate(update, contact.id, fromOwner ? "outgoing" : "incoming")
-      .catch((error) => console.warn("Telegram attachment import failed", error instanceof Error ? error.message : error));
+  // Фото, видео, голосовые и документы: скачиваем в карточку клиента в фоне.
+  // Если не выйдет — CRM докачает при открытии чата (file_id сохранён в сообщении).
+  if (media) {
+    void ensureTelegramMedia(`tg:${chatId}:${message.message_id}`, fromOwner ? "outgoing" : "incoming")
+      .catch((error) => console.warn("Telegram media import failed", error instanceof Error ? error.message : error));
   }
 
   // Outgoing messages written in the Telegram app are mirrored into CRM, but

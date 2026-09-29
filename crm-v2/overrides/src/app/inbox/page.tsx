@@ -8,15 +8,16 @@ import { InboxStatus } from "@/components/inbox/InboxStatus";
 import { Composer, type Template } from "@/components/inbox/Composer";
 import { Avatar, ThreadRow, clock, dayTitle, timeOf, toDate, unreadLabel, type Channel, type UnifiedThread } from "@/components/inbox/InboxParts";
 import { DocumentChip, DocumentPreview } from "@/components/documents/DocumentPreview";
+import { TelegramMediaLoader } from "@/components/inbox/TelegramMediaLoader";
 import { emitUnreadMessagesChanged, useUnreadMessages } from "@/lib/use-unread-messages";
 
 type Filter = "all" | "telegram" | "email" | "contractors" | "service";
-interface UnifiedMessage { id: string; direction: "incoming" | "outgoing"; bodyText: string; receivedAt: string; sender?: string | null; sourceMessageId?: string | null; }
+interface UnifiedMessage { id: string; direction: "incoming" | "outgoing"; bodyText: string; receivedAt: string; sender?: string | null; sourceMessageId?: string | null; media?: { kind: string; name: string; mime: string | null; size: number | null } | null; }
 interface UnifiedDocument { id: string; name: string; mimeType?: string | null; sizeBytes: number; createdAt: number; sourceMessageId: string | null; kind: string; }
 interface UnifiedDetail { channel: Channel; threadId: string; contactId: string | null; title: string; subtitle: string; isService: boolean; messages: UnifiedMessage[]; documents: UnifiedDocument[]; }
 
 const FILTERS: Array<{ value: Filter; label: string }> = [{ value: "all", label: "Все" }, { value: "telegram", label: "Telegram" }, { value: "email", label: "Почта" }, { value: "contractors", label: "Подрядчики" }, { value: "service", label: "Сервис" }];
-const PLACEHOLDER = /^(🖼 Фото|📎 Документ)/;
+const PLACEHOLDER = /^(🖼 Фото|📎 Документ|🎬 Видео|🎤 Голосовое|🎵 Аудио|🙂 Стикер)/;
 function threadFromLocation() { return typeof window === "undefined" ? null : new URLSearchParams(window.location.search).get("thread"); }
 
 export default function InboxPage() {
@@ -86,7 +87,7 @@ export default function InboxPage() {
       const [channel, id] = key.split(":", 2) as [Channel, string];
       if (channel === "telegram") {
         const r = await fetch(`/api/messages/telegram/${encodeURIComponent(id)}`, { cache: "no-store" }); const p = await r.json(); if (!r.ok) throw new Error(p.error || "Не удалось открыть Telegram-диалог");
-        setDetail({ channel, threadId: id, contactId: p.contact?.id || id, title: p.contact?.name || p.thread?.remoteName || "Telegram", subtitle: [p.thread?.remoteHandle, p.thread?.channel === "telegram_account" ? "личный Telegram" : "Telegram-бот"].filter(Boolean).join(" · "), isService: false, documents: p.documents || [], messages: (p.messages || []).map((m: any) => ({ id: m.id, direction: m.direction, bodyText: m.bodyText || "", receivedAt: m.receivedAt, sender: null, sourceMessageId: m.sourceMessageId || null })) });
+        setDetail({ channel, threadId: id, contactId: p.contact?.id || id, title: p.contact?.name || p.thread?.remoteName || "Telegram", subtitle: [p.thread?.remoteHandle, p.thread?.channel === "telegram_account" ? "личный Telegram" : "Telegram-бот"].filter(Boolean).join(" · "), isService: false, documents: p.documents || [], messages: (p.messages || []).map((m: any) => ({ id: m.id, direction: m.direction, bodyText: m.bodyText || "", receivedAt: m.receivedAt, sender: null, sourceMessageId: m.sourceMessageId || null, media: m.media || null })) });
       } else {
         const r = await fetch(`/api/inbox/${encodeURIComponent(id)}`, { cache: "no-store" }); const p = await r.json(); if (!r.ok) throw new Error(p.error || "Не удалось открыть письмо");
         setDetail({ channel, threadId: id, contactId: p.contact?.id || p.thread?.contactId || null, title: p.contact?.name || p.thread?.remoteName || p.thread?.remoteEmail || "Почта", subtitle: [(p.addresses?.length ? p.addresses : [p.thread?.remoteEmail]).filter(Boolean).join(", "), p.thread?.subject].filter(Boolean).join(" · "), isService: Boolean(p.thread?.isService), documents: p.documents || [], messages: (p.messages || []).map((m: any) => ({ id: m.id, direction: m.direction, bodyText: m.bodyText || "", receivedAt: m.receivedAt, sender: m.direction === "outgoing" ? null : m.fromName || m.fromEmail, sourceMessageId: m.sourceMessageId || null })) });
@@ -148,26 +149,30 @@ export default function InboxPage() {
         {detail.messages.map((m, i) => {
           const out = m.direction === "outgoing";
           const docs = docsFor(m);
-          const text = docs.length && PLACEHOLDER.test(m.bodyText) ? "" : m.bodyText;
+          const pendingMedia = detail.channel === "telegram" && m.media && !docs.length && detail.contactId;
+          const lostMedia = detail.channel === "telegram" && !m.media && !docs.length && PLACEHOLDER.test(m.bodyText);
+          const text = (docs.length || pendingMedia) && PLACEHOLDER.test(m.bodyText) ? "" : m.bodyText;
           const day = toDate(m.receivedAt).toDateString();
           const showDay = day !== lastDay; lastDay = day;
           const prev = detail.messages[i - 1];
           const grouped = !showDay && prev && prev.direction === m.direction && (prev.sender || "") === (m.sender || "");
           return (
             <Fragment key={m.id}>
-              {showDay && <div className="sticky top-0 z-10 flex justify-center py-2"><span className="rounded-full bg-white/90 px-3 py-1 text-[11px] font-medium text-slate-500 shadow-sm backdrop-blur dark:bg-[#1c1f25]/90">{dayTitle(m.receivedAt)}</span></div>}
+              {showDay && <div className="flex justify-center py-2"><span className="rounded-full bg-white/90 px-3 py-1 text-[11px] font-medium text-slate-500 shadow-sm backdrop-blur dark:bg-[#1c1f25]/90">{dayTitle(m.receivedAt)}</span></div>}
               <div className={`flex ${out ? "justify-end" : "justify-start"} ${grouped ? "" : "pt-1.5"}`}>
                 <div className={`max-w-[85%] sm:max-w-[70%] ${out ? "items-end" : "items-start"} flex flex-col gap-1`}>
                   {!out && m.sender && !grouped && <span className="px-1 text-[11px] text-slate-400">{m.sender}</span>}
                   {docs.length > 0 && detail.channel === "telegram" && attachments(docs, out)}
-                  {(text || !docs.length) && (
+                  {pendingMedia && <TelegramMediaLoader contactId={detail.contactId!} activityId={m.id} media={m.media!} onLoaded={(doc) => setDetail((d) => d ? { ...d, documents: [...d.documents.filter((x) => x.id !== doc.id), { ...doc, sourceMessageId: m.sourceMessageId || doc.sourceMessageId }] } : d)} />}
+                  {(text || (!docs.length && !pendingMedia)) && (
                     <div className={`rounded-2xl px-3.5 py-2 text-[14px] leading-relaxed shadow-sm ${out ? "rounded-br-md bg-slate-900 text-white dark:bg-violet-600" : "rounded-bl-md border border-slate-200/80 bg-white text-slate-800 dark:border-white/[.08] dark:bg-[#1c1f25] dark:text-slate-100"}`}>
                       <span className="whitespace-pre-wrap break-words">{text || "(пустое сообщение)"}</span>
+                      {lostMedia && <span className={`mt-0.5 block text-[11px] ${out ? "text-white/60" : "text-slate-400"}`}>пришло до обновления CRM — открой в Telegram</span>}
                       <span className={`float-right ml-3 mt-1.5 text-[10.5px] leading-none ${out ? "text-white/55" : "text-slate-400"}`}>{clock(m.receivedAt)}</span>
                     </div>
                   )}
                   {docs.length > 0 && detail.channel === "email" && attachments(docs, out)}
-                  {!(text || !docs.length) && <span className="px-1 text-[10.5px] text-slate-400">{clock(m.receivedAt)}</span>}
+                  {!(text || (!docs.length && !pendingMedia)) && <span className="px-1 text-[10.5px] text-slate-400">{clock(m.receivedAt)}</span>}
                 </div>
               </div>
             </Fragment>
@@ -220,7 +225,7 @@ export default function InboxPage() {
             : detail ? <>
               <header className="flex flex-wrap items-center gap-x-3 gap-y-2 border-b border-slate-200/80 px-4 py-3 dark:border-white/[.08]">
                 <button type="button" onClick={() => setMobileChat(false)} className="-ml-1 rounded-lg p-1 text-slate-500 hover:bg-slate-100 md:hidden" aria-label="Все чаты"><ArrowLeft className="h-5 w-5" /></button>
-                <Avatar name={detail.title} channel={detail.channel} service={detail.isService} size={38} />
+                <Avatar name={detail.title} channel={detail.channel} service={detail.isService} size={38} src={detail.channel === "telegram" && detail.contactId ? `/api/contacts/${detail.contactId}/avatar` : null} />
                 <div className="min-w-0 flex-1">
                   <div className="truncate text-[15px] font-semibold">{detail.title}</div>
                   <div className="truncate text-[12px] text-slate-500">{detail.subtitle}</div>

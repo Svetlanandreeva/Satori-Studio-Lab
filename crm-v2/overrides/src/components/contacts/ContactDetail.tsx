@@ -78,7 +78,7 @@ function activityDisplay(description: string): { text: string; paymentFailure: b
   const paymentFailure = /^\[store-payment-failed:[^\]]+\]/i.test(description.trim());
   return {
     paymentFailure,
-    text: description.replace(/^\[store-payment-failed:[^\]]+\]\s*/i, "").trim(),
+    text: description.replace(/^\[store-payment-failed:[^\]]+\]\s*/i, "").replace(/\n?\[tg-media:[A-Za-z0-9_-]+\]/g, "").trim(),
   };
 }
 

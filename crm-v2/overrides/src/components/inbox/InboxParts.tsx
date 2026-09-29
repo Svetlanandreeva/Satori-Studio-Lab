@@ -1,5 +1,6 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import { Bot, Mail, Send } from "lucide-react";
 
 export type Channel = "email" | "telegram";
@@ -13,11 +14,15 @@ export function initials(name: string) {
   return ((parts[0]?.[0] || "?") + (parts[1]?.[0] || "")).toUpperCase();
 }
 
-export function Avatar({ name, channel, service, size = 40 }: { name: string; channel: Channel; service?: boolean; size?: number }) {
+export function Avatar({ name, channel, service, size = 40, src }: { name: string; channel: Channel; service?: boolean; size?: number; src?: string | null }) {
   const Icon = service ? Bot : channel === "telegram" ? Send : Mail;
+  const [photo, setPhoto] = useState<"loading" | "ok" | "none">(src ? "loading" : "none");
+  useEffect(() => { setPhoto(src ? "loading" : "none"); }, [src]);
   return (
     <div className="relative shrink-0" style={{ width: size, height: size }}>
       <div className="flex h-full w-full items-center justify-center rounded-full text-[13px] font-semibold text-white" style={{ background: service ? "#94a3b8" : PALETTE[hash(name) % PALETTE.length], fontSize: size * 0.34 }}>{initials(name)}</div>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      {src && photo !== "none" && <img src={src} alt="" loading="lazy" onLoad={() => setPhoto("ok")} onError={() => setPhoto("none")} className={`absolute inset-0 h-full w-full rounded-full object-cover transition-opacity ${photo === "ok" ? "opacity-100" : "opacity-0"}`} />}
       <span className={`absolute -bottom-0.5 -right-0.5 flex h-[18px] w-[18px] items-center justify-center rounded-full border-2 border-white text-white dark:border-[#16181d] ${service ? "bg-slate-400" : channel === "telegram" ? "bg-sky-500" : "bg-blue-600"}`}><Icon className="h-2.5 w-2.5" /></span>
     </div>
   );
@@ -53,7 +58,7 @@ export function ThreadRow({ thread, active, onOpen }: { thread: UnifiedThread; a
   return (
     <button type="button" onClick={onOpen} className={`relative flex w-full items-center gap-3 px-3 py-2.5 text-left transition-colors ${active ? "bg-slate-100 dark:bg-white/[.07]" : "hover:bg-slate-50 dark:hover:bg-white/[.03]"}`}>
       {active && <span className="absolute inset-y-2 left-0 w-[3px] rounded-r bg-slate-900 dark:bg-white" />}
-      <Avatar name={thread.title} channel={thread.channel} service={thread.isService} />
+      <Avatar name={thread.title} channel={thread.channel} service={thread.isService} src={thread.channel === "telegram" && thread.contactId ? `/api/contacts/${thread.contactId}/avatar` : null} />
       <div className="min-w-0 flex-1">
         <div className="flex items-baseline gap-2">
           <span className={`min-w-0 flex-1 truncate text-[14px] ${unread ? "font-semibold text-slate-950 dark:text-white" : "font-medium"}`}>{thread.title}</span>

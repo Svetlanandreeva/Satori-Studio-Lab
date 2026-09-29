@@ -49,7 +49,9 @@ export function DocumentPreview({ contactId, doc, onClose }: { contactId: string
           ) : (
             <>
               {!loaded && <div className="absolute inset-0 flex items-center justify-center text-slate-400"><Loader2 className="mr-2 h-5 w-5 animate-spin" />Открываю…</div>}
-              {kind === "image" ? (
+              {kind === "video" || kind === "audio" ? (
+                <div className="flex h-full items-center justify-center p-4">{kind === "video" ? <video controls autoPlay src={src} onLoadedData={() => setLoaded(true)} onError={() => setLoaded(true)} className="max-h-full max-w-full rounded-md" /> : <audio controls autoPlay src={src} onLoadedData={() => setLoaded(true)} onError={() => setLoaded(true)} />}</div>
+              ) : kind === "image" ? (
                 // eslint-disable-next-line @next/next/no-img-element
                 <div className="flex h-full items-center justify-center overflow-auto p-4"><img src={src} alt={doc.name} onLoad={() => setLoaded(true)} onError={() => setLoaded(true)} className="max-h-full max-w-full rounded-md object-contain shadow" /></div>
               ) : (
@@ -65,7 +67,15 @@ export function DocumentPreview({ contactId, doc, onClose }: { contactId: string
 
 /** Вложение в сообщении: фото — миниатюрой, остальное — чипом. По клику открывается просмотр. */
 export function DocumentChip({ doc, onOpen, dark = false, contactId }: { doc: PreviewDoc; onOpen: (d: PreviewDoc) => void; dark?: boolean; contactId?: string | null }) {
-  if (contactId && previewKind(doc.name, doc.mimeType) === "image") {
+  const kind = previewKind(doc.name, doc.mimeType);
+  const url = contactId ? `/api/contacts/${encodeURIComponent(contactId)}/documents/${encodeURIComponent(doc.id)}` : "";
+  if (contactId && kind === "audio") {
+    return <audio controls preload="metadata" src={url} className="h-10 w-[280px] max-w-full" title={doc.name} />;
+  }
+  if (contactId && kind === "video") {
+    return <video controls preload="metadata" src={url} className="max-h-72 w-auto max-w-full rounded-lg border bg-black" title={doc.name} />;
+  }
+  if (contactId && kind === "image") {
     return (
       <button type="button" onClick={() => onOpen(doc)} className="block overflow-hidden rounded-lg border bg-slate-100 transition hover:opacity-90" title={doc.name}>
         {/* eslint-disable-next-line @next/next/no-img-element */}

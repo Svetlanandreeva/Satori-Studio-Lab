@@ -240,3 +240,40 @@ export async function sendTelegramMessage(input: {
     };
   }
 }
+
+function telegramFileOnce(token: string, filePath: string, forcedIp?: string): Promise<Buffer> {
+  return new Promise((resolve, reject) => {
+    const request = https.request(
+      {
+        protocol: "https:",
+        hostname: forcedIp || TELEGRAM_API_HOST,
+        servername: TELEGRAM_API_HOST,
+        port: 443,
+        path: `/file/bot${token}/${filePath}`,
+        method: "GET",
+        family: 4,
+        headers: { host: TELEGRAM_API_HOST, "user-agent": "SATORI-CRM/1.0" },
+        timeout: forcedIp ? 20000 : 10000,
+      },
+      (response) => {
+        if ((response.statusCode || 500) >= 400) { response.resume(); reject(new Error(`Telegram file HTTP ${response.statusCode}`)); return; }
+        const chunks: Buffer[] = [];
+        response.on("data", (chunk: Buffer) => chunks.push(chunk));
+        response.on("end", () => resolve(Buffer.concat(chunks)));
+        response.on("error", reject);
+      }
+    );
+    request.on("timeout", () => request.destroy(new Error(`Telegram file timeout${forcedIp ? " (fallback)" : ""}`)));
+    request.on("error", reject);
+    request.end();
+  });
+}
+
+/** Скачать файл Telegram (как и API — с запасным IP, если api.telegram.org недоступен с сервера). */
+export async function telegramFileDownload(token: string, filePath: string): Promise<Buffer> {
+  try { return await telegramFileOnce(token, filePath); }
+  catch (first) {
+    try { return await telegramFileOnce(token, filePath, TELEGRAM_API_FALLBACK_IP); }
+    catch (second) { throw second instanceof Error ? second : first; }
+  }
+}
