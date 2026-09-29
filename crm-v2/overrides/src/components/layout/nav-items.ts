@@ -1,6 +1,6 @@
 import {
   BarChart3, Banknote, Boxes, CalendarClock, Factory, Handshake, Kanban,
-  LayoutDashboard, MessageCircle, PhoneCall, ShieldCheck, Sparkles, Users,
+  LayoutDashboard, MessageCircle, PhoneCall, ShieldCheck, Users,
 } from "lucide-react";
 
 export type NavItem = { href: string; label: string; icon: typeof LayoutDashboard; hint?: string };
@@ -22,7 +22,6 @@ export const SECONDARY_NAV: NavItem[] = [
   { href: "/economics", label: "Деньги", icon: Banknote, hint: "Поступления и расходы" },
   { href: "/procurement", label: "Закупки", icon: Boxes, hint: "Материалы" },
   { href: "/call-list", label: "Обзвон", icon: PhoneCall, hint: "Need Number" },
-  { href: "/assistant", label: "AI помощник", icon: Sparkles, hint: "Что требует внимания" },
   { href: "/control", label: "Контроль", icon: ShieldCheck, hint: "Сотрудники и доступы" },
 ];
 
