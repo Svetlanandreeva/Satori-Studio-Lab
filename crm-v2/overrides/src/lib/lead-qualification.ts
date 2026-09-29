@@ -6,7 +6,8 @@ export type LeadQualification =
   | "not_target"
   | "ignore"
   | "spam"
-  | "duplicate";
+  | "duplicate"
+  | "contractor";
 
 export const SPAM_STAGE_NAME = "Песочница / Спам";
 
@@ -23,6 +24,7 @@ export const LEAD_QUALIFICATION_OPTIONS: Array<{
   { value: "ignore", label: "Игнор", description: "Клиент перестал отвечать — убрать из активной работы в Песочницу" },
   { value: "spam", label: "Спам", description: "Мусорный или нежелательный лид — уходит в Песочницу" },
   { value: "duplicate", label: "Дубль", description: "Повтор существующего клиента или лида" },
+  { value: "contractor", label: "Подрядчик", description: "Подрядчик или поставщик — не клиент, не считается обращением" },
 ];
 
 export const LEAD_QUALIFICATION_LABELS: Record<LeadQualification, string> =

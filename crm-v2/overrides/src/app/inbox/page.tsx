@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { emitUnreadMessagesChanged, useUnreadMessages } from "@/lib/use-unread-messages";
 
 type Channel = "email" | "telegram";
-type Filter = "all" | "telegram" | "email" | "service";
+type Filter = "all" | "telegram" | "email" | "contractors" | "service";
 interface UnifiedThread { key: string; id: string; channel: Channel; contactId: string | null; title: string; subtitle: string; isService: boolean; unreadCount: number; lastMessageAt: string; lastSnippet: string | null; lastDirection: string; telegramKind?: string; }
 interface UnifiedMessage { id: string; direction: "incoming" | "outgoing"; bodyText: string; receivedAt: string; sender?: string | null; sourceMessageId?: string | null; }
 interface UnifiedDocument { id:string; name:string; mimeType?:string|null; sizeBytes:number; createdAt:number; sourceMessageId:string|null; kind:string; }
@@ -29,7 +29,7 @@ function threadFromLocation() {
   if (typeof window === "undefined") return null;
   return new URLSearchParams(window.location.search).get("thread");
 }
-const filters: Array<{ value: Filter; label: string }> = [{ value: "all", label: "Все" }, { value: "telegram", label: "Telegram" }, { value: "email", label: "Почта" }, { value: "service", label: "Сервисные" }];
+const filters: Array<{ value: Filter; label: string }> = [{ value: "all", label: "Все" }, { value: "telegram", label: "Telegram" }, { value: "email", label: "Почта" }, { value: "contractors", label: "Подрядчики" }, { value: "service", label: "Сервис" }];
 
 export default function InboxPage() {
   const [threads, setThreads] = useState<UnifiedThread[]>([]);
@@ -49,7 +49,7 @@ export default function InboxPage() {
   const { summary: unread } = useUnreadMessages();
   const conversationEndRef = useRef<HTMLDivElement | null>(null);
 
-  function unreadForFilter(value: Filter) { return value === "telegram" ? unread.telegram : value === "email" ? unread.email : value === "service" ? unread.service : unread.all; }
+  function unreadForFilter(value: Filter) { return value === "telegram" ? unread.telegram : value === "email" ? unread.email : value === "service" ? unread.service : value === "contractors" ? 0 : unread.all; }
   function markThreadReadLocally(key: string) { setThreads((current) => current.map((thread) => thread.key === key ? { ...thread, unreadCount: 0 } : thread)); emitUnreadMessagesChanged(); }
 
   async function loadTemplates() {
@@ -61,20 +61,21 @@ export default function InboxPage() {
     try {
       const query = encodeURIComponent(search);
       const tasks: Array<Promise<UnifiedThread[]>> = [];
-      if (filter === "all" || filter === "email" || filter === "service") {
+      const contractorIds = new Set<string>(await fetch("/api/inbox/status?list=contractors", { cache: "no-store" }).then((r) => r.json()).then((d) => d.contactIds || []).catch(() => []));
+      if (filter === "all" || filter === "email" || filter === "service" || filter === "contractors") {
         const emailFilter = filter === "service" ? "service" : "client";
         tasks.push(fetch(`/api/inbox?filter=${emailFilter}&search=${query}`, { cache: "no-store" }).then(async (response) => {
           const payload = await response.json(); if (!response.ok) throw new Error(payload.error || "Не удалось загрузить почту");
           return (payload.threads || []).map((thread: any): UnifiedThread => ({ key: `email:${thread.id}`, id: thread.id, channel: "email", contactId: thread.contactId || null, title: thread.remoteName || thread.remoteEmail, subtitle: thread.subject || thread.remoteEmail, isService: Boolean(thread.isService), unreadCount: Number(thread.unreadCount || 0), lastMessageAt: thread.lastMessageAt, lastSnippet: thread.lastSnippet, lastDirection: thread.lastDirection }));
         }));
       }
-      if (filter === "all" || filter === "telegram") {
+      if (filter === "all" || filter === "telegram" || filter === "contractors") {
         tasks.push(fetch(`/api/messages/telegram?search=${query}`, { cache: "no-store" }).then(async (response) => {
           const payload = await response.json(); if (!response.ok) throw new Error(payload.error || "Не удалось загрузить Telegram");
           return (payload.threads || []).map((thread: any): UnifiedThread => ({ key: `telegram:${thread.id}`, id: thread.id, channel: "telegram", contactId: thread.contactId || thread.id, title: thread.remoteName || "Telegram", subtitle: thread.remoteHandle || (thread.channel === "telegram_account" ? "Личный Telegram" : "Telegram-бот"), isService: false, unreadCount: Number(thread.unreadCount || 0), lastMessageAt: thread.lastMessageAt, lastSnippet: thread.lastSnippet, lastDirection: thread.lastDirection, telegramKind: thread.channel }));
         }));
       }
-      const list = (await Promise.all(tasks)).flat().sort((a, b) => { const u = Number(b.unreadCount > 0) - Number(a.unreadCount > 0); return u || new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime(); });
+      const list = (await Promise.all(tasks)).flat().filter((t) => filter === "service" ? true : filter === "contractors" ? Boolean(t.contactId && contractorIds.has(t.contactId)) : !(t.contactId && contractorIds.has(t.contactId))).sort((a, b) => { const u = Number(b.unreadCount > 0) - Number(a.unreadCount > 0); return u || new Date(b.lastMessageAt).getTime() - new Date(a.lastMessageAt).getTime(); });
       setThreads(list);
       const wanted = preferredKey || selectedKey || threadFromLocation();
       const nextKey = wanted && list.some((item) => item.key === wanted) ? wanted : list[0]?.key || null;
@@ -154,8 +155,8 @@ export default function InboxPage() {
     <div className="flex h-[calc(100vh-8.5rem)] min-h-[620px] flex-col gap-3 overflow-hidden">
       <div className="flex shrink-0 items-center justify-between gap-3"><div className="min-w-0"><div className="flex items-center gap-2"><MessageCircle className="h-5 w-5" /><h1 className="text-xl font-bold tracking-tight">Сообщения</h1>{unread.all > 0 && <Badge className="bg-sky-500 text-white hover:bg-sky-500">{unreadLabel(unread.all)}</Badge>}</div><p className="truncate text-xs text-muted-foreground">Почта и Telegram · вся переписка в одном месте</p></div><Button size="sm" variant="outline" onClick={sync} disabled={syncing}>{syncing ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <RefreshCw className="mr-2 h-4 w-4" />}Обновить</Button></div>
 
-      <div className="grid min-h-0 flex-1 grid-cols-1 overflow-hidden rounded-xl border bg-background md:grid-cols-[300px_minmax(0,1fr)]">
-        <aside className="flex min-h-0 flex-col border-b md:border-b-0 md:border-r"><div className="space-y-3 border-b p-3"><div className="relative"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" /><Input className="pl-9" placeholder="Имя, email, Telegram..." value={search} onChange={(event) => setSearch(event.target.value)} /></div><div className="grid grid-cols-4 gap-1 rounded-lg bg-muted p-1">{filters.map((item) => { const tabUnread = unreadForFilter(item.value); return <button key={item.value} type="button" onClick={() => setFilter(item.value)} className={`flex items-center justify-center gap-1 rounded-md px-1 py-1.5 text-[11px] font-medium ${filter === item.value ? "bg-background text-slate-950 shadow-sm" : "text-muted-foreground"}`}><span>{item.label}</span>{tabUnread > 0 && <span className="inline-flex min-w-[18px] items-center justify-center rounded-full bg-slate-900 px-1 py-0.5 text-[9px] font-bold leading-none text-white">{unreadLabel(tabUnread)}</span>}</button>; })}</div></div>
+      <div className="grid min-h-0 flex-1 grid-cols-1 overflow-hidden rounded-xl border bg-background md:grid-cols-[340px_minmax(0,1fr)]">
+        <aside className="flex min-h-0 flex-col border-b md:border-b-0 md:border-r"><div className="space-y-3 border-b p-3"><div className="relative"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" /><Input className="pl-9" placeholder="Имя, email, Telegram..." value={search} onChange={(event) => setSearch(event.target.value)} /></div><div className="flex gap-0.5 overflow-x-auto rounded-lg bg-muted p-1 [&>button]:flex-auto [&>button]:whitespace-nowrap [&>button]:px-1.5">{filters.map((item) => { const tabUnread = unreadForFilter(item.value); return <button key={item.value} type="button" onClick={() => setFilter(item.value)} className={`flex items-center justify-center gap-1 rounded-md px-1 py-1.5 text-[11px] font-medium ${filter === item.value ? "bg-background text-slate-950 shadow-sm" : "text-muted-foreground"}`}><span>{item.label}</span>{tabUnread > 0 && <span className="inline-flex min-w-[18px] items-center justify-center rounded-full bg-slate-900 px-1 py-0.5 text-[9px] font-bold leading-none text-white">{unreadLabel(tabUnread)}</span>}</button>; })}</div></div>
           <div className="min-h-0 flex-1 overflow-y-auto">{loading && !threads.length ? <div className="flex justify-center p-8 text-sm text-muted-foreground"><Loader2 className="mr-2 h-4 w-4 animate-spin" />Загрузка...</div> : !threads.length ? <div className="p-8 text-center text-sm text-muted-foreground"><MessageCircle className="mx-auto mb-2 h-8 w-8 opacity-40" />Сообщений пока нет.</div> : threads.map((thread) => { const isUnread = thread.unreadCount > 0; return <button key={thread.key} type="button" onClick={() => setSelectedKey(thread.key)} className={`relative w-full border-b p-4 text-left transition-colors hover:bg-muted/50 ${selectedKey === thread.key ? "bg-muted" : isUnread ? "bg-sky-50/45" : ""}`}><div className="flex gap-3"><div className={`relative mt-0.5 rounded-full p-2 ${thread.channel === "telegram" ? "bg-sky-50" : thread.isService ? "bg-slate-100" : "bg-blue-50"}`}>{thread.channel === "telegram" ? <MessageCircle className="h-4 w-4" /> : thread.isService ? <Bot className="h-4 w-4" /> : <Mail className="h-4 w-4" />}</div><div className="min-w-0 flex-1"><div className="flex items-center gap-2"><span className={`truncate text-sm ${isUnread ? "font-bold" : "font-semibold"}`}>{thread.title}</span>{isUnread && <Badge className="ml-auto h-5 bg-sky-500 px-1.5 text-[10px] text-white">{unreadLabel(thread.unreadCount)}</Badge>}</div><div className="truncate text-xs text-muted-foreground">{thread.subtitle}</div><div className="mt-1 line-clamp-2 text-xs text-muted-foreground">{thread.lastDirection === "outgoing" ? "Вы: " : ""}{thread.lastSnippet || "—"}</div><div className="mt-2 flex items-center justify-between text-[10px] text-muted-foreground"><span>{thread.channel === "telegram" ? (thread.telegramKind === "telegram_account" ? "Telegram аккаунт" : "Telegram-бот") : thread.isService ? "Сервисное письмо" : "Почта"}</span><span>{dateLabel(thread.lastMessageAt)}</span></div></div></div></button>; })}</div>
         </aside>
 

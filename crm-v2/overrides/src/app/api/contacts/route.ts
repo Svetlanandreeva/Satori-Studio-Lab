@@ -35,6 +35,7 @@ export async function GET(request: NextRequest) {
   const includeSpam = searchParams.get("includeSpam") === "1";
   const includeRejected = searchParams.get("includeRejected") === "1";
   const callList = searchParams.get("callList") === "1";
+  const contractorsOnly = searchParams.get("contractors") === "1";
 
   const contactRows = db.select().from(contacts).orderBy(desc(contacts.createdAt)).all();
   const stageMap = new Map(db.select().from(pipelineStages).all().map((stage) => [stage.id, stage]));
@@ -73,6 +74,8 @@ export async function GET(request: NextRequest) {
 
   const results = contactRows
     .filter((contact) => {
+      // Подрядчики живут отдельно от клиентов.
+      if ((contact.qualification === "contractor") !== contractorsOnly) return false;
       if (!includeSpam && (contact.qualification === "spam" || contact.qualification === "ignore")) return false;
 
       // Need Number is a prospecting queue, not the client/deal database.

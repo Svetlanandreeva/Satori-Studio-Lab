@@ -36,11 +36,22 @@ export default async function SummaryPage({ searchParams }: { searchParams?: Pro
     .filter((d) => stageById.has(d.stageId) && !junk(d.qualification, d.source));
 
   // 1. Обращения: новые люди, которые написали в этом месяце.
+  // Не считаем: Need Number, подрядчиков, дубли и контакты только из сервисных писем.
+  const serviceOnly = new Set((sqlite.prepare(`SELECT contact_id AS id FROM email_threads WHERE contact_id IS NOT NULL GROUP BY contact_id HAVING MIN(COALESCE(is_service,0))=1`).all() as Array<{ id: string }>).map((r) => r.id));
+  const dealStagesByContact = new Map<string, string[]>();
+  for (const r of sqlite.prepare("SELECT contact_id AS c, stage_id AS s FROM deals").all() as Array<{ c: string; s: string }>) { const l = dealStagesByContact.get(r.c) || []; l.push(r.s); dealStagesByContact.set(r.c, l); }
   const contacts = (sqlite.prepare("SELECT id, source, qualification, created_at AS createdAt FROM contacts").all() as Array<{ id: string; source: string | null; qualification: string | null; createdAt: unknown }>)
-    .filter((c) => c.source !== "need_number" && !["spam"].includes(String(c.qualification || "")) && inMonth(c.createdAt));
+    .filter((c) => c.source !== "need_number" && !["contractor", "duplicate"].includes(String(c.qualification || "")) && !serviceOnly.has(c.id) && inMonth(c.createdAt))
+    .map((c) => {
+      const day = (() => { const d = normalizeLegacyDate(c.createdAt); return d ? ymd(d) : ""; })();
+      const taken = (dealStagesByContact.get(c.id) || []).some((sid) => sid !== first?.id);
+      const junkQ = ["spam", "ignore", "unqualified", "not_target"].includes(String(c.qualification || ""));
+      return { ...c, day, status: (taken ? "work" : junkQ ? "junk" : "wait") as "work" | "junk" | "wait" };
+    });
   const bySource = new Map<string, number>();
   for (const c of contacts) { const k = SOURCE[String(c.source || "")] || "Другое"; bySource.set(k, (bySource.get(k) || 0) + 1); }
-  const takenToWork = deals.filter((d) => inMonth(d.createdAt)).length;
+  const cnt = (st: string) => contacts.filter((c) => c.status === st).length;
+  const takenToWork = cnt("work"), junkCount = cnt("junk"), waiting = cnt("wait");
 
   const isOpen = (d: DealRow) => { const s = stageById.get(d.stageId)!; return !s.isWon && !s.isLost; };
   const open = deals.filter((d) => isOpen(d) && d.stageId !== first?.id);
@@ -68,19 +79,32 @@ export default async function SummaryPage({ searchParams }: { searchParams?: Pro
     .map((t) => ({ ...t, day: (() => { const d = normalizeLegacyDate(t.scheduledAt); return d ? ymd(d) : "9999"; })() }))
     .filter((t) => t.day <= today).sort((a, b) => a.day.localeCompare(b.day));
 
-  // 4. Календарь: дедлайны месяца.
+  // 4. Шкала сроков: каждый проект — полоса от оплаты до дедлайна (или отгрузки) по дням месяца.
   const [y, mo] = month.split("-").map(Number);
   const firstDay = new Date(Date.UTC(y, mo - 1, 1));
   const daysInMonth = new Date(Date.UTC(y, mo, 0)).getUTCDate();
-  const lead = (firstDay.getUTCDay() + 6) % 7; // понедельник — первый
-  const byDay = new Map<string, typeof scheduled>();
-  for (const d of scheduled) {
-    if (!d.deadline || !d.deadline.startsWith(month) || d.stage.isLost) continue;
-    const list = byDay.get(d.deadline) || []; list.push(d); byDay.set(d.deadline, list);
-  }
-  const cells: Array<string | null> = [...Array(lead).fill(null), ...Array.from({ length: daysInMonth }, (_, i) => `${month}-${String(i + 1).padStart(2, "0")}`)];
-  while (cells.length % 7) cells.push(null);
+  const days = Array.from({ length: daysInMonth }, (_, i) => `${month}-${String(i + 1).padStart(2, "0")}`);
+  const monthStart = days[0], monthEnd = days[days.length - 1];
+  const addD = (d: string, n: number) => { const x = new Date(`${d}T12:00:00Z`); x.setUTCDate(x.getUTCDate() + n); return x.toISOString().slice(0, 10); };
+  const timeline = scheduled
+    .filter((d) => !d.stage.isLost && (d.paidAt || d.deadline))
+    .map((d) => {
+      const start = d.paidAt || (d.deadline && d.termDays ? addD(d.deadline, -d.termDays) : d.deadline)!;
+      const done = Boolean(d.shippedAt || d.stage.isWon);
+      const planEnd = d.deadline || start;
+      const overdue = !done && d.deadline && d.deadline < today;
+      const end = d.shippedAt || (overdue ? today : planEnd);
+      return { ...d, start, end, planEnd, done, overdue };
+    })
+    .filter((d) => d.start <= monthEnd && d.end >= monthStart)
+    .sort((a, b) => a.start.localeCompare(b.start) || String(a.planEnd).localeCompare(String(b.planEnd)));
+  const col = (d: string) => (d < monthStart ? 1 : d > monthEnd ? daysInMonth + 1 : Number(d.slice(8))) + 1; // +1 — колонка с названием
   const monthTitle = new Intl.DateTimeFormat("ru-RU", { month: "long", year: "numeric", timeZone: "UTC" }).format(firstDay);
+  const weekend = (d: string) => { const w = new Date(`${d}T12:00:00Z`).getUTCDay(); return w === 0 || w === 6; };
+
+  // Обращения по дням
+  const perDay = days.map((d) => { const l = contacts.filter((c) => c.day === d); return { d, work: l.filter((c) => c.status === "work").length, junk: l.filter((c) => c.status === "junk").length, wait: l.filter((c) => c.status === "wait").length, total: l.length }; });
+  const maxPerDay = Math.max(1, ...perDay.map((x) => x.total));
 
   // 5. Воронка по этапам.
   const stageRows = stages.map((s) => {
@@ -103,8 +127,8 @@ export default async function SummaryPage({ searchParams }: { searchParams?: Pro
 
       {/* Цифры месяца */}
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Kpi label="Написали" value={String(contacts.length)} hint={[...bySource].sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k} ${v}`).join(" · ") || "новых обращений нет"} />
-        <Kpi label="Взято в работу" value={String(takenToWork)} hint={contacts.length ? `${Math.round((takenToWork / contacts.length) * 100)}% от обращений` : "—"} />
+        <Kpi label="Новых обращений" value={String(contacts.length)} hint={[...bySource].sort((a, b) => b[1] - a[1]).map(([k, v]) => `${k} ${v}`).join(" · ") || "новых обращений нет"} />
+        <Kpi label="Взято в работу" value={String(takenToWork)} hint={contacts.length ? `${Math.round((takenToWork / contacts.length) * 100)}% · не квал ${junkCount} · ждут ${waiting}` : "—"} />
         <Kpi label="Сделок в работе" value={String(open.length)} hint={`на ${money(open.reduce((n, d) => n + (Number(d.value) || 0), 0))} · лидов ${leads.length}`} />
         <Kpi label="Оплаты за месяц" value={money(receivedThisMonth)} hint={`${paidThisMonth.length} ${plural(paidThisMonth.length, "заказ", "заказа", "заказов")} стартовали`} />
       </div>
@@ -116,7 +140,6 @@ export default async function SummaryPage({ searchParams }: { searchParams?: Pro
             const text = left < 0 ? `просрочено ${-left} ${plural(-left, "день", "дня", "дней")}` : left === 0 ? "сегодня" : `через ${left} ${plural(left, "день", "дня", "дней")}`;
             return <Row key={d.id} href={`/deals/${d.id}`} title={d.title} sub={d.contactName || ""} right={<span className={`rounded-md px-2 py-0.5 text-[12px] font-medium ${left <= 0 ? "bg-rose-50 text-rose-700" : "bg-amber-50 text-amber-800"}`}>{dayMonth(d.deadline!)} · {text}</span>} />;
           }) : <Empty text={production.length ? "Всё в срок." : "Сейчас ничего не в производстве."} />}
-          {noDates > 0 && <Link href="/production" className="flex items-center gap-2 px-4 py-2.5 text-[13px] text-violet-700 hover:bg-violet-50/50"><AlertTriangle className="h-4 w-4" />Без даты оплаты и срока: {noDates}</Link>}
         </Block>
         <Block icon={ListTodo} title="Задачи на сегодня" href="/tasks" link="Все задачи">
           {tasks.length ? tasks.slice(0, 6).map((t) => <Row key={t.id} href={`/contacts/${t.contactId}`} title={t.description} sub={t.contactName || ""} right={<span className={`text-[12px] ${t.day < today ? "font-medium text-rose-600" : "text-slate-500"}`}>{t.day < today ? `с ${dayMonth(t.day)}` : "сегодня"}</span>} />) : <Empty text="На сегодня задач нет." />}
@@ -124,30 +147,59 @@ export default async function SummaryPage({ searchParams }: { searchParams?: Pro
         </Block>
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1.6fr)_minmax(300px,1fr)]">
-        {/* Календарь сроков */}
-        <section className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm dark:border-white/[.08] dark:bg-[#16181d]">
-          <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3 dark:border-white/[.06]">
-            <h2 className="text-[14px] font-semibold">Календарь сроков · <span className="capitalize">{monthTitle}</span></h2>
-            <div className="flex gap-3 text-[11px] text-slate-500"><Legend c="bg-orange-500" t="в работе" /><Legend c="bg-rose-500" t="просрочено" /><Legend c="bg-emerald-500" t="отправлено" /></div>
-          </div>
-          <div className="grid grid-cols-7 border-b border-slate-100 text-center text-[11px] text-slate-400 dark:border-white/[.06]">{["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"].map((d) => <div key={d} className="py-1.5">{d}</div>)}</div>
-          <div className="grid grid-cols-7">
-            {cells.map((day, i) => {
-              const items = day ? byDay.get(day) || [] : [];
+      {/* Шкала сроков по дням */}
+      <section className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm dark:border-white/[.08] dark:bg-[#16181d]">
+        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-4 py-3 dark:border-white/[.06]">
+          <h2 className="text-[14px] font-semibold">Сроки проектов · <span className="capitalize">{monthTitle}</span></h2>
+          <div className="flex gap-3 text-[11px] text-slate-500"><Legend c="bg-orange-400" t="в работе" /><Legend c="bg-rose-500" t="просрочка" /><Legend c="bg-emerald-500" t="отправлено" /><span className="inline-flex items-center gap-1"><span className="h-3 w-0.5 bg-violet-500" />сегодня</span></div>
+        </div>
+        <div className="overflow-x-auto">
+          <div className="min-w-[820px]">
+            <div className="grid border-b border-slate-100 text-[10px] text-slate-400 dark:border-white/[.06]" style={{ gridTemplateColumns: `180px repeat(${daysInMonth}, minmax(0,1fr))` }}>
+              <div className="px-3 py-1.5">Проект</div>
+              {days.map((d) => <div key={d} className={`py-1.5 text-center tabular-nums ${d === today ? "font-semibold text-violet-700" : weekend(d) ? "text-slate-300" : ""}`}>{Number(d.slice(8))}</div>)}
+            </div>
+            {timeline.length ? timeline.map((d) => {
+              const barEnd = d.done ? d.end : d.planEnd;
+              const color = d.done ? "bg-emerald-500" : "bg-orange-400";
+              const title = `${d.title}${d.contactName ? ` · ${d.contactName}` : ""}\nстарт ${dayMonth(d.start)}${d.deadline ? ` · дедлайн ${dayMonth(d.deadline)}` : ""}${d.shippedAt ? ` · отправлено ${dayMonth(d.shippedAt)}` : ""}`;
               return (
-                <div key={i} className={`min-h-[78px] border-b border-r border-slate-100 p-1 dark:border-white/[.06] ${day === today ? "bg-violet-50/60 dark:bg-violet-500/10" : ""} ${!day ? "bg-slate-50/50 dark:bg-transparent" : ""}`}>
-                  {day && <div className={`px-1 text-[11px] ${day === today ? "font-semibold text-violet-700" : "text-slate-400"}`}>{Number(day.slice(8))}</div>}
-                  <div className="space-y-0.5">
-                    {items.slice(0, 3).map((d) => {
-                      const color = d.shippedAt || d.stage.isWon ? "bg-emerald-50 text-emerald-800 border-emerald-200" : d.deadline! < today ? "bg-rose-50 text-rose-700 border-rose-200" : "bg-orange-50 text-orange-800 border-orange-200";
-                      return <Link key={d.id} href={`/deals/${d.id}`} title={`${d.title} · ${d.contactName || ""}`} className={`block truncate rounded border px-1 py-0.5 text-[10.5px] leading-tight ${color}`}>{d.title}</Link>;
-                    })}
-                    {items.length > 3 && <div className="px-1 text-[10px] text-slate-400">+{items.length - 3}</div>}
-                  </div>
-                </div>
+                <Link key={d.id} href={`/deals/${d.id}`} title={title} className="group relative grid items-center border-b border-slate-50 hover:bg-slate-50/70 dark:border-white/[.04] dark:hover:bg-white/[.03]" style={{ gridTemplateColumns: `180px repeat(${daysInMonth}, minmax(0,1fr))` }}>
+                  <div className="min-w-0 px-3 py-1.5"><div className="truncate text-[12.5px] font-medium">{d.title}</div><div className="truncate text-[11px] text-slate-400">{d.contactName}{d.deadline ? ` · до ${dayMonth(d.deadline)}` : ""}</div></div>
+                  {days.map((day, i) => <div key={day} className={`h-full ${day === today ? "border-x border-violet-400/70 bg-violet-50/50 dark:bg-violet-500/10" : weekend(day) ? "bg-slate-50/70 dark:bg-white/[.02]" : ""}`} style={{ gridColumn: i + 2, gridRow: 1 }} />)}
+                  {barEnd >= monthStart && d.start <= monthEnd && <div className={`z-10 h-4 rounded ${color} ${d.start < monthStart ? "rounded-l-none" : ""} ${barEnd > monthEnd ? "rounded-r-none" : ""}`} style={{ gridColumn: `${col(d.start)} / ${col(barEnd < d.start ? d.start : barEnd) + 1}`, gridRow: 1 }} />}
+                  {d.overdue && d.deadline! < monthEnd && today >= monthStart && <div className="z-10 h-4 rounded-r bg-rose-500" style={{ gridColumn: `${col(addD(d.deadline!, 1))} / ${col(today) + 1}`, gridRow: 1 }} />}
+                </Link>
               );
-            })}
+            }) : <Empty text="В этом месяце нет проектов с датой оплаты и сроком." />}
+          </div>
+        </div>
+        {noDates > 0 && <Link href="/production" className="flex items-center gap-2 border-t border-slate-100 px-4 py-2.5 text-[13px] text-violet-700 hover:bg-violet-50/50 dark:border-white/[.06]"><AlertTriangle className="h-4 w-4" />В производстве без даты оплаты и срока: {noDates} — их нет на шкале</Link>}
+      </section>
+
+      <div className="grid gap-4 lg:grid-cols-[minmax(0,1.6fr)_minmax(300px,1fr)]">
+        {/* Обращения по дням */}
+        <section className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm dark:border-white/[.08] dark:bg-[#16181d]">
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-4 py-3 dark:border-white/[.06]">
+            <h2 className="text-[14px] font-semibold">Обращения по дням</h2>
+            <div className="flex gap-3 text-[11px] text-slate-500"><Legend c="bg-emerald-500" t={`в работу ${takenToWork}`} /><Legend c="bg-slate-400" t={`не квал ${junkCount}`} /><Legend c="bg-sky-200" t={`ждут ${waiting}`} /></div>
+          </div>
+          <div className="px-4 pb-3 pt-4">
+            <div className="flex h-40 items-end gap-[3px]">
+              {perDay.map((x) => (
+                <div key={x.d} className="group relative flex h-full min-w-0 flex-1 flex-col justify-end" title={`${dayMonth(x.d)}: написали ${x.total} · в работу ${x.work} · не квал ${x.junk} · ждут ${x.wait}`}>
+                  {x.total > 0 && <div className="mb-0.5 text-center text-[10px] tabular-nums text-slate-500">{x.total}</div>}
+                  <div className="flex w-full flex-col overflow-hidden rounded-t-[3px]" style={{ height: `${(x.total / maxPerDay) * 100}%` }}>
+                    <div className="bg-sky-200" style={{ flex: x.wait }} /><div className="bg-slate-400" style={{ flex: x.junk }} /><div className="bg-emerald-500" style={{ flex: x.work }} />
+                  </div>
+                  {x.total === 0 && <div className="h-[2px] w-full rounded bg-slate-100 dark:bg-white/[.06]" />}
+                </div>
+              ))}
+            </div>
+            <div className="mt-1 flex gap-[3px] text-center text-[9.5px] tabular-nums">
+              {perDay.map((x) => <div key={x.d} className={`min-w-0 flex-1 ${x.d === today ? "font-semibold text-violet-700" : weekend(x.d) ? "text-slate-300" : "text-slate-400"}`}>{Number(x.d.slice(8))}</div>)}
+            </div>
+            <p className="mt-3 text-[11.5px] text-slate-400">Считаются новые люди, которые написали сами. Не входят: сервисные письма, подрядчики, Need Number и дубли. «Ждут» — статус в «Сообщениях» ещё не поставлен.</p>
           </div>
         </section>
 

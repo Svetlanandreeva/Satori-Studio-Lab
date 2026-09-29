@@ -5,7 +5,7 @@ import Link from "next/link";
 import { toast } from "sonner";
 import { Loader2 } from "lucide-react";
 
-type Status = "new" | "work" | "ignore";
+type Status = "new" | "work" | "ignore" | "contractor";
 
 /** Статус обращения прямо в диалоге: «Новое» → «В работу» → карточка в воронке. */
 export function InboxStatus({ channel, threadId, contactId, title, onChanged }: {
@@ -29,7 +29,7 @@ export function InboxStatus({ channel, threadId, contactId, title, onChanged }: 
       const d = await res.json();
       if (!res.ok) throw new Error(d.error || "Не удалось изменить статус");
       setState({ status: d.status, stageName: d.stageName, dealId: d.dealId });
-      toast.success(status === "work" ? `Взято в работу${d.stageName ? ` · ${d.stageName}` : ""}` : status === "ignore" ? "Отмечено: не клиент" : "Снова новое обращение");
+      toast.success(status === "work" ? `Взято в работу${d.stageName ? ` · ${d.stageName}` : ""}` : status === "ignore" ? "Отмечено: не клиент" : status === "contractor" ? "Перенесено в «Подрядчики»" : "Снова новое обращение");
       onChanged?.();
     } catch (e) { toast.error(e instanceof Error ? e.message : "Ошибка"); }
     finally { setBusy(null); }
@@ -39,6 +39,7 @@ export function InboxStatus({ channel, threadId, contactId, title, onChanged }: 
     ["new", "Новое", "bg-white text-slate-900 shadow-sm"],
     ["work", "В работу", "bg-emerald-600 text-white shadow-sm"],
     ["ignore", "Не клиент", "bg-slate-700 text-white shadow-sm"],
+    ["contractor", "Подрядчик", "bg-sky-600 text-white shadow-sm"],
   ];
 
   return (

@@ -13,6 +13,7 @@ const classes: Record<LeadQualification, string> = {
   ignore: "border-zinc-300 text-zinc-700 bg-zinc-50",
   spam: "border-red-300 text-red-700 bg-red-50",
   duplicate: "border-violet-300 text-violet-700 bg-violet-50",
+  contractor: "border-sky-300 text-sky-700 bg-sky-50",
 };
 
 export function QualificationBadge({
