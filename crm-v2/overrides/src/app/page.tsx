@@ -3,7 +3,7 @@ import { AlertTriangle, ChevronLeft, ChevronRight, Factory, ListTodo } from "luc
 import { sqlite } from "@/db";
 import { normalizeLegacyDate } from "@/lib/date-normalization";
 import { describeSchedule, todayYekaterinburg } from "@/lib/deal-schedule";
-import { ensureReasonColumn } from "@/lib/qualification-reason";
+import { monthInquiries } from "@/lib/inquiries";
 
 export const dynamic = "force-dynamic";
 
@@ -38,24 +38,7 @@ export default async function SummaryPage({ searchParams }: { searchParams?: Pro
 
   // 1. Обращения: новые люди, которые написали в этом месяце.
   // Не считаем: Need Number, подрядчиков, дубли и контакты только из сервисных писем.
-  const serviceOnly = new Set((sqlite.prepare(`SELECT contact_id AS id FROM email_threads WHERE contact_id IS NOT NULL GROUP BY contact_id HAVING MIN(COALESCE(is_service,0))=1`).all() as Array<{ id: string }>).map((r) => r.id));
-  const dealStagesByContact = new Map<string, string[]>();
-  for (const r of sqlite.prepare("SELECT contact_id AS c, stage_id AS s FROM deals").all() as Array<{ c: string; s: string }>) { const l = dealStagesByContact.get(r.c) || []; l.push(r.s); dealStagesByContact.set(r.c, l); }
-  // Кто написал первым: если переписку начали мы (исходящее первым), это не входящее обращение.
-  const toMs = (v: unknown) => { const n = Number(v) || 0; return n > 1e12 ? n : n * 1000; };
-  const firstMsg = new Map<string, { at: number; out: boolean }>();
-  const seen = (id: string | null, at: number, out: boolean) => { if (!id || !at) return; const f = firstMsg.get(id); if (!f || at < f.at) firstMsg.set(id, { at, out }); };
-  for (const r of sqlite.prepare("SELECT contact_id AS c, type, created_at AS at FROM activities WHERE type LIKE 'telegram%'").all() as Array<{ c: string; type: string; at: number }>) seen(r.c, toMs(r.at), r.type.includes("outgoing"));
-  for (const r of sqlite.prepare("SELECT t.contact_id AS c, m.direction AS d, m.received_at AS at FROM email_messages m JOIN email_threads t ON t.id=m.thread_id WHERE t.contact_id IS NOT NULL").all() as Array<{ c: string; d: string; at: number }>) seen(r.c, toMs(r.at), r.d === "outgoing");
-  ensureReasonColumn();
-  const contacts = (sqlite.prepare("SELECT id, source, qualification, qualification_reason AS reason, created_at AS createdAt FROM contacts").all() as Array<{ id: string; source: string | null; qualification: string | null; reason: string | null; createdAt: unknown }>)
-    .filter((c) => c.source !== "need_number" && !["contractor", "duplicate"].includes(String(c.qualification || "")) && !serviceOnly.has(c.id) && !firstMsg.get(c.id)?.out && inMonth(c.createdAt))
-    .map((c) => {
-      const day = (() => { const d = normalizeLegacyDate(c.createdAt); return d ? ymd(d) : ""; })();
-      const taken = (dealStagesByContact.get(c.id) || []).some((sid) => sid !== first?.id);
-      const junkQ = ["spam", "ignore", "unqualified", "not_target"].includes(String(c.qualification || ""));
-      return { ...c, day, status: (taken ? "work" : junkQ ? "junk" : "wait") as "work" | "junk" | "wait" };
-    });
+  const contacts = monthInquiries(month);
   const bySource = new Map<string, number>();
   for (const c of contacts) { const k = SOURCE[String(c.source || "")] || "Другое"; bySource.set(k, (bySource.get(k) || 0) + 1); }
   const cnt = (st: string) => contacts.filter((c) => c.status === st).length;
@@ -121,7 +104,6 @@ export default async function SummaryPage({ searchParams }: { searchParams?: Pro
     const list = deals.filter((d) => d.stageId === s.id && (!(s.isWon || s.isLost) || inMonth(d.updatedAt)));
     return { ...s, count: list.length, sum: list.reduce((n, d) => n + (Number(d.value) || 0), 0) };
   });
-  const maxCount = Math.max(1, ...stageRows.map((s) => s.count));
 
   return (
     <div className="mx-auto max-w-[1280px] space-y-4 pb-10">
@@ -143,19 +125,29 @@ export default async function SummaryPage({ searchParams }: { searchParams?: Pro
         <Kpi label="Оплаты за месяц" value={money(receivedThisMonth)} hint={`${paidThisMonth.length} ${plural(paidThisMonth.length, "заказ", "заказа", "заказов")} стартовали`} />
       </div>
 
-      <div className="grid gap-4 lg:grid-cols-2">
-        <Block icon={Factory} title="Горят сроки" href="/production" link="Производство">
-          {burning.length ? burning.map((d) => {
-            const left = diff(today, d.deadline!);
-            const text = left < 0 ? `просрочено ${-left} ${plural(-left, "день", "дня", "дней")}` : left === 0 ? "сегодня" : `через ${left} ${plural(left, "день", "дня", "дней")}`;
-            return <Row key={d.id} href={`/deals/${d.id}`} title={d.title} sub={d.contactName || ""} right={<span className={`rounded-md px-2 py-0.5 text-[12px] font-medium ${left <= 0 ? "bg-rose-50 text-rose-700" : "bg-amber-50 text-amber-800"}`}>{dayMonth(d.deadline!)} · {text}</span>} />;
-          }) : <Empty text={production.length ? "Всё в срок." : "Сейчас ничего не в производстве."} />}
-        </Block>
-        <Block icon={ListTodo} title="Задачи на сегодня" href="/tasks" link="Все задачи">
-          {tasks.length ? tasks.slice(0, 6).map((t) => <Row key={t.id} href={`/contacts/${t.contactId}`} title={t.description} sub={t.contactName || ""} right={<span className={`text-[12px] ${t.day < today ? "font-medium text-rose-600" : "text-slate-500"}`}>{t.day < today ? `с ${dayMonth(t.day)}` : "сегодня"}</span>} />) : <Empty text="На сегодня задач нет." />}
-          {tasks.length > 6 && <Link href="/tasks" className="block px-4 py-2.5 text-[13px] text-slate-500 hover:text-slate-900">И ещё {tasks.length - 6} →</Link>}
-        </Block>
+      {/* Воронка — одной строкой */}
+      <div className="flex flex-wrap items-center gap-1.5">
+        {stageRows.filter((s) => !(s.isWon || s.isLost) || s.count > 0).map((s) => (
+          <Link key={s.id} href="/pipeline" className="flex items-center gap-1.5 rounded-full border border-slate-200/80 bg-white px-3 py-1 text-[12.5px] hover:bg-slate-50 dark:border-white/[.08] dark:bg-[#16181d]">
+            <span className="h-2 w-2 rounded-full" style={{ background: s.color }} />{s.name}<b className="font-semibold tabular-nums">{s.count}</b>{s.isWon || s.isLost ? <span className="text-[11px] text-slate-400">за месяц</span> : null}
+          </Link>
+        ))}
       </div>
+
+      {/* Сегодня: горящие сроки и задачи в одном списке */}
+      {(burning.length > 0 || tasks.length > 0 || noDates > 0) ? (
+        <Block icon={ListTodo} title="Сегодня" href="/tasks" link="Все задачи">
+          {burning.map((d) => {
+            const left = diff(today, d.deadline!);
+            const text = left < 0 ? `просрочено ${-left} ${plural(-left, "день", "дня", "дней")}` : left === 0 ? "дедлайн сегодня" : `дедлайн через ${left} ${plural(left, "день", "дня", "дней")}`;
+            return <Row key={d.id} href={`/deals/${d.id}`} title={d.title} sub={d.contactName || ""} right={<span className={`rounded-md px-2 py-0.5 text-[12px] font-medium ${left <= 0 ? "bg-rose-50 text-rose-700" : "bg-amber-50 text-amber-800"}`}>{text}</span>} />;
+          })}
+          {tasks.slice(0, 6).map((t) => <Row key={t.id} href={`/contacts/${t.contactId}`} title={t.description} sub={t.contactName || ""} right={<span className={`text-[12px] ${t.day < today ? "font-medium text-rose-600" : "text-slate-500"}`}>{t.day < today ? `задача с ${dayMonth(t.day)}` : "задача"}</span>} />)}
+          {tasks.length > 6 && <Link href="/tasks" className="block px-4 py-2.5 text-[13px] text-slate-500 hover:text-slate-900">И ещё {tasks.length - 6} задач →</Link>}
+        </Block>
+      ) : (
+        <div className="rounded-2xl border border-dashed border-slate-200 px-4 py-3 text-[13px] text-slate-500 dark:border-white/[.08]">На сегодня всё спокойно: сроки не горят, задач нет.</div>
+      )}
 
       {/* Шкала сроков по дням */}
       <section className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm dark:border-white/[.08] dark:bg-[#16181d]">
@@ -187,7 +179,7 @@ export default async function SummaryPage({ searchParams }: { searchParams?: Pro
         {noDates > 0 && <Link href="/production" className="flex items-center gap-2 border-t border-slate-100 px-4 py-2.5 text-[13px] text-violet-700 hover:bg-violet-50/50 dark:border-white/[.06]"><AlertTriangle className="h-4 w-4" />В производстве без даты оплаты и срока: {noDates} — их нет на шкале</Link>}
       </section>
 
-      <div className="grid gap-4 lg:grid-cols-[minmax(0,1.6fr)_minmax(300px,1fr)]">
+      <div>
         {/* Обращения по дням */}
         <section className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm dark:border-white/[.08] dark:bg-[#16181d]">
           <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-100 px-4 py-3 dark:border-white/[.06]">
@@ -214,21 +206,6 @@ export default async function SummaryPage({ searchParams }: { searchParams?: Pro
           </div>
         </section>
 
-        {/* Воронка по этапам */}
-        <section className="overflow-hidden rounded-2xl border border-slate-200/80 bg-white shadow-sm dark:border-white/[.08] dark:bg-[#16181d]">
-          <div className="flex items-center justify-between border-b border-slate-100 px-4 py-3 dark:border-white/[.06]"><h2 className="text-[14px] font-semibold">Воронка по этапам</h2><Link href="/pipeline" className="text-[12px] text-slate-500 hover:text-slate-900">Открыть →</Link></div>
-          <div className="space-y-2.5 p-4">
-            {stageRows.map((s) => (
-              <Link key={s.id} href="/pipeline" className="block">
-                <div className="flex items-baseline justify-between gap-2 text-[13px]">
-                  <span className="flex items-center gap-1.5"><span className="h-2 w-2 rounded-full" style={{ background: s.color }} />{s.name}{s.id === first?.id ? <span className="text-[11px] text-slate-400">· лиды</span> : null}{s.isWon || s.isLost ? <span className="text-[11px] text-slate-400">· за месяц</span> : null}</span>
-                  <span className="tabular-nums text-slate-500"><b className="font-semibold text-slate-900 dark:text-white">{s.count}</b>{s.sum ? ` · ${money(s.sum)}` : ""}</span>
-                </div>
-                <div className="mt-1 h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-white/[.06]"><div className="h-full rounded-full" style={{ width: `${(s.count / maxCount) * 100}%`, background: s.color }} /></div>
-              </Link>
-            ))}
-          </div>
-        </section>
       </div>
     </div>
   );

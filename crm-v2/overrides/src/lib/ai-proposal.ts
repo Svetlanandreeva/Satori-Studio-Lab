@@ -50,21 +50,52 @@ function pastProposals(excludeContactId: string) {
   return rows.map((r) => ({ name: r.name, text: documentText(r.id, r.contactId, 5000) })).filter((r) => r.text);
 }
 
-async function callAi(system: string, payload: unknown) {
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+const RETRYABLE = /перегруж|overload|rate.?limit|capacity|try again|попробуйте позже|temporar/i;
+
+async function callOnce(model: string, system: string, payload: unknown) {
   const key = getOpenAiKey();
-  if (!key) throw new Error("AI не подключён: добавь ключ в Настройки → AI-менеджер");
-  const base = getOpenAiBaseUrl(); const model = openAiSettings().model; const official = base.includes("api.openai.com");
+  const base = getOpenAiBaseUrl(); const official = base.includes("api.openai.com");
   const res = await fetch(official ? `${base}/responses` : `${base}/chat/completions`, {
     method: "POST", headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
     body: JSON.stringify(official
       ? { model, input: [{ role: "system", content: [{ type: "input_text", text: system }] }, { role: "user", content: [{ type: "input_text", text: JSON.stringify(payload) }] }], text: { format: { type: "json_object" } } }
       : { model, messages: [{ role: "system", content: system }, { role: "user", content: JSON.stringify(payload) }], response_format: { type: "json_object" } }),
   });
-  if (!res.ok) throw new Error(`AI ответил ошибкой ${res.status}: ${(await res.text()).slice(0, 200)}`);
+  if (!res.ok) {
+    const raw = (await res.text()).slice(0, 400);
+    let msg = raw; try { const j = JSON.parse(raw); msg = j.error?.message || j.message || raw; } catch {}
+    const err = new Error(msg) as Error & { status?: number; retryable?: boolean };
+    err.status = res.status; err.retryable = res.status === 429 || res.status >= 500 || RETRYABLE.test(msg);
+    throw err;
+  }
   const json = await res.json() as any; // eslint-disable-line @typescript-eslint/no-explicit-any
   const text = official ? json.output_text || json.output?.flatMap((x: any) => x.content || []).find((x: any) => x.type === "output_text")?.text : json.choices?.[0]?.message?.content; // eslint-disable-line @typescript-eslint/no-explicit-any
   if (!text) throw new Error("AI вернул пустой ответ");
-  return JSON.parse(text);
+  return JSON.parse(String(text).replace(/^```(?:json)?\s*|\s*```$/g, ""));
+}
+
+/** Запрос к AI с повтором и запасными моделями: если выбранная модель перегружена — пробуем ещё раз, потом другую. */
+async function callAi(system: string, payload: unknown) {
+  if (!getOpenAiKey()) throw new Error("AI не подключён: добавь ключ в Настройки → AI-менеджер");
+  const main = openAiSettings().model;
+  const saved = (sqlite.prepare("SELECT value FROM crm_settings WHERE key='openai_fallback_models'").get() as { value?: string } | undefined)?.value;
+  const models = [...new Set([main, ...(saved ? saved.split(",") : ["gpt-4.1-mini", "gpt-4o-mini"]).map((m) => m.trim()).filter(Boolean)])];
+  let last: (Error & { retryable?: boolean }) | null = null;
+  for (const model of models) {
+    for (let attempt = 0; attempt < 2; attempt++) {
+      try { return await callOnce(model, system, payload); }
+      catch (e) {
+        last = e as Error & { retryable?: boolean };
+        if (!last.retryable) break;
+        await sleep(attempt ? 4000 : 1500);
+      }
+    }
+    if (last && !last.retryable && !/model|модел/i.test(last.message)) break; // ключ/доступ — другие модели не помогут
+  }
+  const msg = last?.message || "неизвестная ошибка";
+  if (last?.retryable) throw new Error(`AI-сервис сейчас перегружен (пробовала: ${models.join(", ")}). Попробуй через пару минут или выбери другую модель в Настройках → AI-менеджер.`);
+  throw new Error(`AI не ответил: ${msg}`);
 }
 
 const SYSTEM = `Ты менеджер студии SATORI (Екатеринбург): авторские дизайнерские светильники, 3D-печать, небольшие партии, работа с дизайнерами интерьеров и бизнесом (рестораны, шоурумы, отели).

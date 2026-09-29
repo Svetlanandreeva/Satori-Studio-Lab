@@ -1,6 +1,7 @@
 import { PageHeader } from "@/components/layout/PageHeader";
 import { BarChart3, Clock3, Percent, ReceiptText, TrendingUp, WalletCards } from "lucide-react";
 import { getAnalyticsSnapshot } from "@/lib/operations";
+import { AdFunnel } from "@/components/analytics/AdFunnel";
 
 export const dynamic = "force-dynamic";
 
@@ -13,12 +14,16 @@ function percent(value: number) { return `${(Number(value) || 0).toLocaleString(
 function duration(hours: number) { return hours < 24 ? `${hours.toFixed(1)} ч` : `${(hours / 24).toFixed(1)} дн.`; }
 function responseTime(minutes: number) { if (!minutes) return "—"; return minutes < 60 ? `${Math.round(minutes)} мин` : `${(minutes / 60).toFixed(1)} ч`; }
 
-export default function AnalyticsPage() {
+export default async function AnalyticsPage({ searchParams }: { searchParams?: Promise<{ m?: string }> }) {
+  const params = (await searchParams) || {};
+  const now = new Intl.DateTimeFormat("en-CA", { timeZone: "Asia/Yekaterinburg", year: "numeric", month: "2-digit" }).format(new Date()).slice(0, 7);
+  const month = /^\d{4}-\d{2}$/.test(String(params.m || "")) ? String(params.m) : now;
   const data = getAnalyticsSnapshot();
   const t = data.totals;
   return (
     <div className="mx-auto max-w-[1480px] space-y-5 pb-10">
-      <PageHeader title="Аналитика" subtitle="Конверсия, средний чек, источники, причины отказов и время на этапах. Need Number — только после перевода в работу." />
+      <PageHeader title="Аналитика" subtitle="Реклама, конверсия, источники и причины отказов. Need Number — только после перевода в работу." />
+      <AdFunnel month={month} />
 
       <div className="grid grid-cols-2 gap-3 xl:grid-cols-6">
         <Metric icon={Percent} label="Конверсия" value={percent(t.conversion)} />

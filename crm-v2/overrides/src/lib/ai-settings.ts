@@ -40,3 +40,12 @@ export function saveOpenAiSettings(key:string,model?:string,baseUrl?:string){
   return openAiSettings();
 }
 export function clearOpenAiKey(){sqlite.prepare("DELETE FROM crm_settings WHERE key='openai_api_key_encrypted'").run()}
+
+/** Хранение других секретов (токен Метрики и т.п.) — зашифровано так же, как ключ AI. */
+export function saveSecret(name: string, value: string) {
+  if (!value.trim()) { sqlite.prepare("DELETE FROM crm_settings WHERE key=?").run(`${name}_encrypted`); return; }
+  sqlite.prepare("INSERT INTO crm_settings(key,value) VALUES(?,?) ON CONFLICT(key) DO UPDATE SET value=excluded.value").run(`${name}_encrypted`, encrypt(value.trim()));
+}
+export function readSecret(name: string) {
+  const v = row(`${name}_encrypted`)?.value; if (!v) return ""; try { return decrypt(v); } catch { return ""; }
+}

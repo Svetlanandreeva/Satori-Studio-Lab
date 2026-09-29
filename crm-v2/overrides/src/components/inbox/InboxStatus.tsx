@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { toast } from "sonner";
-import { Loader2 } from "lucide-react";
+import { Check, ChevronDown, Loader2 } from "lucide-react";
 
 type Status = "new" | "work" | "ignore" | "contractor";
 type State = { status: Status; stageName: string | null; dealId: string | null; reason?: string | null };
@@ -18,6 +18,7 @@ export function InboxStatus({ channel, threadId, contactId, title, onChanged }: 
 }) {
   const [state, setState] = useState<State>({ status: "new", stageName: null, dealId: null });
   const [busy, setBusy] = useState<Status | null>(null);
+  const [openMenu, setOpenMenu] = useState(false);
   const [unqual, setUnqual] = useState<null | { reason: string; custom: string; send: boolean; text: string }>(null);
   const box = useRef<HTMLDivElement | null>(null);
 
@@ -28,6 +29,13 @@ export function InboxStatus({ channel, threadId, contactId, title, onChanged }: 
     fetch(`/api/inbox/status?contactId=${encodeURIComponent(contactId)}`, { cache: "no-store" }).then((r) => r.json()).then((d) => { if (!cancelled) setState(d); }).catch(() => {});
     return () => { cancelled = true; };
   }, [contactId, threadId]);
+
+  useEffect(() => {
+    if (!openMenu) return;
+    const on = (e: MouseEvent) => { if (box.current && !box.current.contains(e.target as Node)) setOpenMenu(false); };
+    document.addEventListener("mousedown", on);
+    return () => document.removeEventListener("mousedown", on);
+  }, [openMenu]);
 
   useEffect(() => {
     if (!unqual) return;
@@ -77,26 +85,36 @@ export function InboxStatus({ channel, threadId, contactId, title, onChanged }: 
     finally { setBusy(null); }
   }
 
-  const options: Array<[Status, string, string]> = [
-    ["new", "Новое", "bg-white text-slate-900 shadow-sm"],
-    ["work", "В работу", "bg-emerald-600 text-white shadow-sm"],
-    ["ignore", "Не квал", "bg-slate-700 text-white shadow-sm"],
-    ["contractor", "Подрядчик", "bg-sky-600 text-white shadow-sm"],
-  ];
+  const META: Record<Status, { label: string; dot: string }> = {
+    new: { label: "Новое", dot: "#94a3b8" },
+    work: { label: "В работе", dot: "#059669" },
+    ignore: { label: "Не квал", dot: "#475569" },
+    contractor: { label: "Подрядчик", dot: "#0284c7" },
+  };
+  const cur = META[state.status];
+  const choose = (value: Status) => { setOpenMenu(false); if (value === "ignore") void openUnqual(); else void set(value); };
 
   return (
     <div ref={box} className="relative flex flex-wrap items-center gap-2">
-      <div className="flex rounded-lg bg-muted p-0.5" role="group" aria-label="Статус обращения">
-        {options.map(([value, label, active]) => (
-          <button key={value} type="button" onClick={() => (value === "ignore" ? void openUnqual() : void set(value))} disabled={Boolean(busy)}
-            className={`inline-flex h-7 items-center gap-1 whitespace-nowrap rounded-md px-2 text-xs font-medium transition sm:px-2.5 ${state.status === value ? active : "text-muted-foreground hover:text-foreground"}`}>
-            {busy === value && <Loader2 className="h-3 w-3 animate-spin" />}{label}
-          </button>
-        ))}
-      </div>
-      {state.status === "ignore" && state.reason && <span className="text-xs text-muted-foreground">{state.reason}</span>}
-      {state.dealId && state.status !== "ignore" && (
-        <Link href={`/deals/${state.dealId}`} className="text-xs text-muted-foreground hover:text-foreground hover:underline">{state.stageName || "сделка"} →</Link>
+      <button type="button" onClick={() => setOpenMenu((v) => !v)} disabled={Boolean(busy)}
+        className="flex h-8 items-center gap-2 rounded-lg border border-slate-200 bg-white pl-2.5 pr-2 text-[12.5px] font-medium hover:bg-slate-50 dark:border-white/[.1] dark:bg-transparent dark:hover:bg-white/[.05]">
+        {busy ? <Loader2 className="h-3 w-3 animate-spin" /> : <span className="h-2 w-2 rounded-full" style={{ background: cur.dot }} />}
+        {cur.label}
+        {state.status === "work" && state.stageName && <span className="font-normal text-slate-500">· {state.stageName}</span>}
+        {state.status === "ignore" && state.reason && <span className="max-w-[160px] truncate font-normal text-slate-500">· {state.reason}</span>}
+        <ChevronDown className="h-3.5 w-3.5 text-slate-400" />
+      </button>
+      {state.dealId && state.status === "work" && <Link href={`/deals/${state.dealId}`} className="text-[12px] text-slate-500 hover:text-slate-900 hover:underline">сделка →</Link>}
+      {openMenu && (
+        <div className="absolute right-0 top-full z-40 mt-1 w-56 rounded-xl border bg-white p-1.5 shadow-xl dark:bg-[#1c1f25]">
+          {(["new", "work", "ignore", "contractor"] as Status[]).map((v) => (
+            <button key={v} type="button" onClick={() => choose(v)} className="flex w-full items-center gap-2 rounded-lg px-2.5 py-2 text-left text-[13px] hover:bg-slate-100 dark:hover:bg-white/[.06]">
+              <span className="h-2 w-2 rounded-full" style={{ background: META[v].dot }} />
+              {v === "work" ? "Взять в работу" : v === "ignore" ? "Не квал…" : META[v].label}
+              {state.status === v && <Check className="ml-auto h-3.5 w-3.5" />}
+            </button>
+          ))}
+        </div>
       )}
 
       {unqual && (

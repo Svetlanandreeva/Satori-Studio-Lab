@@ -7,11 +7,11 @@ import { cn } from "@/lib/utils";
 import { useUnreadMessages } from "@/lib/use-unread-messages";
 
 const items = [
-  { href: "/", label: "Сводка", icon: LayoutDashboard, activeBg: "bg-amber-50", activeText: "text-amber-700" },
-  { href: "/pipeline", label: "Воронка", icon: Kanban, activeBg: "bg-violet-50", activeText: "text-violet-700" },
-  { href: "/production", label: "Производство", icon: Factory, activeBg: "bg-orange-50", activeText: "text-orange-700" },
-  { href: "/inbox", label: "Сообщения", icon: MessageCircle, activeBg: "bg-sky-50", activeText: "text-sky-600" },
-  { href: "/contacts", label: "Клиенты", icon: Users, activeBg: "bg-teal-50", activeText: "text-teal-600" },
+  { href: "/", label: "Сводка", icon: LayoutDashboard, activeBg: "bg-slate-100", activeText: "text-slate-900" },
+  { href: "/inbox", label: "Сообщения", icon: MessageCircle, activeBg: "bg-slate-100", activeText: "text-slate-900" },
+  { href: "/pipeline", label: "Воронка", icon: Kanban, activeBg: "bg-slate-100", activeText: "text-slate-900" },
+  { href: "/production", label: "Производство", icon: Factory, activeBg: "bg-slate-100", activeText: "text-slate-900" },
+  { href: "/contacts", label: "Клиенты", icon: Users, activeBg: "bg-slate-100", activeText: "text-slate-900" },
 ];
 
 function unreadLabel(value: number) {

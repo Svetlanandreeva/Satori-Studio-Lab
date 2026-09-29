@@ -40,8 +40,6 @@ export function deadlineBadge(deadline: string | null, shippedAt: string | null)
 }
 
 const toneClass = { red: "bg-rose-50 text-rose-700 ring-rose-200", amber: "bg-amber-50 text-amber-800 ring-amber-200", green: "bg-emerald-50 text-emerald-700 ring-emerald-200" };
-const field = "mt-1.5 h-10 w-full rounded-lg border border-slate-200 bg-white px-3 text-sm text-slate-900 outline-none focus:border-slate-400 focus:ring-2 focus:ring-slate-100 dark:border-white/[.1] dark:bg-transparent dark:text-white";
-const label = "text-[12px] font-medium text-slate-500";
 
 /** Главный блок карточки: деньги, дата оплаты (= старт работ), срок и дедлайн. */
 export function DealMoneyDates({ dealId, value, received, schedule, ownerId, members, costs }: {
@@ -81,61 +79,57 @@ export function DealMoneyDates({ dealId, value, received, schedule, ownerId, mem
   });
   const saveState = termInvalid ? { text: "Срок — от 1 до 365 дней", tone: "text-rose-600" } : autosaveLabel(autosave.status, autosave.error);
 
+  const profitTone = costs.profit < 0 ? "text-rose-600" : "text-emerald-700";
+  const inputCls = "h-9 w-full rounded-lg border border-slate-200 bg-white px-2.5 text-[14px] text-slate-900 outline-none focus:border-slate-400 dark:border-white/[.1] dark:bg-transparent dark:text-white";
   return (
-    <section className="rounded-2xl border border-slate-200/80 bg-white p-5 shadow-sm dark:border-white/[.08] dark:bg-[#16181d]">
-      {/* Сроки — главное */}
-      <div className="grid gap-4 sm:grid-cols-[1fr_1fr_1.3fr]">
-        <label className={label}>Дата оплаты · старт работ
-          <div className="flex gap-1.5">
-            <input type="date" value={form.paidAt} onChange={set("paidAt")} className={field} />
-            {!form.paidAt && <button type="button" onClick={() => setForm((f) => ({ ...f, paidAt: today() }))} className="mt-1.5 shrink-0 rounded-lg border border-slate-200 px-2.5 text-[12px] text-slate-600 hover:bg-slate-50 dark:border-white/[.1] dark:text-slate-300">Сегодня</button>}
+    <section className="rounded-2xl border border-slate-200/80 bg-white shadow-sm dark:border-white/[.08] dark:bg-[#16181d]">
+      {/* Сроки */}
+      <div className="grid gap-3 border-b border-slate-100 p-5 sm:grid-cols-[1fr_1fr_1.2fr] sm:items-end dark:border-white/[.06]">
+        <label className="text-[12px] text-slate-500">Оплата · старт работ
+          <div className="mt-1 flex gap-1.5">
+            <input type="date" value={form.paidAt} onChange={set("paidAt")} className={inputCls} />
+            {!form.paidAt && <button type="button" onClick={() => setForm((f) => ({ ...f, paidAt: today() }))} className="h-9 shrink-0 rounded-lg border border-slate-200 px-2.5 text-[12px] text-slate-600 hover:bg-slate-50 dark:border-white/[.1] dark:text-slate-300">Сегодня</button>}
           </div>
         </label>
-        <label className={label}>Срок изготовления, дней
-          <input type="number" min={1} max={365} inputMode="numeric" value={form.term} onChange={set("term")} placeholder="Например, 14" className={field} />
-          <div className="mt-1.5 flex gap-1">
-            {TERM_PRESETS.map((d) => <button key={d} type="button" onClick={() => setForm((f) => ({ ...f, term: String(d) }))} className={`rounded-md px-2 py-0.5 text-[11px] ${form.term === String(d) ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900" : "bg-slate-100 text-slate-500 hover:text-slate-900 dark:bg-white/[.06]"}`}>{d}</button>)}
+        <label className="text-[12px] text-slate-500">Срок, дней
+          <div className="mt-1 flex items-center gap-1">
+            <input type="number" min={1} max={365} inputMode="numeric" value={form.term} onChange={set("term")} placeholder="14" className={`${inputCls} w-20`} />
+            {TERM_PRESETS.map((d) => <button key={d} type="button" onClick={() => setForm((f) => ({ ...f, term: String(d) }))} className={`h-7 rounded-md px-1.5 text-[11.5px] ${form.term === String(d) ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900" : "text-slate-400 hover:bg-slate-100 hover:text-slate-800 dark:hover:bg-white/[.06]"}`}>{d}</button>)}
           </div>
         </label>
-        <div className="rounded-xl bg-slate-50 px-4 py-3 dark:bg-white/[.04]">
-          <div className="flex items-center gap-1.5 text-[12px] font-medium text-slate-500"><CalendarClock className="h-3.5 w-3.5" />Дедлайн</div>
+        <div className="rounded-xl bg-slate-50 px-3.5 py-2 dark:bg-white/[.04]">
+          <div className="flex items-center gap-1.5 text-[11.5px] text-slate-500"><CalendarClock className="h-3.5 w-3.5" />Дедлайн</div>
           {deadline ? (
-            <>
-              <div className="mt-1 text-xl font-semibold tracking-tight text-slate-950 dark:text-white">{human(deadline)}</div>
-              {badge && <span className={`mt-1.5 inline-flex rounded-full px-2 py-0.5 text-[11.5px] font-medium ring-1 ${toneClass[badge.tone]}`}>{badge.text}</span>}
-            </>
-          ) : (
-            <div className="mt-1 text-[13px] leading-5 text-slate-400">Поставь дату оплаты и срок — дедлайн посчитается сам</div>
-          )}
+            <div className="flex flex-wrap items-baseline gap-x-2">
+              <span className="text-[16px] font-semibold tracking-tight">{human(deadline)}</span>
+              {badge && <span className={`rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ${toneClass[badge.tone]}`}>{badge.text}</span>}
+            </div>
+          ) : <div className="text-[12.5px] text-slate-400">появится после оплаты и срока</div>}
         </div>
       </div>
-
-      <div className="my-5 h-px bg-slate-100 dark:bg-white/[.06]" />
 
       {/* Деньги */}
-      <div className="grid gap-4 sm:grid-cols-[1fr_1fr_1.3fr]">
-        <label className={label}>Сумма сделки, ₽
-          <input inputMode="decimal" value={form.value} onChange={set("value")} placeholder="0" className={field} />
+      <div className="grid gap-3 p-5 sm:grid-cols-[1fr_1fr_1.2fr] sm:items-end">
+        <label className="text-[12px] text-slate-500">Сумма сделки, ₽
+          <input inputMode="decimal" value={form.value} onChange={set("value")} placeholder="0" className={`${inputCls} mt-1`} />
         </label>
-        <label className={label}>Получено от клиента, ₽
-          <input inputMode="decimal" value={form.received} onChange={(e) => { const v = e.target.value; setForm((f) => ({ ...f, received: v, paidAt: f.paidAt || (toKop(v) > 0 ? today() : "") })); }} placeholder="0" className={field} />
-          <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-slate-100 dark:bg-white/[.06]"><div className="h-full rounded-full bg-emerald-500" style={{ width: `${paidPct}%` }} /></div>
-          <div className="mt-1 text-[11px] text-slate-400">{paidPct ? `оплачено ${paidPct}%` : "оплат нет"}</div>
+        <label className="text-[12px] text-slate-500">Получено, ₽ <span className="text-slate-400">{paidPct ? `· ${paidPct}%` : ""}</span>
+          <input inputMode="decimal" value={form.received} onChange={(e) => { const v = e.target.value; setForm((f) => ({ ...f, received: v, paidAt: f.paidAt || (toKop(v) > 0 ? today() : "") })); }} placeholder="0" className={`${inputCls} mt-1`} />
         </label>
-        <div className="grid grid-cols-2 gap-3 self-start rounded-xl border border-slate-100 px-4 py-3 text-[12px] dark:border-white/[.06]">
-          <div><div className="text-slate-400">Закупки</div><div className="mt-0.5 font-semibold text-slate-800 dark:text-slate-200">{money(costs.procurement)}</div></div>
-          <div><div className="text-slate-400">Прибыль</div><div className="mt-0.5 font-semibold text-slate-800 dark:text-slate-200">{money(costs.profit)}</div></div>
+        <div className="flex items-end justify-between gap-3 rounded-xl bg-slate-50 px-3.5 py-2 text-[12px] dark:bg-white/[.04]">
+          <div><div className="text-slate-500">Закупки</div><div className="text-[14px] font-semibold tabular-nums">{money(costs.procurement)}</div></div>
+          <div className="text-right"><div className="text-slate-500">Прибыль</div><div className={`text-[14px] font-semibold tabular-nums ${profitTone}`}>{money(costs.profit)}</div></div>
         </div>
       </div>
 
-      <div className="mt-5 flex flex-wrap items-end gap-3">
-        <label className={`${label} min-w-[200px]`}>Ответственный
-          <select value={form.owner} onChange={set("owner")} className={field}>
-            <option value="">Не назначен</option>
+      <div className="flex flex-wrap items-center gap-3 border-t border-slate-100 px-5 py-2.5 dark:border-white/[.06]">
+        <label className="flex items-center gap-2 text-[12px] text-slate-500">Ответственный
+          <select value={form.owner} onChange={set("owner")} className="h-8 rounded-lg border border-slate-200 bg-transparent px-2 text-[13px] text-slate-800 outline-none dark:border-white/[.1] dark:text-slate-200">
+            <option value="">не назначен</option>
             {members.filter((m) => m.active).map((m) => <option key={m.id} value={m.id}>{m.name}</option>)}
           </select>
         </label>
-        <div className={`ml-auto flex h-10 items-center gap-1.5 text-[12px] ${saveState.tone}`}>
+        <div className={`ml-auto flex items-center gap-1.5 text-[12px] ${saveState.tone}`}>
           {autosave.status === "saving" || autosave.status === "pending" ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : autosave.status === "saved" ? <Check className="h-3.5 w-3.5" /> : null}
           {saveState.text}
           {autosave.status === "error" && <button type="button" onClick={() => void autosave.flush()} className="ml-1 font-medium underline">Повторить</button>}
