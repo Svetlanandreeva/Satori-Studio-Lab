@@ -38,8 +38,14 @@ export default function PipelinePage() {
     .all()
     .filter((deal) => visibleStageIds.has(deal.stageId));
 
-  const schedules = getDealSchedules(allDeals.map((deal) => deal.id));
-  const withDates = allDeals.map((deal) => ({ ...deal, deadline: schedules.get(deal.id)?.deadline || null, shippedAt: schedules.get(deal.id)?.shippedAt || null }));
+  // В колонках «Завершено» и «Отказ» — только последние 14 дней, иначе они разрастаются бесконечно.
+  // Все закрытые сделки остаются в разделе «Сделки».
+  const closedCutoff = Date.now() - 14 * 86_400_000;
+  const closedStageIds = new Set(stages.filter((s) => s.isWon || s.isLost).map((s) => s.id));
+  const hiddenClosed = allDeals.filter((d) => closedStageIds.has(d.stageId) && d.updatedAt.getTime() < closedCutoff).length;
+  const boardDeals = allDeals.filter((d) => !closedStageIds.has(d.stageId) || d.updatedAt.getTime() >= closedCutoff);
+  const schedules = getDealSchedules(boardDeals.map((deal) => deal.id));
+  const withDates = boardDeals.map((deal) => ({ ...deal, deadline: schedules.get(deal.id)?.deadline || null, shippedAt: schedules.get(deal.id)?.shippedAt || null }));
   const columns: PipelineColumn[] = stages.map((stage) => ({
     ...stage,
     deals: withDates.filter((deal) => deal.stageId === stage.id) as PipelineColumn["deals"],
@@ -53,7 +59,7 @@ export default function PipelinePage() {
       <div className="flex flex-wrap items-center gap-x-4 gap-y-2">
         <h1 className="text-2xl font-semibold tracking-tight text-slate-950 dark:text-white">Воронка</h1>
         <span className="text-sm text-slate-500">В работе {total.length} · {new Intl.NumberFormat("ru-RU", { style: "currency", currency: "RUB", maximumFractionDigits: 0 }).format(sum / 100)}</span>
-        <span className="hidden text-xs text-slate-400 lg:inline">Перетаскивай карточки между этапами · клик — открыть сделку</span>
+        {hiddenClosed > 0 && <a href="/deals" className="text-xs text-slate-400 hover:text-slate-700">старые закрытые ({hiddenClosed}) — в «Сделках»</a>}
         <div className="ml-auto"><NewDealButton /></div>
       </div>
       <KanbanBoard initialColumns={columns} />

@@ -18,16 +18,8 @@ const factStyles = {
 } as const;
 
 export function ContactIntelligencePanel({ intelligence }: { intelligence: ContactIntelligence | null }) {
-  if (!intelligence) {
-    return (
-      <Card className="border-indigo-100 bg-gradient-to-br from-indigo-50/55 via-white to-white shadow-sm">
-        <CardContent className="flex items-start gap-3 p-5 text-sm text-muted-foreground">
-          <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-indigo-50 text-indigo-600"><Bot className="h-4 w-4" /></div>
-          <div><b className="text-foreground">Контекст из диалогов</b><p className="mt-1 leading-5">Пока нет связанной переписки. Когда появятся email или Telegram-диалоги, помощник соберёт сюда запрос, бюджет, сроки и следующий шаг.</p></div>
-        </CardContent>
-      </Card>
-    );
-  }
+  // Пустой блок-заглушку не показываем — он только занимал место.
+  if (!intelligence) return null;
 
   return (
     <Card className="overflow-hidden border-indigo-100 bg-white shadow-[0_8px_28px_rgba(79,70,229,.045)]">

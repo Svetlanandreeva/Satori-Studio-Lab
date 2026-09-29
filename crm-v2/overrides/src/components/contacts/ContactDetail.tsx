@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { NewDealButton } from "@/components/deals/DealActions";
+import { LEAD_QUALIFICATION_LABELS } from "@/lib/lead-qualification";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ActivityForm } from "@/components/activities/ActivityForm";
@@ -84,6 +85,7 @@ export function ContactDetailClient({ contact, deals, activities, documents: ini
   const router = useRouter();
   const [showEdit, setShowEdit] = useState(false);
   const [showActivity, setShowActivity] = useState(false);
+  const [showUpload, setShowUpload] = useState(false);
   const [documents, setDocuments] = useState(initialDocuments);
   const [file, setFile] = useState<File | null>(null);
   const [kind, setKind] = useState("contract");
@@ -135,15 +137,15 @@ export function ContactDetailClient({ contact, deals, activities, documents: ini
   };
 
   return (
-    <div className="space-y-6 max-w-[1500px]">
+    <div className="mx-auto max-w-[1320px] space-y-4">
       <div className="flex flex-col gap-4 lg:flex-row lg:items-center">
         <Button variant="ghost" size="icon" onClick={() => router.push("/contacts")}><ArrowLeft className="h-5 w-5" /></Button>
         <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2"><h1 className="truncate text-3xl font-semibold tracking-tight">{contact.name}</h1>
+          <div className="flex flex-wrap items-center gap-2"><h1 className="truncate text-2xl font-semibold tracking-tight">{contact.name}</h1>
             <Badge variant={contact.temperature === "hot" ? "default" : "outline"}>{contact.temperature === "hot" ? "Горячий" : contact.temperature === "warm" ? "Тёплый" : "Холодный"}</Badge>
-            {contact.qualification && <Badge variant="secondary">{contact.qualification === "qualified" ? "Квалифицирован" : contact.qualification}</Badge>}
+            {contact.qualification && contact.qualification !== "new" && <Badge variant="secondary">{(LEAD_QUALIFICATION_LABELS as Record<string, string>)[contact.qualification] || contact.qualification}</Badge>}
           </div>
-          <p className="mt-1 text-sm text-muted-foreground">{sourceLabel(contact.source)} · score {contact.score}/100 · клиент с {date(contact.createdAt)}</p>
+          <p className="mt-1 text-sm text-muted-foreground">{sourceLabel(contact.source)} · клиент с {date(contact.createdAt)}</p>
         </div>
         <div className="flex flex-wrap gap-2">
           <Link href={`/inbox?contact=${contact.id}`}><Button variant="outline"><MessageCircle className="mr-2 h-4 w-4" />Сообщения</Button></Link>
@@ -166,21 +168,33 @@ export function ContactDetailClient({ contact, deals, activities, documents: ini
             {contactNotes && <div className="mt-3 whitespace-pre-wrap rounded-xl bg-muted/40 p-3 text-xs leading-5 text-muted-foreground">{contactNotes}</div>}
           </CardContent></Card>
 
-          <Card className={contracts.length ? "" : "border-amber-200"}><CardHeader><div className="flex flex-wrap items-center justify-between gap-2"><CardTitle className="flex items-center gap-2 text-base"><ReceiptText className="h-4 w-4" />Документы клиента</CardTitle><div className="flex gap-1.5">{proposals.length > 0 && <Badge variant="secondary">КП {proposals.length}</Badge>}{contracts.length ? <Badge variant="secondary">Договор загружен</Badge> : <Badge variant="outline">Нет договора</Badge>}</div></div></CardHeader><CardContent className="space-y-4">
+          <Card><CardHeader><div className="flex flex-wrap items-center justify-between gap-2"><CardTitle className="flex items-center gap-2 text-base"><ReceiptText className="h-4 w-4" />Документы</CardTitle><div className="flex gap-1.5">{proposals.length > 0 && <Badge variant="secondary">КП {proposals.length}</Badge>}{contracts.length ? <Badge variant="secondary">Договор</Badge> : null}</div></div></CardHeader><CardContent className="space-y-4">
+            {showUpload ? <>
             <div className="grid gap-2 sm:grid-cols-[150px_1fr_auto]">
               <select className="h-10 rounded-md border bg-background px-3 text-sm" value={kind} onChange={(e) => setKind(e.target.value)}><option value="contract">Договор</option><option value="commercial_offer">КП</option><option value="specification">Спецификация</option><option value="invoice">Счёт</option><option value="brief">ТЗ / бриф</option><option value="other">Другое</option></select>
               <Input type="file" accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.jpg,.jpeg,.png,.webp,.heic,.zip,.rar,.7z,.stl,.step,.stp,.3mf" onChange={(e) => setFile(e.target.files?.[0] || null)} />
               <Button onClick={upload} disabled={uploading || !file}><Upload className="mr-2 h-4 w-4" />Загрузить</Button>
             </div>
-            <p className="text-xs text-muted-foreground">КП и договор можно добавить вручную. Вложения из связанной почты и Telegram будут появляться здесь автоматически.</p>
-            {!documents.length ? <p className="text-sm text-muted-foreground">Здесь будут КП, договор, ТЗ, спецификации, счета и файлы из переписки.</p> : <div className="space-y-2">{documents.map(doc => <div key={doc.id} className="flex items-center gap-3 rounded-xl border p-3"><FileText className="h-4 w-4 shrink-0 text-muted-foreground" /><div className="min-w-0 flex-1"><div className="truncate text-sm font-medium">{doc.name}</div><div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground"><span>{documentKindLabel(doc.kind)} · {bytes(doc.sizeBytes)}</span><Badge variant="outline" className="h-5 px-1.5 text-[10px] font-normal">{documentSourceLabel(doc)}</Badge></div></div><a href={`/api/contacts/${contact.id}/documents/${doc.id}`}><Button variant="ghost" size="icon"><Download className="h-4 w-4" /></Button></a><Button variant="ghost" size="icon" onClick={() => removeDocument(doc.id)}><Trash2 className="h-4 w-4" /></Button></div>)}</div>}
+            </> : <Button variant="outline" size="sm" onClick={() => setShowUpload(true)}><Upload className="mr-2 h-4 w-4" />Загрузить файл</Button>}
+            {!documents.length ? <p className="text-xs text-muted-foreground">Файлов пока нет. Вложения из почты и Telegram появятся здесь сами.</p> : <div className="space-y-2">{documents.map(doc => <div key={doc.id} className="flex items-center gap-3 rounded-xl border p-3"><FileText className="h-4 w-4 shrink-0 text-muted-foreground" /><div className="min-w-0 flex-1"><div className="truncate text-sm font-medium">{doc.name}</div><div className="mt-0.5 flex flex-wrap items-center gap-1.5 text-xs text-muted-foreground"><span>{documentKindLabel(doc.kind)} · {bytes(doc.sizeBytes)}</span><Badge variant="outline" className="h-5 px-1.5 text-[10px] font-normal">{documentSourceLabel(doc)}</Badge></div></div><a href={`/api/contacts/${contact.id}/documents/${doc.id}`}><Button variant="ghost" size="icon"><Download className="h-4 w-4" /></Button></a><Button variant="ghost" size="icon" onClick={() => removeDocument(doc.id)}><Trash2 className="h-4 w-4" /></Button></div>)}</div>}
           </CardContent></Card>
         </div>
 
         <div className="space-y-6">
           <Card><CardHeader><div className="flex items-center justify-between gap-3"><CardTitle className="flex items-center gap-2 text-base"><WalletCards className="h-4 w-4" />Сделки</CardTitle><NewDealButton contactId={contact.id} contactName={contact.name} variant="outline" label="Сделка" className="h-8 px-3 text-xs" /></div></CardHeader><CardContent>
-            <div className="mb-4 grid grid-cols-2 gap-3 xl:grid-cols-5"><Mini label="Поступило" value={money(totalReceived)} /><Mini label="Прямые расходы" value={money(totalDirectCost)} /><Mini label="Менеджер 50%" value={money(totalManagerCommission)} /><Mini label="Прибыль компании" value={money(totalProfit)} /><Mini label="Маржа компании" value={totalReceived ? `${margin.toFixed(1)}%` : "—"} /></div>
-            {!deals.length ? <p className="text-sm text-muted-foreground">Сделок пока нет.</p> : <div className="space-y-3">{deals.map(deal => <Link href={`/deals/${deal.id}`} key={deal.id}><div className="rounded-xl border p-4 transition-colors hover:bg-muted/30"><div className="flex items-start justify-between gap-4"><div><div className="font-medium">{deal.title}</div><div className="mt-1 text-xs text-muted-foreground">{deal.stageName || "Без этапа"}{deal.project?.contractDeadline ? ` · срок ${deal.project.contractDeadline}` : ""}</div><div className="mt-2 text-xs text-muted-foreground">Поступило {money(deal.receivedAmount)} · прямые расходы {money(deal.directCost)} · менеджер {money(deal.managerCommission)} · компании {money(deal.profit)}</div></div><div className="text-right"><div className="font-semibold">{money(deal.value)}</div>{deal.receivedAmount > 0 && <div className={`text-xs ${deal.margin < 25 ? "text-amber-700" : "text-muted-foreground"}`}>маржа компании {deal.margin.toFixed(1)}%</div>}</div></div></div></Link>)}</div>}
+            {!deals.length ? <p className="text-sm text-muted-foreground">Сделок пока нет.</p> : <div className="divide-y rounded-xl border">{deals.map(deal => (
+              <Link href={`/deals/${deal.id}`} key={deal.id} className="flex items-center gap-3 px-4 py-3 transition-colors hover:bg-muted/30">
+                <div className="min-w-0 flex-1">
+                  <div className="truncate text-sm font-medium">{deal.title}</div>
+                  <div className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-muted-foreground">
+                    <span className={deal.isLost ? "text-rose-600" : deal.isWon ? "text-emerald-600" : ""}>{deal.stageName || "Без этапа"}</span>
+                    {deal.project?.contractDeadline && !deal.isWon && !deal.isLost ? <span>· дедлайн {new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short" }).format(new Date(`${deal.project.contractDeadline}T12:00:00Z`))}</span> : null}
+                    {deal.receivedAmount > 0 ? <span>· получено {money(deal.receivedAmount)}</span> : null}
+                  </div>
+                </div>
+                <div className="shrink-0 text-sm font-semibold tabular-nums">{money(deal.value)}</div>
+              </Link>))}</div>}
+            {deals.length > 1 && totalReceived > 0 && <div className="mt-3 text-xs text-muted-foreground">Всего получено {money(totalReceived)} · прибыль {money(totalProfit)}</div>}
           </CardContent></Card>
 
           <Card><CardHeader><div className="flex items-center justify-between"><CardTitle className="text-base">История клиента</CardTitle><Button variant="outline" size="sm" onClick={() => setShowActivity(true)}><Plus className="mr-1 h-4 w-4" />Добавить</Button></div></CardHeader><CardContent>
@@ -197,4 +211,3 @@ export function ContactDetailClient({ contact, deals, activities, documents: ini
 
 function Row({ icon: Icon, value }: { icon: typeof Phone; value: string }) { return <div className="flex items-center gap-3"><Icon className="h-4 w-4 shrink-0 text-muted-foreground" /><span>{value}</span></div>; }
 function ContactRow({ icon: Icon, value, href, copied, onCopy }: { icon: typeof Phone; value: string; href: string; copied: boolean; onCopy: () => void }) { return <div className="flex items-center gap-3"><Icon className="h-4 w-4 shrink-0 text-muted-foreground" /><a className="min-w-0 flex-1 truncate hover:underline" href={href}>{value}</a><button onClick={onCopy} className="rounded-md p-1.5 hover:bg-muted">{copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}</button></div>; }
-function Mini({ label, value }: { label: string; value: string }) { return <div className="rounded-xl bg-muted/40 p-3"><div className="text-[11px] text-muted-foreground">{label}</div><div className="mt-1 text-lg font-semibold">{value}</div></div>; }

@@ -40,7 +40,7 @@ export function Sidebar() {
   return (
     <aside className="sticky top-0 hidden h-dvh w-[220px] shrink-0 flex-col border-r border-white/[.06] bg-[#15171c] text-white md:flex">
       <div className="flex h-[60px] shrink-0 items-center justify-between px-4">
-        <Link href="/pipeline" className="flex min-w-0 items-center gap-2.5">
+        <Link href="/" className="flex min-w-0 items-center gap-2.5">
           <div className="studio-gradient flex h-8 w-8 shrink-0 items-center justify-center rounded-xl text-[11px] font-bold text-white">S</div>
           <div className="truncate text-[15px] font-semibold tracking-tight">Satori CRM</div>
         </Link>

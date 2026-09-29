@@ -2,15 +2,15 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { CalendarClock, Handshake, Kanban, MessageCircle, Users } from "lucide-react";
+import { Factory, Kanban, MessageCircle, Sun, Users } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useUnreadMessages } from "@/lib/use-unread-messages";
 
 const items = [
+  { href: "/", label: "Сегодня", icon: Sun, activeBg: "bg-amber-50", activeText: "text-amber-700" },
   { href: "/pipeline", label: "Воронка", icon: Kanban, activeBg: "bg-violet-50", activeText: "text-violet-700" },
-  { href: "/deals", label: "Сделки", icon: Handshake, activeBg: "bg-blue-50", activeText: "text-blue-600" },
+  { href: "/production", label: "Производство", icon: Factory, activeBg: "bg-orange-50", activeText: "text-orange-700" },
   { href: "/inbox", label: "Сообщения", icon: MessageCircle, activeBg: "bg-sky-50", activeText: "text-sky-600" },
-  { href: "/tasks", label: "Задачи", icon: CalendarClock, activeBg: "bg-blue-50", activeText: "text-blue-700" },
   { href: "/contacts", label: "Клиенты", icon: Users, activeBg: "bg-teal-50", activeText: "text-teal-600" },
 ];
 
