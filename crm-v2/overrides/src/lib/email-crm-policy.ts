@@ -3,6 +3,7 @@ import { db } from "@/db";
 import { activities, contacts, deals, emailMessages, emailThreads, pipelineStages } from "@/db/schema";
 import {
   buildEmailConversationIndex,
+  emailConversationThreadIds,
   sameEmailConversationForDeals,
 } from "@/lib/email-conversation";
 
@@ -162,8 +163,13 @@ export function promoteEmailThreadToCrm(threadId: string) {
 
   const now = new Date();
   const emailIndex = buildEmailConversationIndex();
+  // Все ветки одной переписки (в т.ч. с других адресов) — это один клиент и одна заявка.
+  const siblingThreadIds = emailConversationThreadIds(thread.id);
+  const siblingContactId = db.select().from(emailThreads).all()
+    .filter((item) => siblingThreadIds.has(item.id) && item.contactId)
+    .sort((a, b) => a.createdAt.getTime() - b.createdAt.getTime())[0]?.contactId || null;
   const threadContact = findContactByEmail(thread.remoteEmail);
-  const candidateContactId = thread.contactId || threadContact?.id || null;
+  const candidateContactId = thread.contactId || siblingContactId || threadContact?.id || null;
   const candidateMeta = {
     contactId: candidateContactId,
     notes: `[email-thread:${thread.id}]`,
@@ -182,7 +188,7 @@ export function promoteEmailThreadToCrm(threadId: string) {
 
   let contact = deal
     ? db.select().from(contacts).where(eq(contacts.id, deal.contactId)).get() || null
-    : threadContact;
+    : (candidateContactId ? db.select().from(contacts).where(eq(contacts.id, candidateContactId)).get() || null : null);
 
   if (!contact) {
     contact = db.insert(contacts).values({
@@ -243,10 +249,12 @@ export function promoteEmailThreadToCrm(threadId: string) {
     }
   }
 
-  db.update(emailThreads)
-    .set({ contactId: deal.contactId, isService: false, updatedAt: now })
-    .where(eq(emailThreads.id, thread.id))
-    .run();
+  for (const siblingId of siblingThreadIds) {
+    db.update(emailThreads)
+      .set({ contactId: deal.contactId, isService: false, updatedAt: now })
+      .where(eq(emailThreads.id, siblingId))
+      .run();
+  }
   db.update(emailMessages).set({ isService: false }).where(eq(emailMessages.threadId, thread.id)).run();
 
   const dealContact = db.select().from(contacts).where(eq(contacts.id, deal.contactId)).get() || contact;

@@ -226,7 +226,7 @@ export function mergeContacts(sourceId: string, targetId: string, actor: Session
       email=COALESCE(NULLIF(email,''),?),phone=COALESCE(NULLIF(phone,''),?),company=COALESCE(NULLIF(company,''),?),
       notes=?,score=MAX(score,?),temperature=CASE WHEN temperature='hot' OR ?='hot' THEN 'hot' WHEN temperature='warm' OR ?='warm' THEN 'warm' ELSE temperature END,
       qualification=CASE WHEN qualification<>'new' THEN qualification ELSE ? END,updated_at=? WHERE id=?`)
-      .run(source.name, source.email, source.phone, source.company, mergedNotes || null, Number(source.score || 0), source.temperature, source.temperature, source.qualification || "new", Date.now(), targetId);
+      .run(source.name, source.email, source.phone, source.company, mergedNotes || null, Number(source.score || 0), source.temperature, source.temperature, source.qualification || "new", Math.floor(Date.now() / 1000), targetId);
     sqlite.prepare("UPDATE deals SET contact_id=? WHERE contact_id=?").run(targetId, sourceId);
     sqlite.prepare("UPDATE activities SET contact_id=? WHERE contact_id=?").run(targetId, sourceId);
     sqlite.prepare("UPDATE email_threads SET contact_id=? WHERE contact_id=?").run(targetId, sourceId);

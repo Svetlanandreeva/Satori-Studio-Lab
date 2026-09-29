@@ -97,6 +97,7 @@ export async function analyzeDealWithAi(dealId:string,_apply=true){
   const summary=String(decision.summary||"").trim();
   const now=Date.now();
   sqlite.prepare(`INSERT INTO deal_ai_intelligence(deal_id,summary,source_thread_id,confidence,updated_at) VALUES(?,?,?,?,?) ON CONFLICT(deal_id) DO UPDATE SET summary=excluded.summary,source_thread_id=excluded.source_thread_id,confidence=excluded.confidence,updated_at=excluded.updated_at`).run(dealId,summary||null,thread.id,confidence,now);
-  if(summary) sqlite.prepare(`UPDATE deals SET notes=?,updated_at=? WHERE id=?`).run(summary,now,dealId);
+  // Резюме AI хранится отдельно (deal_ai_intelligence). Заметки сделки не трогаем:
+  // раньше AI затирал ручные заметки и служебные метки переписки, из-за чего появлялись дубли.
   return {analyzed:true,decision:{summary,confidence},threadId:thread.id};
 }

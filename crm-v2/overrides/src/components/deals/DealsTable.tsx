@@ -11,13 +11,14 @@ export type DealRow = {
   id: string; title: string | null; value: number; createdAt: string; updatedAt: string;
   contactId: string | null; contactName: string | null; contactPhone: string | null;
   stageId: string | null; stageName: string | null; stageColor: string | null; isWon: boolean | null; isLost: boolean | null;
+  isLead?: boolean;
 };
 type StageLite = { id: string; name: string; color: string; isWon: boolean; isLost: boolean };
 
 const money = (v: number) => new Intl.NumberFormat("ru-RU", { style: "currency", currency: "RUB", maximumFractionDigits: 0 }).format((Number(v) || 0) / 100);
 const shortDate = (v: string) => new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short" }).format(new Date(v));
 
-type Scope = "active" | "won" | "lost" | "all";
+type Scope = "active" | "leads" | "won" | "lost" | "all";
 
 export function DealsTable({ rows, stages }: { rows: DealRow[]; stages: StageLite[] }) {
   const router = useRouter();
@@ -29,7 +30,8 @@ export function DealsTable({ rows, stages }: { rows: DealRow[]; stages: StageLit
   const [busy, setBusy] = useState(false);
 
   const counts = useMemo(() => ({
-    active: rows.filter((r) => !r.isWon && !r.isLost).length,
+    active: rows.filter((r) => !r.isWon && !r.isLost && !r.isLead).length,
+    leads: rows.filter((r) => r.isLead).length,
     won: rows.filter((r) => r.isWon).length,
     lost: rows.filter((r) => r.isLost).length,
     all: rows.length,
@@ -39,7 +41,8 @@ export function DealsTable({ rows, stages }: { rows: DealRow[]; stages: StageLit
     const needle = q.trim().toLowerCase();
     const digits = needle.replace(/\D/g, "");
     return rows.filter((r) => {
-      if (scope === "active" && (r.isWon || r.isLost)) return false;
+      if (scope === "active" && (r.isWon || r.isLost || r.isLead)) return false;
+      if (scope === "leads" && !r.isLead) return false;
       if (scope === "won" && !r.isWon) return false;
       if (scope === "lost" && !r.isLost) return false;
       if (stage && r.stageId !== stage) return false;
@@ -70,7 +73,7 @@ export function DealsTable({ rows, stages }: { rows: DealRow[]; stages: StageLit
     } finally { setBusy(false); }
   }
 
-  const scopes: Array<[Scope, string]> = [["active", "В работе"], ["won", "Завершены"], ["lost", "Отказы"], ["all", "Все"]];
+  const scopes: Array<[Scope, string]> = [["active", "В работе"], ["leads", "Лиды"], ["won", "Завершены"], ["lost", "Отказы"], ["all", "Все"]];
 
   return (
     <div className="space-y-4">
@@ -130,7 +133,7 @@ export function DealsTable({ rows, stages }: { rows: DealRow[]; stages: StageLit
         {!filtered.length && (
           <div className="p-12 text-center">
             <Handshake className="mx-auto h-7 w-7 text-slate-300" />
-            <div className="mt-3 text-sm text-slate-500">{rows.length ? "Ничего не нашлось — поменяй фильтр или поиск." : "Сделок пока нет. Создай первую."}</div>
+            <div className="mt-3 text-sm text-slate-500">{scope === "active" && counts.leads ? "Сделок в работе нет. Лиды становятся сделками, когда переводишь их из «Новой заявки» в «Расчёт»." : rows.length ? "Ничего не нашлось — поменяй фильтр или поиск." : "Сделок пока нет. Создай первую."}</div>
           </div>
         )}
 

@@ -234,6 +234,8 @@ function moveSilentChatsToIgnore() {
   for (const contact of contacts) {
     const active = activeDealsFor(contact.id);
     if (active.some((deal) => isPostSaleStage(deal.stageName))) continue;
+    // В «Игнор» уводим только лиды. Сделку с «Расчёта» и дальше автоматически не прячем.
+    if (active.some((deal) => String(deal.stageName || "") !== "Новый запрос")) continue;
 
     const comm = sqlite.prepare(`
       SELECT id,type,description,created_at AS createdAt

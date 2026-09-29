@@ -200,7 +200,7 @@ function cleanupSafeDuplicates(): number {
           temperature: temperatureRank(duplicate.temperature) > temperatureRank(primary.temperature) ? duplicate.temperature : primary.temperature,
           score: Math.max(Number(primary.score || 0), Number(duplicate.score || 0)),
           notes: mergeNotes(primary.notes, duplicate.notes),
-          updatedAt: Date.now(),
+          updatedAt: Math.floor(Date.now() / 1000),
         };
         if (hasQualification) {
           fields.qualification = qualificationRank(duplicate.qualification) > qualificationRank(primary.qualification)

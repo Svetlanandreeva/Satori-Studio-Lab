@@ -26,11 +26,14 @@ export default async function DealsPage() {
     .filter((s) => s.name !== SPAM_STAGE_NAME)
     .map((s) => ({ id: s.id, name: s.name, color: s.color, isWon: Boolean(s.isWon), isLost: Boolean(s.isLost) }));
 
+  // Первый этап («Новый запрос») — это лиды. Сделкой они становятся с «Расчёта».
+  const firstStageId = stages.find((s) => !s.isWon && !s.isLost)?.id || null;
   const data: DealRow[] = rows.map((r) => ({
     id: r.id, title: r.title, value: r.value,
     createdAt: new Date(r.createdAt).toISOString(), updatedAt: new Date(r.updatedAt).toISOString(),
     contactId: r.contactId, contactName: r.contactName, contactPhone: r.contactPhone,
     stageId: r.stageId, stageName: r.stageName, stageColor: r.stageColor, isWon: Boolean(r.isWon), isLost: Boolean(r.isLost),
+    isLead: Boolean(firstStageId && r.stageId === firstStageId),
   }));
 
   return <div className="mx-auto max-w-[1400px] pb-10"><DealsTable rows={data} stages={stages} /></div>;

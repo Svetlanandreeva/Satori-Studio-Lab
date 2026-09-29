@@ -25,6 +25,7 @@ export default function TodayPage() {
     .filter((d) => stageById.has(d.stageId) && !["spam", "ignore", "unqualified"].includes(String(d.qualification || "")) && d.source !== "need_number");
 
   const schedules = getDealSchedules(rows.map((d) => d.id));
+  const firstStage = stages.find((s) => !s.isWon && !s.isLost);
 
   // 1. Производство: горящие сроки и сделки без сроков
   const production = rows.filter((d) => stageById.get(d.stageId)?.name === "В производстве");
@@ -44,12 +45,12 @@ export default function TodayPage() {
     .filter((t) => t.day <= today)
     .sort((a, b) => (a.scheduledAt as Date).getTime() - (b.scheduledAt as Date).getTime());
 
-  // 3. Новые заявки — первый этап
-  const firstStage = stages.find((s) => !s.isWon && !s.isLost);
+  // 3. Новые заявки (лиды) — первый этап
   const fresh = rows.filter((d) => d.stageId === firstStage?.id).slice(0, 8);
 
-  const activeSum = rows.filter((d) => { const s = stageById.get(d.stageId); return s && !s.isWon && !s.isLost; }).reduce((n, d) => n + (Number(d.value) || 0), 0);
-  const activeCount = rows.filter((d) => { const s = stageById.get(d.stageId); return s && !s.isWon && !s.isLost; }).length;
+  const isDeal = (d: (typeof rows)[number]) => { const s = stageById.get(d.stageId); return Boolean(s && !s.isWon && !s.isLost && s.id !== firstStage?.id); };
+  const activeSum = rows.filter(isDeal).reduce((n, d) => n + (Number(d.value) || 0), 0);
+  const activeCount = rows.filter(isDeal).length;
 
   const allClear = !burning.length && !tasks.length && !noDates.length;
 
@@ -58,7 +59,7 @@ export default function TodayPage() {
       <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
         <h1 className="text-2xl font-semibold tracking-tight text-slate-950 dark:text-white">Сегодня</h1>
         <span className="text-sm text-slate-500">{new Intl.DateTimeFormat("ru-RU", { weekday: "long", day: "numeric", month: "long", timeZone: "Asia/Yekaterinburg" }).format(new Date())}</span>
-        <span className="text-sm text-slate-500">· в работе {activeCount} {activeCount === 1 ? "сделка" : "сделок"} на {money(activeSum)}</span>
+        <span className="text-sm text-slate-500">· сделок в работе {activeCount} на {money(activeSum)}</span>
       </div>
 
       {allClear && (
@@ -91,7 +92,7 @@ export default function TodayPage() {
         </Block>
       </div>
 
-      <Block icon={Inbox} title={`Новые заявки${firstStage ? ` · ${firstStage.name}` : ""}`} href="/pipeline" link="Воронка" empty="Новых заявок нет.">
+      <Block icon={Inbox} title={`Новые лиды${firstStage ? ` · ${firstStage.name}` : ""}`} href="/pipeline" link="Воронка" empty="Новых лидов нет.">
         {fresh.map((d) => <Row key={d.id} href={`/deals/${d.id}`} title={d.title || "Без названия"} sub={d.contactName || ""} right={<span className="text-[12px] text-slate-500">{new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short" }).format(d.createdAt)}{d.value ? ` · ${money(d.value)}` : ""}</span>} />)}
       </Block>
 

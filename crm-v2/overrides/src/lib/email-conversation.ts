@@ -118,6 +118,46 @@ function conversationAdjacency(): Map<string, Set<string>> {
     group.push(thread);
     groups.set(key, group);
   }
+  // Одна ветка, но разные адреса (клиент ответил с другой почты, в копии коллега,
+  // мы отвечали нескольким людям): если тема совпадает и у веток есть общий участник
+  // — это одна переписка, даже на gmail/yandex.
+  const ownAddresses = new Set(rows.filter((m) => m.direction === "outgoing").map((m) => String(m.fromEmail || "").trim().toLowerCase()).filter(Boolean));
+  const participants = new Map<string, Set<string>>();
+  for (const m of rows) {
+    const set = participants.get(m.threadId) || new Set<string>();
+    for (const raw of [m.fromEmail, ...String(m.toEmail || "").split(",")]) {
+      const address = String(raw || "").trim().toLowerCase();
+      if (address && !ownAddresses.has(address)) set.add(address);
+    }
+    participants.set(m.threadId, set);
+  }
+  for (const thread of threads) {
+    const set = participants.get(thread.id) || new Set<string>();
+    const remote = String(thread.remoteEmail || "").trim().toLowerCase();
+    if (remote) set.add(remote);
+    participants.set(thread.id, set);
+  }
+  const bySubject = new Map<string, typeof threads>();
+  for (const thread of threads) {
+    const subject = normalizeEmailSubject(thread.subject);
+    if (!subject || subject === "без темы" || subject.length < 5) continue;
+    const group = bySubject.get(subject) || [];
+    group.push(thread);
+    bySubject.set(subject, group);
+  }
+  for (const group of bySubject.values()) {
+    if (group.length < 2 || group.length > 30) continue;
+    for (let i = 0; i < group.length; i += 1) {
+      for (let j = i + 1; j < group.length; j += 1) {
+        const a = participants.get(group[i].id);
+        const b = participants.get(group[j].id);
+        if (!a || !b) continue;
+        if (Math.abs(group[i].lastMessageAt.getTime() - group[j].lastMessageAt.getTime()) > LEGACY_SUBJECT_WINDOW_MS) continue;
+        for (const address of a) { if (b.has(address)) { link(group[i].id, group[j].id); break; } }
+      }
+    }
+  }
+
   for (const group of groups.values()) {
     group.sort((a, b) => a.lastMessageAt.getTime() - b.lastMessageAt.getTime());
     for (let i = 1; i < group.length; i += 1) {

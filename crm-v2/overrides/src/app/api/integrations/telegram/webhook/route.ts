@@ -377,7 +377,9 @@ export async function POST(request: NextRequest) {
     .filter((row) => row.deal.contactId === contact.id && !row.stage.isWon && !row.stage.isLost);
 
   let newDealId: string | null = null;
-  if (!activeDeals.length && !body.startsWith("/")) {
+  // Контакты из Need Number живут в «Обзвоне», пока не подтверждена заявка.
+  const isCallListLead = contact.source === "need_number" && contact.qualification !== "qualified";
+  if (!activeDeals.length && !body.startsWith("/") && !isCallListLead) {
     const firstStage = db
       .select()
       .from(pipelineStages)
