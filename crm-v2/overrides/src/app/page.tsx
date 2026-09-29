@@ -3,6 +3,7 @@ import { AlertTriangle, ChevronLeft, ChevronRight, Factory, ListTodo } from "luc
 import { sqlite } from "@/db";
 import { normalizeLegacyDate } from "@/lib/date-normalization";
 import { describeSchedule, todayYekaterinburg } from "@/lib/deal-schedule";
+import { ensureReasonColumn } from "@/lib/qualification-reason";
 
 export const dynamic = "force-dynamic";
 
@@ -40,8 +41,15 @@ export default async function SummaryPage({ searchParams }: { searchParams?: Pro
   const serviceOnly = new Set((sqlite.prepare(`SELECT contact_id AS id FROM email_threads WHERE contact_id IS NOT NULL GROUP BY contact_id HAVING MIN(COALESCE(is_service,0))=1`).all() as Array<{ id: string }>).map((r) => r.id));
   const dealStagesByContact = new Map<string, string[]>();
   for (const r of sqlite.prepare("SELECT contact_id AS c, stage_id AS s FROM deals").all() as Array<{ c: string; s: string }>) { const l = dealStagesByContact.get(r.c) || []; l.push(r.s); dealStagesByContact.set(r.c, l); }
-  const contacts = (sqlite.prepare("SELECT id, source, qualification, created_at AS createdAt FROM contacts").all() as Array<{ id: string; source: string | null; qualification: string | null; createdAt: unknown }>)
-    .filter((c) => c.source !== "need_number" && !["contractor", "duplicate"].includes(String(c.qualification || "")) && !serviceOnly.has(c.id) && inMonth(c.createdAt))
+  // Кто написал первым: если переписку начали мы (исходящее первым), это не входящее обращение.
+  const toMs = (v: unknown) => { const n = Number(v) || 0; return n > 1e12 ? n : n * 1000; };
+  const firstMsg = new Map<string, { at: number; out: boolean }>();
+  const seen = (id: string | null, at: number, out: boolean) => { if (!id || !at) return; const f = firstMsg.get(id); if (!f || at < f.at) firstMsg.set(id, { at, out }); };
+  for (const r of sqlite.prepare("SELECT contact_id AS c, type, created_at AS at FROM activities WHERE type LIKE 'telegram%'").all() as Array<{ c: string; type: string; at: number }>) seen(r.c, toMs(r.at), r.type.includes("outgoing"));
+  for (const r of sqlite.prepare("SELECT t.contact_id AS c, m.direction AS d, m.received_at AS at FROM email_messages m JOIN email_threads t ON t.id=m.thread_id WHERE t.contact_id IS NOT NULL").all() as Array<{ c: string; d: string; at: number }>) seen(r.c, toMs(r.at), r.d === "outgoing");
+  ensureReasonColumn();
+  const contacts = (sqlite.prepare("SELECT id, source, qualification, qualification_reason AS reason, created_at AS createdAt FROM contacts").all() as Array<{ id: string; source: string | null; qualification: string | null; reason: string | null; createdAt: unknown }>)
+    .filter((c) => c.source !== "need_number" && !["contractor", "duplicate"].includes(String(c.qualification || "")) && !serviceOnly.has(c.id) && !firstMsg.get(c.id)?.out && inMonth(c.createdAt))
     .map((c) => {
       const day = (() => { const d = normalizeLegacyDate(c.createdAt); return d ? ymd(d) : ""; })();
       const taken = (dealStagesByContact.get(c.id) || []).some((sid) => sid !== first?.id);
@@ -52,6 +60,8 @@ export default async function SummaryPage({ searchParams }: { searchParams?: Pro
   for (const c of contacts) { const k = SOURCE[String(c.source || "")] || "Другое"; bySource.set(k, (bySource.get(k) || 0) + 1); }
   const cnt = (st: string) => contacts.filter((c) => c.status === st).length;
   const takenToWork = cnt("work"), junkCount = cnt("junk"), waiting = cnt("wait");
+  const junkReasons = new Map<string, number>();
+  for (const c of contacts) if (c.status === "junk") { const r = c.reason || (c.qualification === "spam" ? "Спам / реклама" : "Без причины"); junkReasons.set(r, (junkReasons.get(r) || 0) + 1); }
 
   const isOpen = (d: DealRow) => { const s = stageById.get(d.stageId)!; return !s.isWon && !s.isLost; };
   const open = deals.filter((d) => isOpen(d) && d.stageId !== first?.id);
@@ -199,7 +209,8 @@ export default async function SummaryPage({ searchParams }: { searchParams?: Pro
             <div className="mt-1 flex gap-[3px] text-center text-[9.5px] tabular-nums">
               {perDay.map((x) => <div key={x.d} className={`min-w-0 flex-1 ${x.d === today ? "font-semibold text-violet-700" : weekend(x.d) ? "text-slate-300" : "text-slate-400"}`}>{Number(x.d.slice(8))}</div>)}
             </div>
-            <p className="mt-3 text-[11.5px] text-slate-400">Считаются новые люди, которые написали сами. Не входят: сервисные письма, подрядчики, Need Number и дубли. «Ждут» — статус в «Сообщениях» ещё не поставлен.</p>
+            {junkReasons.size > 0 && <div className="mt-3 flex flex-wrap items-center gap-1.5 text-[12px]"><span className="text-slate-500">Не квал:</span>{[...junkReasons].sort((a, b) => b[1] - a[1]).map(([r, n]) => <span key={r} className="rounded-full bg-slate-100 px-2 py-0.5 text-slate-700 dark:bg-white/[.06] dark:text-slate-300">{r} · {n}</span>)}</div>}
+            <p className="mt-3 text-[11.5px] text-slate-400">Считаются новые люди, которые написали сами (если первыми написали мы — это не обращение). Не входят: сервисные письма, подрядчики, Need Number и дубли. «Ждут» — статус в «Сообщениях» ещё не поставлен.</p>
           </div>
         </section>
 

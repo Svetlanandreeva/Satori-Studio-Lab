@@ -1,10 +1,12 @@
 import { NextRequest, NextResponse } from "next/server";
 import { deleteTemplate, listTemplates, saveTemplate, writeAuditLog } from "@/lib/operations";
 import { getRequestActor } from "@/lib/request-actor";
+import { ensureDefaultTemplates } from "@/lib/default-templates";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
+  ensureDefaultTemplates();
   return NextResponse.json({ templates: listTemplates() });
 }
 

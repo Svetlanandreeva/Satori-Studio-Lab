@@ -202,7 +202,7 @@ export default function InboxPage() {
         <aside className={`${mobileChat ? "hidden md:flex" : "flex"} min-h-0 flex-col border-slate-200/80 md:border-r dark:border-white/[.08]`}>
           <div className="space-y-2.5 p-3">
             <div className="relative"><Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-slate-400" /><input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Поиск по имени, почте, нику" className="h-9 w-full rounded-xl border-0 bg-slate-100 pl-9 pr-3 text-[13px] outline-none focus:ring-2 focus:ring-slate-300 dark:bg-white/[.06]" /></div>
-            <div className="-mx-1 flex gap-0.5 overflow-x-auto px-1 [scrollbar-width:none]">
+            <div className="flex flex-wrap gap-0.5">
               {FILTERS.map((f) => { const n = unreadFor(f.value); return (
                 <button key={f.value} type="button" onClick={() => { setFilter(f.value); setShowArchived(false); }} className={`flex h-7 shrink-0 items-center gap-1 rounded-full px-[9px] text-[12px] font-medium transition ${filter === f.value ? "bg-slate-900 text-white dark:bg-white dark:text-slate-900" : "text-slate-600 hover:bg-slate-100 dark:text-slate-300 dark:hover:bg-white/[.06]"}`}>
                   {f.label}{n > 0 && <span className={`rounded-full px-1.5 text-[10px] font-bold ${filter === f.value ? "bg-white/20" : "bg-sky-500 text-white"}`}>{unreadLabel(n)}</span>}
@@ -239,7 +239,7 @@ export default function InboxPage() {
                       </div>
                     )}
                 </div>
-                <div className="order-last flex w-full items-center gap-2 overflow-x-auto sm:order-none sm:w-auto">
+                <div className="order-last flex w-full items-center gap-2 sm:order-none sm:w-auto">
                   {!detail.isService && <InboxStatus channel={detail.channel} threadId={detail.channel === "email" ? detail.threadId : null} contactId={detail.contactId || null} title={detail.title} onChanged={() => { void loadThreads(selectedKey); if (selectedKey) void loadDetail(selectedKey); }} />}
                 </div>
               </header>

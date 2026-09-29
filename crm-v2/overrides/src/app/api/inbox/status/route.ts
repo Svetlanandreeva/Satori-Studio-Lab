@@ -5,6 +5,7 @@ import { getRequestActor } from "@/lib/request-actor";
 import { writeAuditLog } from "@/lib/operations";
 import { deleteDealsCascade } from "@/lib/safe-delete";
 import { workStage } from "@/lib/work-stage";
+import { ensureReasonColumn } from "@/lib/qualification-reason";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -25,11 +26,12 @@ function openDealFor(contactId: string) {
 
 function state(contactId: string | null) {
   if (!contactId) return { status: "new" as Status, stageName: null, dealId: null };
-  const contact = sqlite.prepare("SELECT qualification FROM contacts WHERE id=?").get(contactId) as { qualification?: string } | undefined;
+  ensureReasonColumn();
+  const contact = sqlite.prepare("SELECT qualification, qualification_reason AS reason FROM contacts WHERE id=?").get(contactId) as { qualification?: string; reason?: string | null } | undefined;
   const deal = openDealFor(contactId);
   if (deal) return { status: (deal.stageId === workStage().first?.id ? "new" : "work") as Status, stageName: deal.stageName, dealId: deal.id };
   if (contact?.qualification === "contractor") return { status: "contractor" as Status, stageName: null, dealId: null };
-  if (["ignore", "spam", "unqualified"].includes(String(contact?.qualification || ""))) return { status: "ignore" as Status, stageName: null, dealId: null };
+  if (["ignore", "spam", "unqualified", "not_target"].includes(String(contact?.qualification || ""))) return { status: "ignore" as Status, stageName: null, dealId: null, reason: contact?.reason || null };
   return { status: "new" as Status, stageName: null, dealId: null };
 }
 
@@ -97,12 +99,22 @@ export async function POST(request: NextRequest) {
     } else if (status === "ignore") {
       const open = contactId ? openDealFor(contactId) : undefined;
       if (open && open.stageId !== workStage().first?.id) return NextResponse.json({ error: `У клиента открыта сделка (${open.stageName}). Переведите её в «Отказ» в карточке сделки.` }, { status: 409 });
-      if (contactId) sqlite.prepare("UPDATE contacts SET qualification='ignore', updated_at=? WHERE id=?").run(now, contactId);
-      else if (channel === "email" && threadId) setEmailThreadService(threadId, true);
+      // «Не квал» с причиной: спам → spam, остальное → unqualified (обращение было, но не наше).
+      const reason = String(body.reason || "").trim().slice(0, 200) || null;
+      if (!contactId && channel === "email" && threadId) contactId = promoteEmailThreadToCrm(threadId, { createDeal: false }).contact.id;
+      if (contactId) {
+        ensureReasonColumn();
+        const q = reason && /спам|реклам/i.test(reason) ? "spam" : "unqualified";
+        sqlite.prepare("UPDATE contacts SET qualification=?, qualification_reason=?, updated_at=? WHERE id=?").run(q, reason, now, contactId);
+        // Пустой лид с первого этапа убираем, чтобы не висел в воронке.
+        if (open) { const v = sqlite.prepare("SELECT value FROM deals WHERE id=?").get(open.id) as { value?: number } | undefined; if (!v?.value) deleteDealsCascade([open.id]); }
+      }
     } else if (contactId) {
-      sqlite.prepare("UPDATE contacts SET qualification='new', updated_at=? WHERE id=? AND qualification IN ('ignore','spam','unqualified','contractor')").run(now, contactId);
+      sqlite.prepare("UPDATE contacts SET qualification='new', updated_at=? WHERE id=? AND qualification IN ('ignore','spam','unqualified','not_target','contractor')").run(now, contactId);
+      ensureReasonColumn();
+      sqlite.prepare("UPDATE contacts SET qualification_reason=NULL WHERE id=?").run(contactId);
     }
-    writeAuditLog(actor, "inbox_status", "contact", contactId, { status, channel, threadId });
+    writeAuditLog(actor, "inbox_status", "contact", contactId, { status, channel, threadId, reason: body.reason || null });
     return NextResponse.json({ ok: true, contactId, ...state(contactId) });
   } catch (error) {
     return NextResponse.json({ error: error instanceof Error ? error.message : "Не удалось изменить статус" }, { status: 400 });
