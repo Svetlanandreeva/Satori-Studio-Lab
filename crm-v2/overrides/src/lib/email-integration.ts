@@ -1,4 +1,5 @@
 import { ImapFlow } from "imapflow";
+import { emailGroupThreadIds } from "@/lib/email-inbox-groups";
 import { simpleParser, type AddressObject, type ParsedMail } from "mailparser";
 import nodemailer from "nodemailer";
 import { desc, eq } from "drizzle-orm";
@@ -312,9 +313,13 @@ export async function replyToEmailThread(threadId: string, body: string, attachm
     content: Buffer.from(attachment.content),
     contentType: attachment.contentType || undefined,
   }));
+  // Ответ всем участникам переписки: остальные адреса этой же ветки — в копию.
+  const ccList = [...new Set(emailGroupThreadIds(threadId).filter((tid) => tid !== threadId)
+    .map((tid) => db.select().from(emailThreads).where(eq(emailThreads.id, tid)).get()?.remoteEmail || "")
+    .map((a) => a.trim().toLowerCase()).filter((a) => a && a !== String(thread.remoteEmail || "").trim().toLowerCase() && a !== String(config.address || "").toLowerCase()))];
   const fallbackText = text || (attachments.length === 1 ? `Файл: ${attachments[0].filename}` : `Файлы: ${attachments.map((item) => item.filename).join(", ")}`);
   const info = await createSmtp(config).sendMail({
-    from: { name: config.fromName, address: config.address }, to: thread.remoteEmail, subject,
+    from: { name: config.fromName, address: config.address }, to: thread.remoteEmail, cc: ccList.length ? ccList : undefined, subject,
     text: fallbackText, inReplyTo: lastMessage?.messageId || undefined,
     references: lastMessage?.messageId ? [lastMessage.messageId] : undefined,
     attachments: mailAttachments,
@@ -325,7 +330,7 @@ export async function replyToEmailThread(threadId: string, body: string, attachm
     db.insert(emailMessages).values({
       id: crypto.randomUUID(), threadId, messageId, inReplyTo: lastMessage?.messageId || null,
       references: lastMessage?.messageId || null, direction: "outgoing", folder: "CRM", remoteUid: null,
-      fromEmail: config.address, fromName: config.fromName, toEmail: thread.remoteEmail, subject,
+      fromEmail: config.address, fromName: config.fromName, toEmail: [thread.remoteEmail, ...ccList].join(", "), subject,
       bodyText: text || attachments.map((item) => `📎 ${item.filename}`).join("\n"), isService: thread.isService,
       isRead: true, receivedAt: now, createdAt: now,
     }).run();

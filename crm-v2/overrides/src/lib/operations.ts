@@ -288,11 +288,15 @@ function average(values: number[]) {
 }
 
 export function getAnalyticsSnapshot() {
-  const contacts = rows<any>("SELECT id,source FROM contacts WHERE qualification NOT IN ('spam','ignore')");
+  // Need Number — это база обзвона, а не обращения: в аналитику попадает только то,
+  // что перевели из обзвона в работу (qualified). Подрядчики и спам тоже не считаются.
+  const REAL = `COALESCE(c.qualification,'') NOT IN ('spam','ignore','contractor','duplicate')
+    AND (COALESCE(c.source,'') <> 'need_number' OR c.qualification = 'qualified')`;
+  const contacts = rows<any>(`SELECT c.id,c.source FROM contacts c WHERE ${REAL}`);
   const deals = rows<any>(`SELECT d.id,d.contact_id AS contactId,d.value,d.loss_reason AS lossReason,d.created_at AS createdAt,d.updated_at AS updatedAt,
     ps.name AS stageName,ps.is_won AS isWon,ps.is_lost AS isLost,c.source
     FROM deals d JOIN pipeline_stages ps ON ps.id=d.stage_id JOIN contacts c ON c.id=d.contact_id
-    WHERE c.qualification NOT IN ('spam','ignore')`);
+    WHERE ${REAL} AND lower(ps.name) NOT LIKE '%песочн%' AND lower(ps.name) NOT LIKE '%спам%'`);
   const won = deals.filter((item) => item.isWon);
   const lost = deals.filter((item) => item.isLost);
   const active = deals.filter((item) => !item.isWon && !item.isLost);

@@ -136,7 +136,7 @@ export function Composer({ channel, contactId, clientName, templates, sending, o
         )}
         <textarea ref={area} rows={1} value={draft} onChange={(e) => setDraft(e.target.value)}
           onKeyDown={(e) => { if (e.key === "Enter" && ((enterSends && !e.shiftKey) || e.metaKey || e.ctrlKey)) { e.preventDefault(); void submit(); } }}
-          placeholder={channel === "telegram" ? "Сообщение в Telegram…" : "Ответ по почте…"} className="block max-h-[220px] min-h-[44px] w-full resize-none bg-transparent px-3.5 py-2.5 text-[14px] leading-relaxed outline-none" />
+          placeholder={channel === "telegram" ? "Сообщение в Telegram…" : "Ответ по почте — уйдёт всем участникам…"} className="block max-h-[220px] min-h-[44px] w-full resize-none bg-transparent px-3.5 py-2.5 text-[14px] leading-relaxed outline-none" />
         <div className="flex items-center gap-1 px-2 pb-2">
           <button type="button" onClick={() => setMenu(menu === "attach" ? null : "attach")} className={`flex h-8 items-center gap-1 rounded-lg px-2 text-[12.5px] font-medium ${menu === "attach" || menu === "client" ? "bg-slate-200 dark:bg-white/[.1]" : "text-slate-600 hover:bg-slate-200/70 dark:hover:bg-white/[.06]"}`}><Plus className="h-4 w-4" />Вложить<ChevronDown className="h-3 w-3 opacity-60" /></button>
           <button type="button" onClick={() => setMenu(menu === "templates" ? null : "templates")} className={`flex h-8 items-center gap-1 rounded-lg px-2 text-[12.5px] font-medium ${menu === "templates" ? "bg-slate-200 dark:bg-white/[.1]" : "text-slate-600 hover:bg-slate-200/70 dark:hover:bg-white/[.06]"}`}><MessageSquareText className="h-4 w-4" />Шаблоны</button>

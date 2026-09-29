@@ -17,7 +17,7 @@ export default async function DealsPage() {
     .filter((d) => {
       // Спам, парсер и служебные письма в список сделок не попадают.
       if (d.stageName === SPAM_STAGE_NAME) return false;
-      if (d.contactSource === "need_number" || ["spam", "unqualified", "ignore"].includes(String(d.qualification || "").toLowerCase())) return false;
+      if ((d.contactSource === "need_number" && d.qualification !== "qualified") || ["spam", "unqualified", "ignore"].includes(String(d.qualification || "").toLowerCase())) return false;
       const hay = `${d.title || ""} ${d.contactName || ""} ${d.notes || ""}`.toLowerCase();
       return !/elama|e-lama|ai-маркетолог|ticket#|mailer-daemon|no-reply|noreply/.test(hay);
     });

@@ -30,7 +30,7 @@ export default async function SummaryPage({ searchParams }: { searchParams?: Pro
   const stageById = new Map(stages.map((s) => [s.id, s]));
   const first = stages.find((s) => !s.isWon && !s.isLost);
 
-  const junk = (q: unknown, src: unknown) => ["spam", "ignore", "unqualified"].includes(String(q || "")) || src === "need_number";
+  const junk = (q: unknown, src: unknown) => ["spam", "ignore", "unqualified", "contractor"].includes(String(q || "")) || (src === "need_number" && q !== "qualified");
   const deals = (sqlite.prepare(`SELECT d.id, d.title, d.value, d.stage_id AS stageId, d.created_at AS createdAt, d.updated_at AS updatedAt, d.notes,
       c.name AS contactName, c.source, c.qualification FROM deals d LEFT JOIN contacts c ON c.id=d.contact_id`).all() as DealRow[])
     .filter((d) => stageById.has(d.stageId) && !junk(d.qualification, d.source));

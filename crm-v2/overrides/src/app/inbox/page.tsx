@@ -89,7 +89,7 @@ export default function InboxPage() {
         setDetail({ channel, threadId: id, contactId: p.contact?.id || id, title: p.contact?.name || p.thread?.remoteName || "Telegram", subtitle: [p.thread?.remoteHandle, p.thread?.channel === "telegram_account" ? "личный Telegram" : "Telegram-бот"].filter(Boolean).join(" · "), isService: false, documents: p.documents || [], messages: (p.messages || []).map((m: any) => ({ id: m.id, direction: m.direction, bodyText: m.bodyText || "", receivedAt: m.receivedAt, sender: null, sourceMessageId: m.sourceMessageId || null })) });
       } else {
         const r = await fetch(`/api/inbox/${encodeURIComponent(id)}`, { cache: "no-store" }); const p = await r.json(); if (!r.ok) throw new Error(p.error || "Не удалось открыть письмо");
-        setDetail({ channel, threadId: id, contactId: p.contact?.id || p.thread?.contactId || null, title: p.contact?.name || p.thread?.remoteName || p.thread?.remoteEmail || "Почта", subtitle: [p.thread?.remoteEmail, p.thread?.subject].filter(Boolean).join(" · "), isService: Boolean(p.thread?.isService), documents: p.documents || [], messages: (p.messages || []).map((m: any) => ({ id: m.id, direction: m.direction, bodyText: m.bodyText || "", receivedAt: m.receivedAt, sender: m.direction === "outgoing" ? null : m.fromName || m.fromEmail, sourceMessageId: m.sourceMessageId || null })) });
+        setDetail({ channel, threadId: id, contactId: p.contact?.id || p.thread?.contactId || null, title: p.contact?.name || p.thread?.remoteName || p.thread?.remoteEmail || "Почта", subtitle: [(p.addresses?.length ? p.addresses : [p.thread?.remoteEmail]).filter(Boolean).join(", "), p.thread?.subject].filter(Boolean).join(" · "), isService: Boolean(p.thread?.isService), documents: p.documents || [], messages: (p.messages || []).map((m: any) => ({ id: m.id, direction: m.direction, bodyText: m.bodyText || "", receivedAt: m.receivedAt, sender: m.direction === "outgoing" ? null : m.fromName || m.fromEmail, sourceMessageId: m.sourceMessageId || null })) });
       }
       setThreads((cur) => cur.map((t) => (t.key === key ? { ...t, unreadCount: 0 } : t))); emitUnreadMessagesChanged();
     } catch (e) { toast.error(e instanceof Error ? e.message : "Ошибка диалога"); }
@@ -152,7 +152,7 @@ export default function InboxPage() {
           const day = toDate(m.receivedAt).toDateString();
           const showDay = day !== lastDay; lastDay = day;
           const prev = detail.messages[i - 1];
-          const grouped = !showDay && prev && prev.direction === m.direction;
+          const grouped = !showDay && prev && prev.direction === m.direction && (prev.sender || "") === (m.sender || "");
           return (
             <Fragment key={m.id}>
               {showDay && <div className="sticky top-0 z-10 flex justify-center py-2"><span className="rounded-full bg-white/90 px-3 py-1 text-[11px] font-medium text-slate-500 shadow-sm backdrop-blur dark:bg-[#1c1f25]/90">{dayTitle(m.receivedAt)}</span></div>}
