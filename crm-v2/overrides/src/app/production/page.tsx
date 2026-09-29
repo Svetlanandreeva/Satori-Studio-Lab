@@ -5,12 +5,14 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { CheckCircle2, ChevronDown, Loader2, Search } from "lucide-react";
 import { toast } from "sonner";
 import { deadlineBadge } from "@/components/deals/DealMoneyDates";
+import { ProjectPanel } from "@/components/production/ProjectPanel";
 
 type Step = { id: string; key: string; title: string; done: boolean; sortOrder: number };
 type Project = {
   dealId: string; title: string; contactId: string; contactName: string; company?: string | null; stageName: string;
   orderedAt?: string | null; productionTermDays?: number | null; contractDeadline?: string | null; shippedAt?: string | null;
   productionDays?: number | null; checklist: Step[]; checklistProgress: number;
+  directCost?: number; profit?: number; receivedAmount?: number;
 };
 
 const short = (d: string) => new Intl.DateTimeFormat("ru-RU", { day: "numeric", month: "short" }).format(new Date(`${d}T12:00:00Z`));
@@ -23,6 +25,7 @@ export default function ProductionPage() {
   const [search, setSearch] = useState("");
   const [open, setOpen] = useState<string | null>(null);
   const [busy, setBusy] = useState<string | null>(null);
+  const [panel, setPanel] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -82,9 +85,9 @@ export default function ProductionPage() {
             const expanded = open === p.dealId;
             return (
               <div key={p.dealId} className={`rounded-2xl border bg-white shadow-sm dark:bg-[#16181d] ${badge?.tone === "red" ? "border-rose-200" : "border-slate-200/80 dark:border-white/[.08]"}`}>
-                <div className="grid items-center gap-3 px-4 py-3 sm:grid-cols-[minmax(0,1fr)_210px_150px_32px]">
+                <div className="grid items-center gap-3 px-4 py-3 sm:grid-cols-[minmax(0,1fr)_210px_170px_32px]">
                   <div className="min-w-0">
-                    <Link href={`/deals/${p.dealId}`} className="block truncate text-[15px] font-medium text-slate-900 hover:underline dark:text-white">{p.title}</Link>
+                    <button type="button" onClick={() => setPanel(p.dealId)} className="block max-w-full truncate text-left text-[15px] font-medium text-slate-900 hover:underline dark:text-white">{p.title}</button>
                     <div className="truncate text-[12.5px] text-slate-500">{p.contactName}{p.company ? ` · ${p.company}` : ""}</div>
                   </div>
                   <div>
@@ -94,11 +97,12 @@ export default function ProductionPage() {
                         {badge && <span className={`mt-0.5 inline-flex rounded-full px-2 py-0.5 text-[11px] font-medium ring-1 ${toneClass[badge.tone]}`}>{badge.text}</span>}
                       </>
                     ) : (
-                      <Link href={`/deals/${p.dealId}`} className="text-[13px] font-medium text-violet-700 hover:underline">Указать дату оплаты и срок →</Link>
+                      <button type="button" onClick={() => setPanel(p.dealId)} className="text-left text-[13px] font-medium text-violet-700 hover:underline">Указать дату оплаты и срок →</button>
                     )}
                   </div>
                   <div className="text-[12px] leading-5 text-slate-500">
                     {p.orderedAt ? <>оплата {short(p.orderedAt)}{p.productionTermDays ? ` · ${p.productionTermDays} дн.` : ""}<br />в работе {p.productionDays ?? 0} дн.</> : <span className="text-slate-400">оплата не отмечена</span>}
+                    <br /><button type="button" onClick={() => setPanel(p.dealId)} className="font-medium text-slate-700 hover:underline dark:text-slate-300">затраты {new Intl.NumberFormat("ru-RU", { style: "currency", currency: "RUB", maximumFractionDigits: 0 }).format((Number(p.directCost) || 0) / 100)} →</button>
                   </div>
                   <button onClick={() => setOpen(expanded ? null : p.dealId)} className="hidden h-8 w-8 items-center justify-center rounded-lg text-slate-400 hover:bg-slate-100 sm:flex" aria-label="Чек-лист"><ChevronDown className={`h-4 w-4 transition ${expanded ? "rotate-180" : ""}`} /></button>
                 </div>
@@ -119,6 +123,7 @@ export default function ProductionPage() {
           })}
         </div>
       )}
+      <ProjectPanel dealId={panel} onClose={() => setPanel(null)} onChanged={() => void load()} />
     </div>
   );
 }

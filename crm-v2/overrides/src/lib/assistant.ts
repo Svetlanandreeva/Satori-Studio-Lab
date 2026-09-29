@@ -316,11 +316,11 @@ function analyzeProjectsAndFinance(insights: AssistantInsightInput[]) {
     if (status === "overdue") {
       insights.push({ severity: "critical", category: "projects", title: `Просрочен проект: ${name}`,
         detail: `Просрочка ${Number(p.overdueDays || 0)} дн. Нужно обновить фактический статус и согласовать новый срок.`,
-        entityType: "deal", entityId: dealId, actionUrl: "/projects", fingerprint: `project-overdue:${dealId}` });
+        entityType: "deal", entityId: dealId, actionUrl: "/production", fingerprint: `project-overdue:${dealId}` });
     } else if (status === "due_today" || status === "due_soon") {
       insights.push({ severity: status === "due_today" ? "critical" : "warning", category: "projects", title: `Срок близко: ${name}`,
         detail: status === "due_today" ? "Срок по проекту сегодня." : `До срока ${Number(p.daysRemaining || 0)} дн.`,
-        entityType: "deal", entityId: dealId, actionUrl: "/projects", fingerprint: `project-due:${dealId}` });
+        entityType: "deal", entityId: dealId, actionUrl: "/production", fingerprint: `project-due:${dealId}` });
     }
     const received = money(p.receivedAmount); const profit = money(p.profit); const margin = Number(p.margin || 0);
     if (economicsIds.size && !economicsIds.has(dealId)) {

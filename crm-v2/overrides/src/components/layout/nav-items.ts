@@ -1,5 +1,5 @@
 import {
-  BarChart3, Banknote, Boxes, CalendarClock, Factory, FolderKanban, Handshake, Kanban,
+  BarChart3, Banknote, Boxes, CalendarClock, Factory, Handshake, Kanban,
   LayoutDashboard, MessageCircle, PhoneCall, ShieldCheck, Sparkles, Sun, Users,
 } from "lucide-react";
 
@@ -20,7 +20,6 @@ export const PRIMARY_NAV: NavItem[] = [
 export const SECONDARY_NAV: NavItem[] = [
   { href: "/economics", label: "Деньги", icon: Banknote, hint: "Поступления и расходы" },
   { href: "/procurement", label: "Закупки", icon: Boxes, hint: "Материалы" },
-  { href: "/projects", label: "Проекты", icon: FolderKanban, hint: "Треки и сроки доставки" },
   { href: "/analytics", label: "Аналитика", icon: BarChart3, hint: "Продажи и источники" },
   { href: "/summary", label: "Сводка", icon: LayoutDashboard, hint: "Цифры за день и месяц" },
   { href: "/assistant", label: "AI помощник", icon: Sparkles, hint: "Срез по CRM" },
