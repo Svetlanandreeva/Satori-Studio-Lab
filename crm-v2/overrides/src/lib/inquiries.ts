@@ -13,6 +13,11 @@ export type Inquiry = { id: string; source: string | null; qualification: string
  * status: work — есть сделка дальше первого этапа; junk — не квал/спам; wait — ещё не разобрано.
  */
 export function monthInquiries(month: string): Inquiry[] {
+  return rangeInquiries(`${month}-01`, `${month}-31`);
+}
+
+/** То же за произвольный период [from, to] включительно (YYYY-MM-DD). */
+export function rangeInquiries(from: string, to: string): Inquiry[] {
   const firstStage = (sqlite.prepare(`SELECT id FROM pipeline_stages WHERE COALESCE(is_won,0)=0 AND COALESCE(is_lost,0)=0 AND lower(name) NOT LIKE '%песочн%' AND lower(name) NOT LIKE '%спам%' ORDER BY "order" LIMIT 1`).get() as { id?: string } | undefined)?.id;
   const serviceOnly = new Set((sqlite.prepare(`SELECT contact_id AS id FROM email_threads WHERE contact_id IS NOT NULL GROUP BY contact_id HAVING MIN(COALESCE(is_service,0))=1`).all() as Array<{ id: string }>).map((r) => r.id));
   const dealsByContact = new Map<string, Array<{ stage: string; paid: boolean }>>();
@@ -28,7 +33,7 @@ export function monthInquiries(month: string): Inquiry[] {
   ensureReasonColumn();
   return (sqlite.prepare("SELECT id, source, qualification, qualification_reason AS reason, created_at AS createdAt FROM contacts").all() as Array<{ id: string; source: string | null; qualification: string | null; reason: string | null; createdAt: unknown }>)
     .map((c) => ({ ...c, day: (() => { const d = normalizeLegacyDate(c.createdAt); return d ? ymd(d) : ""; })() }))
-    .filter((c) => c.day.startsWith(month) && c.source !== "need_number" && !["contractor", "duplicate"].includes(String(c.qualification || "")) && !serviceOnly.has(c.id) && !firstMsg.get(c.id)?.out)
+    .filter((c) => c.day >= from && c.day <= to && c.source !== "need_number" && !["contractor", "duplicate"].includes(String(c.qualification || "")) && !serviceOnly.has(c.id) && !firstMsg.get(c.id)?.out)
     .map((c) => {
       const deals = dealsByContact.get(c.id) || [];
       const taken = deals.some((d) => d.stage !== firstStage);
