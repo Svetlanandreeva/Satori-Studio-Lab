@@ -12,6 +12,12 @@ const MANAGEMENT_PHONE_HREF = "+79935195141";
 const MANAGEMENT_TELEGRAM_HANDLE = "she_knows_s";
 const MANAGEMENT_TELEGRAM_URL = `https://t.me/${MANAGEMENT_TELEGRAM_HANDLE}`;
 
+const SELLER_INN = "668400302968";
+const SELLER_LEGAL_NAME = "ИП Рассыхаева Светлана Андреевна";
+const LEGACY_SELLER_WITH_STATUS = `Белоглазова Светлана Андреевна, плательщик налога на профессиональный доход (самозанятая), ИНН ${SELLER_INN}`;
+const LEGACY_OPERATOR_WITH_STATUS = `Белоглазова Светлана Андреевна, плательщик налога на профессиональный доход, ИНН ${SELLER_INN}`;
+const SELLER_LEGAL_DETAILS = `${SELLER_LEGAL_NAME}, ИНН ${SELLER_INN}`;
+
 function isManagementNode(node: Node) {
   const el = node.nodeType === Node.ELEMENT_NODE ? node as Element : node.parentElement;
   return !!el?.closest("[data-satori-management-contact]");
@@ -30,7 +36,9 @@ function replaceVisibleContacts(root: ParentNode = document) {
       .replaceAll("+7 (993) 519-51-41", MAIN_PHONE)
       .replaceAll("+79935195141", MAIN_PHONE_HREF)
       .replaceAll(`@${MANAGEMENT_TELEGRAM_HANDLE}`, `@${MAIN_TELEGRAM_HANDLE}`)
-      .replaceAll(MANAGEMENT_TELEGRAM_HANDLE, MAIN_TELEGRAM_HANDLE);
+      .replaceAll(MANAGEMENT_TELEGRAM_HANDLE, MAIN_TELEGRAM_HANDLE)
+      .replaceAll(LEGACY_SELLER_WITH_STATUS, SELLER_LEGAL_DETAILS)
+      .replaceAll(LEGACY_OPERATOR_WITH_STATUS, SELLER_LEGAL_DETAILS);
     if (next !== value) node.nodeValue = next;
   }
 
