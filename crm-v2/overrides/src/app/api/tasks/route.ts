@@ -52,10 +52,10 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json() as Record<string, unknown>;
     const description = String(body.description || "").trim();
-    const contactId = String(body.contactId || "").trim();
-    if (!description || !contactId) return NextResponse.json({ error: "Укажите задачу и клиента" }, { status: 400 });
-    const contact = db.select().from(contacts).where(eq(contacts.id, contactId)).get();
-    if (!contact) return NextResponse.json({ error: "Клиент не найден" }, { status: 404 });
+    // Клиент необязателен: задача может быть внутренней, без привязки к клиенту.
+    const contactId = String(body.contactId || "").trim() || null;
+    if (!description) return NextResponse.json({ error: "Укажите, что сделать" }, { status: 400 });
+    if (contactId && !db.select().from(contacts).where(eq(contacts.id, contactId)).get()) return NextResponse.json({ error: "Клиент не найден" }, { status: 404 });
     const scheduledAt = body.scheduledAt ? new Date(String(body.scheduledAt)) : new Date();
     if (Number.isNaN(scheduledAt.getTime())) return NextResponse.json({ error: "Некорректная дата" }, { status: 400 });
     const priority = ["low", "normal", "high", "urgent"].includes(String(body.priority)) ? String(body.priority) : "normal";
@@ -64,7 +64,7 @@ export async function POST(request: NextRequest) {
     const ownerId = actor.role === "owner" ? (String(body.ownerId || "").trim() || null) : actor.id;
     const result = db.insert(activities).values({
       id: crypto.randomUUID(), type: "task", description, contactId,
-      dealId: body.dealId ? String(body.dealId) : null,
+      dealId: contactId && body.dealId ? String(body.dealId) : null,
       ownerId: ownerId || actor.id,
       priority,
       scheduledAt,
