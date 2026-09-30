@@ -36,6 +36,7 @@ import { startDesignerExperience } from "./designerExperience";
 import { startDesignerReadability } from "./designerReadability";
 import { startHomepageSectionStability } from "./homepageSectionStability";
 import { startNaZakazPage } from "./naZakazPage";
+import { startNaZakazImageQuality } from "./naZakazImageQuality";
 import { startNaZakazSalesUpgrade } from "./naZakazSalesUpgrade";
 
 const isAdmin = window.location.pathname.startsWith("/admin");
@@ -67,6 +68,7 @@ if (!isAdmin) {
   startMadeToOrderPresentation();
   startSeoRoutes();
   startNaZakazPage();
+  startNaZakazImageQuality();
   startNaZakazSalesUpgrade();
   startSeoEnhancements();
   startContactOverrides();
