@@ -49,9 +49,9 @@ async function alertDueTasks() {
   const now = Date.now();
   const horizon = now + 15 * 60 * 1000;
   const tasks = sqlite.prepare(`SELECT a.id,a.description,a.scheduled_at AS scheduledAt,a.priority,c.name AS contactName
-      FROM activities a JOIN contacts c ON c.id=a.contact_id
+      FROM activities a LEFT JOIN contacts c ON c.id=a.contact_id
       WHERE a.completed_at IS NULL AND a.scheduled_at IS NOT NULL AND a.scheduled_at<=?
-      ORDER BY a.scheduled_at ASC LIMIT 30`).all(horizon) as Array<{ id: string; description: string; scheduledAt: number; priority: string; contactName: string }>;
+      ORDER BY a.scheduled_at ASC LIMIT 30`).all(horizon) as Array<{ id: string; description: string; scheduledAt: number; priority: string; contactName: string | null }>;
 
   for (const task of tasks) {
     const marker = `satori_ops_task_alert:${task.id}:${task.scheduledAt}`;
@@ -61,7 +61,7 @@ async function alertDueTasks() {
     const result = await sendTelegramMessage({
       token,
       chatId,
-      text: `${prefix} <b>${overdue ? "Просроченная задача" : "Задача скоро"}</b>\n${escape(task.description)}\nКлиент: ${escape(task.contactName)}\nСрок: ${escape(formatDate(task.scheduledAt))}`,
+      text: `${prefix} <b>${overdue ? "Просроченная задача" : "Задача скоро"}</b>\n${escape(task.description)}${task.contactName ? `\nКлиент: ${escape(task.contactName)}` : ""}\nСрок: ${escape(formatDate(task.scheduledAt))}`,
       url: `https://crm.satorilabural.online/tasks`,
     });
     if (result.sent) setSetting(marker, new Date().toISOString());
