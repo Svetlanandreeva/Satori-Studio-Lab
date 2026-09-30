@@ -240,6 +240,43 @@ function initTables(database: Database.Database): void {
   addColumn(database, "deals", "ALTER TABLE deals ADD COLUMN loss_reason TEXT", "loss_reason");
   addColumn(database, "activities", "ALTER TABLE activities ADD COLUMN owner_id TEXT", "owner_id");
   addColumn(database, "activities", "ALTER TABLE activities ADD COLUMN priority TEXT NOT NULL DEFAULT 'normal'", "priority");
+  makeActivityContactOptional(database);
+}
+
+/**
+ * Задача может быть без клиента (внутренние дела). В SQLite нельзя снять NOT NULL
+ * через ALTER, поэтому таблица activities один раз пересобирается с теми же колонками.
+ */
+function makeActivityContactOptional(database: Database.Database): void {
+  try {
+    const cols = database.prepare("PRAGMA table_info(activities)").all() as Array<{ name: string; notnull: number }>;
+    if (!cols.find((c) => c.name === "contact_id")?.notnull) return;
+    const row = database.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='activities'").get() as { sql: string } | undefined;
+    if (!row?.sql) return;
+    const createSql = row.sql
+      .replace(/^CREATE TABLE\s+["`\[]?activities["`\]]?/i, "CREATE TABLE activities_new")
+      .replace(/(["`\[]?contact_id["`\]]?\s+text)\s+not null/i, "$1");
+    if (!createSql.startsWith("CREATE TABLE activities_new") || /contact_id["`\]]?\s+text\s+not null/i.test(createSql)) throw new Error("unexpected activities schema");
+    const indexes = (database.prepare("SELECT sql FROM sqlite_master WHERE type='index' AND tbl_name='activities' AND sql IS NOT NULL").all() as Array<{ sql: string }>).map((i) => i.sql);
+    const list = cols.map((c) => `"${c.name}"`).join(",");
+    // foreign_keys нельзя переключать внутри транзакции; без этого DROP снёс бы связанные строки.
+    database.pragma("foreign_keys = OFF");
+    try {
+      database.transaction(() => {
+        database.exec("DROP TABLE IF EXISTS activities_new");
+        database.exec(createSql);
+        database.exec(`INSERT INTO activities_new (${list}) SELECT ${list} FROM activities`);
+        database.exec("DROP TABLE activities");
+        database.exec("ALTER TABLE activities_new RENAME TO activities");
+        for (const sql of indexes) database.exec(sql);
+      })();
+    } finally {
+      database.pragma("foreign_keys = ON");
+    }
+    console.log("CRM migration: activities.contact_id is now optional");
+  } catch (error) {
+    console.error("CRM migration failed: activities.contact_id optional", error);
+  }
 }
 
 function seedDefaultStages(database: Database.Database): void {
