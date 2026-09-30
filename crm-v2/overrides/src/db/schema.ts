@@ -133,9 +133,7 @@ export const activities = sqliteTable("activities", {
     .$defaultFn(() => crypto.randomUUID()),
   type: text("type").notNull(),
   description: text("description").notNull(),
-  contactId: text("contact_id")
-    .notNull()
-    .references(() => contacts.id),
+  contactId: text("contact_id").references(() => contacts.id),
   dealId: text("deal_id").references(() => deals.id),
   ownerId: text("owner_id").references(() => teamMembers.id),
   priority: text("priority").notNull().default("normal"),
