@@ -86,7 +86,7 @@ export default async function SummaryPage({ searchParams }: { searchParams?: Pro
   // 3. Задачи на сегодня и просроченные.
   // Менеджер видит в «Сегодня» только свои задачи.
   const tasks = (sqlite.prepare(`SELECT a.id, a.description, a.scheduled_at AS scheduledAt, a.contact_id AS contactId, c.name AS contactName FROM activities a LEFT JOIN contacts c ON c.id=a.contact_id
-      WHERE a.completed_at IS NULL AND a.scheduled_at IS NOT NULL ${owner ? "" : "AND a.owner_id = ?"}`).all(...(owner ? [] : [actor.id])) as Array<{ id: string; description: string; scheduledAt: unknown; contactId: string; contactName: string | null }>)
+      WHERE a.completed_at IS NULL AND a.scheduled_at IS NOT NULL ${owner ? "" : "AND a.owner_id = ?"}`).all(...(owner ? [] : [actor.id])) as Array<{ id: string; description: string; scheduledAt: unknown; contactId: string | null; contactName: string | null }>)
     .map((t) => ({ ...t, day: (() => { const d = normalizeLegacyDate(t.scheduledAt); return d ? ymd(d) : "9999"; })() }))
     .filter((t) => t.day <= today).sort((a, b) => a.day.localeCompare(b.day));
 
@@ -176,7 +176,7 @@ export default async function SummaryPage({ searchParams }: { searchParams?: Pro
             const text = left < 0 ? `просрочено ${-left} ${plural(-left, "день", "дня", "дней")}` : left === 0 ? "дедлайн сегодня" : `дедлайн через ${left} ${plural(left, "день", "дня", "дней")}`;
             return <Row key={d.id} href={`/deals/${d.id}`} title={d.title} sub={d.contactName || ""} right={<span className={`rounded-md px-2 py-0.5 text-[12px] font-medium ${left <= 0 ? "bg-rose-50 text-rose-700" : "bg-amber-50 text-amber-800"}`}>{text}</span>} />;
           })}
-          {tasks.slice(0, 6).map((t) => <Row key={t.id} href={`/contacts/${t.contactId}`} title={t.description} sub={t.contactName || ""} right={<span className={`text-[12px] ${t.day < today ? "font-medium text-rose-600" : "text-slate-500"}`}>{t.day < today ? `задача с ${dayMonth(t.day)}` : "задача"}</span>} />)}
+          {tasks.slice(0, 6).map((t) => <Row key={t.id} href={t.contactId ? `/contacts/${t.contactId}` : "/tasks"} title={t.description} sub={t.contactName || ""} right={<span className={`text-[12px] ${t.day < today ? "font-medium text-rose-600" : "text-slate-500"}`}>{t.day < today ? `задача с ${dayMonth(t.day)}` : "задача"}</span>} />)}
           {tasks.length > 6 && <Link href="/tasks" className="block px-4 py-2.5 text-[13px] text-slate-500 hover:text-slate-900">И ещё {tasks.length - 6} задач →</Link>}
         </Block>
       ) : (
