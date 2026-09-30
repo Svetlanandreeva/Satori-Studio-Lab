@@ -5,13 +5,15 @@ type ProductMedia = {
 
 type GalleryMedia = { url?: string };
 type HeroMedia = { type?: string | null; url?: string | null; slides?: Array<{ type?: string; url?: string }> };
-type ProbedImage = { url: string; width: number; height: number; area: number; aspect: number };
+
+type PreferredMedia = {
+  hero: string[];
+  gallery: string[];
+  products: string[];
+};
 
 const PAGE_PATHS = new Set(["/na-zakaz", "/custom"]);
-const MAX_CANDIDATES = 36;
-const PROBE_TIMEOUT_MS = 7000;
-
-let qualityPromise: Promise<ProbedImage[]> | null = null;
+let mediaPromise: Promise<PreferredMedia> | null = null;
 let scheduled = false;
 
 function cleanPath() {
@@ -44,137 +46,91 @@ async function fetchJson(url: string, fallback: unknown) {
   }
 }
 
-async function collectCandidateUrls() {
-  const [productsRaw, galleryRaw, heroRaw] = await Promise.all([
+async function getPreferredMedia() {
+  if (mediaPromise) return mediaPromise;
+  mediaPromise = Promise.all([
     fetchJson("/api/products", []),
     fetchJson("/api/gallery", []),
     fetchJson("/api/hero", {}),
-  ]);
+  ]).then(([productsRaw, galleryRaw, heroRaw]) => {
+    const products = (Array.isArray(productsRaw) ? productsRaw : []) as ProductMedia[];
+    const gallery = (Array.isArray(galleryRaw) ? galleryRaw : []) as GalleryMedia[];
+    const hero = (heroRaw || {}) as HeroMedia;
 
-  const products = (Array.isArray(productsRaw) ? productsRaw : []) as ProductMedia[];
-  const gallery = (Array.isArray(galleryRaw) ? galleryRaw : []) as GalleryMedia[];
-  const hero = (heroRaw || {}) as HeroMedia;
+    const heroUrls = unique([
+      hero.type === "image" ? uploadUrl(hero.url) : null,
+      ...(hero.slides || []).filter((slide) => slide.type === "image").map((slide) => uploadUrl(slide.url)),
+    ]);
+    const galleryUrls = unique(gallery.map((item) => uploadUrl(item.url)));
+    const productUrls = unique(products.flatMap((product) => [
+      uploadUrl(product.img),
+      ...(product.imgs || []).map(uploadUrl),
+    ]));
 
-  return unique([
-    hero.type === "image" ? uploadUrl(hero.url) : null,
-    ...(hero.slides || []).filter((slide) => slide.type === "image").map((slide) => uploadUrl(slide.url)),
-    ...products.flatMap((product) => [uploadUrl(product.img), ...(product.imgs || []).map(uploadUrl)]),
-    ...gallery.map((item) => uploadUrl(item.url)),
-  ]).slice(0, MAX_CANDIDATES);
-}
-
-function probeImage(url: string) {
-  return new Promise<ProbedImage | null>((resolve) => {
-    const image = new Image();
-    let settled = false;
-    const finish = (value: ProbedImage | null) => {
-      if (settled) return;
-      settled = true;
-      window.clearTimeout(timer);
-      resolve(value);
-    };
-    const timer = window.setTimeout(() => finish(null), PROBE_TIMEOUT_MS);
-    image.decoding = "async";
-    image.onload = () => {
-      const width = image.naturalWidth || 0;
-      const height = image.naturalHeight || 0;
-      if (!width || !height) return finish(null);
-      finish({ url, width, height, area: width * height, aspect: width / height });
-    };
-    image.onerror = () => finish(null);
-    image.src = url;
+    return { hero: heroUrls, gallery: galleryUrls, products: productUrls };
   });
+  return mediaPromise;
 }
 
-async function getQualityPool() {
-  if (!qualityPromise) {
-    qualityPromise = collectCandidateUrls()
-      .then((urls) => Promise.all(urls.map(probeImage)))
-      .then((items) => items.filter((item): item is ProbedImage => Boolean(item)))
-      .then((items) => items.sort((a, b) => b.area - a.area));
-  }
-  return qualityPromise;
-}
-
-function currentHeroUrl(hero: HTMLElement) {
-  const raw = hero.style.getPropertyValue("--satori-nz-hero");
-  const match = raw.match(/url\(["']?([^"')]+)["']?\)/i);
-  return uploadUrl(match?.[1]);
-}
-
-function pickHero(pool: ProbedImage[], used: Set<string>, current?: ProbedImage) {
-  const preferred = pool
-    .filter((item) => !used.has(item.url))
-    .filter((item) => item.width >= 1600 && item.height >= 850 && item.aspect >= 1.25 && item.aspect <= 2.5)
-    .sort((a, b) => {
-      const aFit = 1 - Math.min(Math.abs(a.aspect - 2.0), 1) * 0.25;
-      const bFit = 1 - Math.min(Math.abs(b.aspect - 2.0), 1) * 0.25;
-      return (b.area * bFit) - (a.area * aFit);
-    });
-  const candidate = preferred[0] || pool.find((item) => !used.has(item.url) && item.width >= 1400 && item.height >= 800);
-  if (!candidate) return null;
-  if (current && current.width >= 1600 && current.height >= 850 && current.area >= candidate.area * 0.72) return null;
-  return candidate;
-}
-
-function pickForImage(pool: ProbedImage[], used: Set<string>, current: ProbedImage | undefined, minShortSide: number) {
-  if (current && Math.min(current.width, current.height) >= minShortSide) return null;
-  const candidate = pool.find((item) => !used.has(item.url) && Math.min(item.width, item.height) >= minShortSide);
-  if (!candidate) return null;
-  if (current && candidate.area < current.area * 1.25) return null;
-  return candidate;
+function applyImage(image: HTMLImageElement, url: string) {
+  if (!url || image.getAttribute("src") === url) return;
+  image.src = url;
+  image.removeAttribute("srcset");
+  image.decoding = "async";
+  image.style.imageRendering = "auto";
 }
 
 async function upgradeNaZakazImages() {
   if (!PAGE_PATHS.has(cleanPath())) return;
   const page = document.querySelector<HTMLElement>(".satori-nz-page");
-  if (!page || page.dataset.satoriImageQuality === "1") return;
+  if (!page || page.dataset.satoriImageQuality === "2") return;
 
-  const pool = await getQualityPool();
-  if (!pool.length || !page.isConnected || !PAGE_PATHS.has(cleanPath())) return;
+  const media = await getPreferredMedia();
+  if (!page.isConnected || !PAGE_PATHS.has(cleanPath())) return;
 
-  const byUrl = new Map(pool.map((item) => [item.url, item]));
+  // The old custom page picked product thumbnails first and stretched them into a 1344px hero.
+  // Prefer the site's dedicated hero originals, then gallery originals, and only then product media.
+  const ordered = unique([...media.hero, ...media.gallery, ...media.products]);
+  if (!ordered.length) return;
+
   const used = new Set<string>();
-
+  const heroUrl = media.hero[0] || media.gallery[0] || media.products[0];
   const hero = page.querySelector<HTMLElement>(".satori-nz-hero");
-  if (hero) {
-    const currentUrl = currentHeroUrl(hero);
-    if (currentUrl) used.add(currentUrl);
-    const current = currentUrl ? byUrl.get(currentUrl) : undefined;
-    const replacement = pickHero(pool, used, current);
-    if (replacement) {
-      hero.style.setProperty("--satori-nz-hero", `url("${replacement.url}")`);
-      used.add(replacement.url);
-    }
+  if (hero && heroUrl) {
+    hero.style.setProperty("--satori-nz-hero", `url("${heroUrl}")`);
+    hero.style.backgroundPosition = "center";
+    used.add(heroUrl);
   }
 
+  // Large category cards should use originals from the curated gallery before catalog thumbnails.
+  const cardPool = unique([
+    ...media.gallery,
+    ...media.hero.slice(1),
+    ...media.products,
+  ]).filter((url) => !used.has(url));
   const cards = Array.from(page.querySelectorAll<HTMLImageElement>(".satori-nz-photo-card img"));
-  for (const image of cards) {
-    const currentUrl = uploadUrl(image.getAttribute("src"));
-    if (currentUrl) used.add(currentUrl);
-    const replacement = pickForImage(pool, used, currentUrl ? byUrl.get(currentUrl) : undefined, 900);
-    if (replacement) {
-      image.src = replacement.url;
-      image.removeAttribute("srcset");
-      image.decoding = "async";
-      used.add(replacement.url);
-    }
-  }
+  cards.forEach((image, index) => {
+    const url = cardPool[index];
+    if (!url) return;
+    applyImage(image, url);
+    used.add(url);
+  });
 
+  // Portfolio stays tied to its original captions where possible. We only replace visibly tiny
+  // sources after the browser knows their intrinsic size, using unused full gallery originals.
+  const portfolioPool = media.gallery.filter((url) => !used.has(url));
   const portfolio = Array.from(page.querySelectorAll<HTMLImageElement>(".satori-nz-work-media img"));
-  for (const image of portfolio) {
-    const currentUrl = uploadUrl(image.getAttribute("src"));
-    if (currentUrl) used.add(currentUrl);
-    const replacement = pickForImage(pool, used, currentUrl ? byUrl.get(currentUrl) : undefined, 850);
-    if (replacement) {
-      image.src = replacement.url;
-      image.removeAttribute("srcset");
-      image.decoding = "async";
-      used.add(replacement.url);
-    }
-  }
+  portfolio.forEach((image, index) => {
+    const maybeUpgrade = () => {
+      if (image.naturalWidth >= 1000 && image.naturalHeight >= 700) return;
+      const url = portfolioPool[index];
+      if (url) applyImage(image, url);
+    };
+    if (image.complete) maybeUpgrade();
+    else image.addEventListener("load", maybeUpgrade, { once: true });
+  });
 
-  page.dataset.satoriImageQuality = "1";
+  page.dataset.satoriImageQuality = "2";
 }
 
 function scheduleUpgrade() {
