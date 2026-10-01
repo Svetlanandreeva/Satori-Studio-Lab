@@ -44,6 +44,16 @@ function verifyTeamPassword(password: string, stored: string | null): boolean {
   return actual.length === expected.length && timingSafeEqual(actual, expected);
 }
 
+/** Почему не пускаем сотрудника — понятной фразой (CRM маленькая, перебор логинов закрыт лимитом попыток). */
+export function teamLoginProblem(login: string, password: string): string | null {
+  const normalized = String(login || "").trim().toLowerCase();
+  const member = row<{ active: number; password_hash: string | null }>("SELECT active,password_hash FROM team_members WHERE lower(login)=? LIMIT 1", normalized);
+  if (!member) return `Нет сотрудника с логином «${normalized}». Проверь логин в «Контроле».`;
+  if (!member.active) return "Этот сотрудник отключён. Включи его в «Контроле».";
+  if (!verifyTeamPassword(password, member.password_hash)) return "Неверный пароль. Владелец может задать новый в «Контроле».";
+  return null;
+}
+
 export function authenticateTeamMember(login: string, password: string): SessionActor | null {
   const normalized = String(login || "").trim().toLowerCase();
   if (!normalized) return null;
