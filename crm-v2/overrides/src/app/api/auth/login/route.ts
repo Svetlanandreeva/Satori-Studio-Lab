@@ -5,7 +5,7 @@ import {
   crmSessionTtlSeconds,
   passwordMatches,
 } from "@/lib/session-auth";
-import { authenticateTeamMember, type SessionActor } from "@/lib/operations";
+import { teamLoginProblem, authenticateTeamMember, type SessionActor } from "@/lib/operations";
 
 export const dynamic = "force-dynamic";
 
@@ -91,16 +91,17 @@ export async function POST(request: NextRequest) {
       actor = authenticateTeamMember(login, password);
       if (!actor) {
         registerFailure(ip);
+        const why = teamLoginProblem(login, password) || "Неверный логин или пароль";
         return isNativeForm
-          ? loginErrorRedirect(request, "Неверный логин или пароль")
-          : NextResponse.json({ error: "Неверный логин или пароль" }, { status: 401 });
+          ? loginErrorRedirect(request, why)
+          : NextResponse.json({ error: why }, { status: 401 });
       }
     } else {
       if (!passwordMatches(password)) {
         registerFailure(ip);
         return isNativeForm
-          ? loginErrorRedirect(request, "Неверный пароль")
-          : NextResponse.json({ error: "Неверный пароль" }, { status: 401 });
+          ? loginErrorRedirect(request, "Неверный пароль владельца. Сотрудник? Впиши свой логин в поле «Логин сотрудника».")
+          : NextResponse.json({ error: "Неверный пароль владельца. Сотрудник? Впиши свой логин в поле «Логин сотрудника»." }, { status: 401 });
       }
       actor = { id: "owner", name: "Владелец", role: "owner" };
     }
