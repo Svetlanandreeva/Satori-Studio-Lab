@@ -22,6 +22,9 @@ jobs:
         with:
           node-version: '22'
 
+      - name: Check Telegram phone links without network or database
+        run: node --experimental-strip-types --test crm-v2/tests/telegram-phone-link.test.mjs
+
       - name: Fetch pinned MIT Auto-CRM
         run: |
           git clone --filter=blob:none "$UPSTREAM_REPO" /tmp/satori-auto-crm
@@ -63,5 +66,6 @@ jobs:
           NEXT_TELEMETRY_DISABLED: '1'
         run: |
           npm ci
+          node --test "$GITHUB_WORKSPACE/crm-v2/tests/telegram-phone-link.render.mjs"
           npm run build
           test -f .next/standalone/server.js

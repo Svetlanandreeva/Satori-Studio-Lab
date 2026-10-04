@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { NewDealButton } from "@/components/deals/DealActions";
 import { LEAD_QUALIFICATION_LABELS } from "@/lib/lead-qualification";
 import { normalizeLegacyDate } from "@/lib/date-normalization";
@@ -8,6 +8,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { ActivityForm } from "@/components/activities/ActivityForm";
 import { ContactForm } from "./ContactForm";
+import { TelegramPhoneLink } from "./TelegramPhoneLink";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -163,7 +164,7 @@ export function ContactDetailClient({ contact, deals, activities, documents: ini
         <div className="space-y-6">
           <Card><CardHeader><CardTitle className="text-base">Контакты и компания</CardTitle></CardHeader><CardContent className="space-y-3 text-sm">
             {contact.company && <Row icon={Building2} value={contact.company} />}
-            {contact.phone && <ContactRow icon={Phone} value={contact.phone} onCopy={() => copy(contact.phone!, "phone")} copied={copied === "phone"} href={`tel:${contact.phone}`} />}
+            {contact.phone && <ContactRow icon={Phone} value={contact.phone} onCopy={() => copy(contact.phone!, "phone")} copied={copied === "phone"} href={`tel:${contact.phone}`}><TelegramPhoneLink phone={contact.phone} /></ContactRow>}
             {contact.email && <ContactRow icon={Mail} value={contact.email} onCopy={() => copy(contact.email!, "email")} copied={copied === "email"} href={`mailto:${contact.email}`} />}
             <Row icon={CalendarDays} value={`Создан ${date(contact.createdAt)}`} />
             {contactNotes && <div className="mt-3 whitespace-pre-wrap rounded-xl bg-muted/40 p-3 text-xs leading-5 text-muted-foreground">{contactNotes}</div>}
@@ -211,4 +212,4 @@ export function ContactDetailClient({ contact, deals, activities, documents: ini
 }
 
 function Row({ icon: Icon, value }: { icon: typeof Phone; value: string }) { return <div className="flex items-center gap-3"><Icon className="h-4 w-4 shrink-0 text-muted-foreground" /><span>{value}</span></div>; }
-function ContactRow({ icon: Icon, value, href, copied, onCopy }: { icon: typeof Phone; value: string; href: string; copied: boolean; onCopy: () => void }) { return <div className="flex items-center gap-3"><Icon className="h-4 w-4 shrink-0 text-muted-foreground" /><a className="min-w-0 flex-1 truncate hover:underline" href={href}>{value}</a><button onClick={onCopy} className="rounded-md p-1.5 hover:bg-muted">{copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}</button></div>; }
+function ContactRow({ icon: Icon, value, href, copied, onCopy, children }: { icon: typeof Phone; value: string; href: string; copied: boolean; onCopy: () => void; children?: ReactNode }) { return <div className="flex flex-wrap items-center gap-3"><Icon className="h-4 w-4 shrink-0 text-muted-foreground" /><a className="min-w-0 grow basis-40 truncate hover:underline" href={href}>{value}</a><button onClick={onCopy} className="rounded-md p-1.5 hover:bg-muted">{copied ? <Check className="h-3.5 w-3.5" /> : <Copy className="h-3.5 w-3.5" />}</button>{children}</div>; }
