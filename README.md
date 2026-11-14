@@ -12,6 +12,11 @@ CRM собирается из MIT-проекта [Auto-CRM](https://github.com/H
   `/var/lib/satori-auto-crm/deploy-backups`, хранятся последние 10).
 - База SQLite лежит вне папки приложения (`/var/lib/satori-auto-crm/crm.db`) и деплоем не затирается.
 
+## Промо-сайт — satorilabural.ru
+
+Посетители видят статические страницы из папки [`promo/`](promo/README.md). Правки в `promo/**`, попавшие в `main`,
+сервер забирает сам в течение двух минут (таймер `satori-promo-sync`), деплой запускать не нужно.
+
 ## Магазин
 
 Деплой магазина — только вручную: Actions → **Deploy** → Run workflow.
