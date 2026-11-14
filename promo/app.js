@@ -1,4 +1,19 @@
 (function () {
+  var film = document.querySelector('.hero-film video');
+  if (film && film.canPlayType('video/mp4')) {
+    var filmToggle = document.querySelector('.hero-film-toggle');
+    var reducedMotion = window.matchMedia('(prefers-reduced-motion: reduce)');
+    function playFilm() { film.play().catch(function () {}); }
+    filmToggle.hidden = false;
+    filmToggle.addEventListener('click', function () {
+      if (film.paused) playFilm(); else film.pause();
+    });
+    film.addEventListener('playing', function () { filmToggle.textContent = 'Пауза'; });
+    film.addEventListener('pause', function () { filmToggle.textContent = 'Воспроизвести видео'; });
+    film.addEventListener('error', function () { filmToggle.hidden = true; }, true);
+    if (!reducedMotion.matches) playFilm();
+  }
+
   var COUNTER = 110458266;
   function goal(name) { try { window.ym && window.ym(COUNTER, 'reachGoal', name); } catch (e) {} }
 
