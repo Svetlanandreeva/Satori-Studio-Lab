@@ -157,7 +157,7 @@ footer a{text-decoration:none;color:var(--cream)}
 .group .works{margin-top:18px}
 .group .works figure{aspect-ratio:auto}
 .group .works img{height:auto;aspect-ratio:4/5}
-.page-head{padding:clamp(36px,6vw,64px) 0 10px}
+.page-head{padding-block:clamp(36px,6vw,64px) 10px}
 .page-head p{margin-top:14px;max-width:40em;color:#332c27}
 .lb{position:fixed;inset:0;z-index:50;background:rgba(15,12,10,.95);display:none;align-items:center;justify-content:center;padding:16px;flex-direction:column;gap:14px}
 .lb.on{display:flex}
@@ -207,8 +207,8 @@ header .contact-button{display:inline-flex;gap:10px;border-radius:100px;white-sp
 .category{position:relative;isolation:isolate;display:flex;align-items:end;aspect-ratio:1.22;overflow:hidden;border-radius:18px;background:#4c3c32;color:#fff;text-decoration:none}
 .category img{position:absolute;z-index:-2;inset:0;width:100%;height:100%;object-fit:cover}
 .category::after{content:"";position:absolute;inset:0;z-index:-1;background:linear-gradient(transparent 40%,#201812e6)}
-.category span{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;padding:16px;font-size:clamp(15px,2vw,22px)}
-.category b{display:grid;place-items:center;flex:none;width:30px;height:30px;border-radius:50%;background:var(--cream);color:var(--ink);font-size:15px}
+.category > span{display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;padding:16px;font-size:clamp(15px,2vw,22px)}
+.category .category-arrow{display:grid;place-items:center;flex:none;width:30px;height:30px;border-radius:50%;background:var(--cream);color:var(--ink);font-size:15px}
 .studio-home #raboty{background:#f0ede6}
 .studio-home .works figure{aspect-ratio:auto;background:var(--paper);border-radius:15px}
 .studio-home .works img{height:auto;aspect-ratio:4/4.7}
@@ -243,8 +243,12 @@ footer a{color:var(--ink)}
   .hero-actions .btn{padding-inline:12px;min-height:43px}
   .category-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:10px}
   .category:first-child{grid-column:1/-1;aspect-ratio:2/1}
-  .category span{padding:11px}
-  .category b{width:25px;height:25px;font-size:13px}
+  .category > span{padding:11px}
+  .category .category-arrow{width:25px;height:25px;font-size:13px}
   .studio-home .works{gap:10px}
   footer .footer-grid{grid-template-columns:1fr}
 }
+
+.arrow-icon{display:block;flex:none}
+.category > span{line-height:1.25;overflow-wrap:anywhere}
+.page-head h1,.page-head p{text-wrap:pretty;overflow-wrap:anywhere}
