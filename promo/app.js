@@ -73,25 +73,6 @@
     if (lb && img) { lbName = name; lbImg.src = img.currentSrc || img.src; lbImg.alt = img.alt; lb.classList.add('on'); }
   });
 
-  // Короткая форма на первом экране
-  var quick = document.getElementById('quick-form');
-  if (quick) {
-    var qs = document.querySelector('.quick-status'), qb = quick.querySelector('button');
-    quick.addEventListener('submit', function (e) {
-      e.preventDefault();
-      if (qb.disabled) return;
-      var c = String(quick.elements.contact.value || '').trim();
-      if (!validContact(c)) { qs.textContent = 'Укажите телефон или ник в Telegram'; qs.className = 'quick-status err'; quick.elements.contact.focus(); return; }
-      qb.disabled = true; qs.textContent = 'Отправляем…'; qs.className = 'quick-status';
-      send({ name: 'Заявка с первого экрана', phone: c, contact: c, idea: '', source: 'promo-hero' }).then(function () {
-        quick.reset();
-        qs.textContent = 'Приняли. Свяжемся с вами в течение рабочего дня.'; qs.className = 'quick-status ok';
-      }).catch(function (err) {
-        qs.textContent = (err && err.message) || 'Не получилось отправить. Напишите нам в Telegram.'; qs.className = 'quick-status err';
-      }).then(function () { qb.disabled = false; });
-    });
-  }
-
   if (!form) return;
 
   // Уменьшаем фото перед отправкой: сервер принимает не больше ~100 КБ
