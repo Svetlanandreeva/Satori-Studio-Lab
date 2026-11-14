@@ -188,7 +188,7 @@ header .wrap{height:68px}
 header nav{margin-inline:auto}
 header .contact-button{display:inline-flex;gap:10px;border-radius:100px;white-space:nowrap}
 :focus-visible{outline:2px solid #966d48;outline-offset:4px}
-.studio-home .hero{background:var(--paper);padding:0 0 22px}
+.studio-home .hero{background:var(--paper);padding:clamp(12px,2vw,22px) 0 22px}
 .hero-grid{position:relative;display:grid;isolation:isolate;align-items:end;grid-template-columns:minmax(0,1fr);min-height:clamp(490px,48vw,690px);border-radius:22px;overflow:hidden;background:#44372c}
 .hero-photo{position:absolute;inset:0;z-index:-2;margin:0;aspect-ratio:auto;max-height:none}
 .hero-photo img{object-position:50% 76%}
