@@ -35,7 +35,7 @@
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
     }).then(function (r) {
       return r.json().catch(function () { return {}; }).then(function (p) {
-        if (!r.ok) throw new Error(p.error || 'Не удалось отправить заявку');
+        if (!r.ok || p.ok !== true) throw new Error(p.error || 'Не удалось отправить заявку. Напишите нам в Telegram.');
         goal('lead_custom_submitted');
       });
     });
