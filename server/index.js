@@ -47,6 +47,12 @@ app.use("/uploads", express.static(UPLOADS_DIR, { maxAge: "1y", immutable: true 
 const PORT = process.env.PORT || 3001;
 const FRONTEND_URL = process.env.FRONTEND_URL || "http://localhost:5173";
 
+const missingVkSettings = ["VK_GROUP_TOKEN", "VK_GROUP_ID", "ADMIN_VK_HANDLE"]
+  .filter((key) => !process.env[key]?.trim());
+if (missingVkSettings.length) {
+  console.warn(`VK lead notifications disabled: missing ${missingVkSettings.join(", ")}`);
+}
+
 async function notifyOwnerPaid(order) {
   const handle = process.env.ADMIN_VK_HANDLE;
   if (!handle) return;
@@ -61,15 +67,21 @@ async function notifyOwnerPaid(order) {
 }
 
 async function notifyOwnerLead(lead) {
-  const handle = process.env.ADMIN_VK_HANDLE;
-  if (!handle) return;
-  const message = lead.type === "business"
-    ? `Новая заявка «Бизнесу» на Satori\nКомпания: ${lead.company}\nКонтакт: ${lead.name}, ${lead.contact}\nТип: ${lead.inquiryType || "—"}\nОбъём: ${lead.volume || "—"}\nКомментарий: ${lead.comment || "—"}`
-    : `Новый бриф «На заказ» на Satori\nИмя: ${lead.name}\nКонтакт: ${lead.contact}\nБюджет: ${lead.budget || "—"}\nИдея: ${lead.idea || "—"}`;
+  if (missingVkSettings.length) return;
+  const contact = lead.contact || lead.phone || "—";
+  const headline = lead.type === "business" ? "Бизнесу" : "На заказ";
+  const lines = [`Satori · Заявка ${lead.crmNumber} · ${headline}`, `Имя: ${lead.name}`, `Контакт: ${contact}`];
+  if (lead.type === "business") {
+    lines.push(`Компания: ${lead.company}`, `Тип: ${lead.inquiryType || "—"}`,
+      `Объём: ${lead.volume || "—"}`, `Комментарий: ${lead.comment || "—"}`);
+  } else {
+    lines.push(`Бюджет: ${lead.budget || "—"}`, `Идея: ${lead.idea || "—"}`);
+    if (lead.referenceDataUrl) lines.push("Референс доступен в CRM.");
+  }
   try {
-    await sendVkMessage(handle, message);
+    await sendVkMessage(process.env.ADMIN_VK_HANDLE, lines.join("\n").slice(0, 3500));
   } catch (err) {
-    console.error("Owner VK lead notify failed:", err.message);
+    console.error(`Owner VK lead notify failed (${lead.crmNumber}):`, err.message);
   }
 }
 
