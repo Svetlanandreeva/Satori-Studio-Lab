@@ -184,11 +184,12 @@ button:disabled{cursor:wait;opacity:.65}
 body{font-family:"Instrument Sans","Segoe UI",Arial,sans-serif}
 h1,h2,h3{font-family:"Cormorant Garamond",Georgia,serif}
 h2{font-size:clamp(32px,4.5vw,55px);letter-spacing:-.035em}
-header .wrap{height:68px}
+:root{--header-row-height:68px}
+header .wrap{height:var(--header-row-height)}
 header nav{margin-inline:auto}
 header .contact-button{display:inline-flex;gap:10px;border-radius:100px;white-space:nowrap}
 :focus-visible{outline:2px solid #966d48;outline-offset:4px}
-.studio-home .hero{background:var(--paper);padding:clamp(12px,2vw,22px) 0 22px}
+.studio-home .hero{background:var(--paper);padding:0 0 22px}
 .hero-grid{position:relative;display:grid;isolation:isolate;align-items:end;grid-template-columns:minmax(0,1fr);min-height:clamp(490px,48vw,690px);border-radius:22px;overflow:hidden;background:#44372c}
 .hero-photo{position:absolute;inset:0;z-index:-2;margin:0;aspect-ratio:auto;max-height:none}
 .hero-photo img{object-position:50% 76%}
@@ -232,7 +233,7 @@ footer a{color:var(--ink)}
   footer .footer-grid{grid-template-columns:1fr 1fr}
 }
 @media(max-width:560px){
-  header .wrap{height:58px}
+  :root{--header-row-height:58px}
   .hero-grid{min-height:clamp(460px,135vw,590px);border-radius:15px}
   .hero-photo img{object-position:56% 73%}
   .hero-grid::after{background:linear-gradient(0deg,#1b1714f5,#1b1714b3 36%,transparent 72%)}
@@ -301,7 +302,9 @@ header nav a[aria-current=page]{color:var(--ink);text-decoration:underline;text-
 .hero-grid-film {
   grid-template-columns: minmax(0, 1fr);
   align-items: end;
-  min-height: clamp(475px, 49vw, 660px);
+  min-height: calc(100vh - var(--header-row-height) - 1px);
+  min-height: calc(100dvh - var(--header-row-height) - 1px);
+  border-radius: 0;
   gap: 0;
   background: var(--dark);
 }
@@ -340,7 +343,6 @@ header nav a[aria-current=page]{color:var(--ink);text-decoration:underline;text-
   cursor: pointer;
 }
 @media (max-width: 700px) {
-  .hero-grid-film { min-height: clamp(455px, 128vw, 580px); }
   .hero-grid-film::after {
     background: linear-gradient(0deg, #1b1714f5 0%, #1b1714bc 34%, transparent 72%);
   }
