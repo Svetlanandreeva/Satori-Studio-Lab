@@ -14,6 +14,19 @@
     if (!reducedMotion.matches) playFilm();
   }
 
+  if ('IntersectionObserver' in window && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
+    var timelineObserver = new IntersectionObserver(function (entries) {
+      entries.forEach(function (entry) {
+        if (!entry.isIntersecting) return;
+        entry.target.classList.add('step-visible');
+        timelineObserver.unobserve(entry.target);
+      });
+    }, { threshold: 0.25 });
+    document.querySelectorAll('.process-timeline > li').forEach(function (step) {
+      timelineObserver.observe(step);
+    });
+  }
+
   var COUNTER = 110458266;
   function goal(name) { try { window.ym && window.ym(COUNTER, 'reachGoal', name); } catch (e) {} }
 
