@@ -1,0 +1,30 @@
+.business-hero img { object-position: center 34%; }
+.project-examples { padding: clamp(32px, 5vw, 68px) 0 20px; }
+.project-examples > h2 { margin-bottom: clamp(18px, 3vw, 30px); }
+.project-example-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+.project-example {
+  overflow: hidden;
+  background: var(--paper2);
+  border-radius: 16px;
+}
+.project-example img {
+  display: block;
+  width: 100%;
+  aspect-ratio: 4 / 3;
+  object-fit: cover;
+}
+.project-example-copy { padding: 18px; }
+.project-example h3 { font-size: clamp(23px, 2.3vw, 32px); margin-bottom: 6px; }
+.project-example p { color: var(--muted); font-size: 15px; }
+.project-example-actions { display: flex; flex-wrap: wrap; gap: 0 14px; margin-top: 6px; }
+.project-example-actions a { display: inline-flex; align-items: center; min-height: 44px; font-size: 14px; text-underline-offset: 3px; }
+@media (max-width: 760px) {
+  .project-example-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 520px) {
+  .project-example-grid { grid-template-columns: 1fr; }
+}
