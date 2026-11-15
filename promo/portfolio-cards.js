@@ -136,7 +136,7 @@
     const photoCount = make('span', 'portfolio-photo-count');
     cover.append(image);
     let coverSwipe = null;
-    let ignoreCoverClick = false;
+    let suppressCoverClickUntil = 0;
     cover.addEventListener('touchstart', event => {
       if (event.touches.length === 1) {
         coverSwipe = { x: event.touches[0].clientX, y: event.touches[0].clientY };
@@ -148,14 +148,13 @@
       const dy = event.changedTouches[0].clientY - coverSwipe.y;
       coverSwipe = null;
       if (Math.abs(dx) > 45 && Math.abs(dx) > Math.abs(dy) * 1.2) {
-        ignoreCoverClick = true;
+        suppressCoverClickUntil = Date.now() + 650;
         setPhoto(activePhoto + (dx < 0 ? 1 : -1));
       }
     }, { passive: true });
     cover.addEventListener('click', event => {
-      if (ignoreCoverClick) {
+      if (Date.now() < suppressCoverClickUntil) {
         event.preventDefault();
-        ignoreCoverClick = false;
         return;
       }
       openProject(project, activePhoto);
