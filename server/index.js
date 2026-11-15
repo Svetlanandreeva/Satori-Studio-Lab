@@ -424,6 +424,16 @@ app.get("/api/portfolio", async (req, res) => {
   }
 });
 
+app.get("/api/admin/portfolio", requireAdmin, async (req, res) => {
+  try {
+    res.set("Cache-Control", "no-store");
+    res.json(await listPortfolio());
+  } catch (error) {
+    console.error("Admin portfolio read failed:", error);
+    res.status(500).json({ error: "Не удалось загрузить портфолио" });
+  }
+});
+
 app.put("/api/admin/portfolio", requireAdmin, async (req, res) => {
   try {
     res.set("Cache-Control", "no-store");
