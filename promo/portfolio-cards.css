@@ -766,3 +766,39 @@ dialog.portfolio-viewer::backdrop {
     font-size: 20px;
   }
 }
+
+/* Reduce excess vertical whitespace above the portfolio without
+   overlapping the sticky navigation or changing card dimensions. */
+.studio-catalog .page-head {
+  padding-top: 3px;
+  padding-bottom: 0;
+}
+.studio-catalog .page-head .kicker {
+  margin: 0 0 3px;
+}
+.studio-catalog .page-head h1 {
+  margin-top: 2px !important;
+  font-size: clamp(34px, 3.65vw, 49px);
+  line-height: 1.03;
+}
+.studio-catalog .page-head > p:last-child {
+  margin-top: 6px;
+  line-height: 1.42;
+}
+.studio-catalog .catalog-projects-section {
+  padding-top: 5px;
+}
+.studio-catalog .portfolio-toolbar {
+  margin-bottom: 10px;
+}
+@media (max-width: 600px) {
+  .studio-catalog .page-head {
+    padding-top: 7px;
+  }
+  .studio-catalog .page-head h1 {
+    font-size: clamp(30px, 8vw, 39px);
+  }
+  .studio-catalog .catalog-projects-section {
+    padding-top: 8px;
+  }
+}
