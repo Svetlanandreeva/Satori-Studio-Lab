@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow,noarchive">
+<meta name="referrer" content="same-origin">
+<title>Управление сайтом | Satori Studio</title>
+<link rel="icon" href="/favicon.svg" type="image/svg+xml">
+<link rel="stylesheet" href="/promo/adm.css?v=1">
+<script src="/promo/adm.js?v=1" defer></script>
+</head>
+<body>
+<header class="adm-header">
+  <a href="/" class="adm-brand" aria-label="На сайт Satori">SATORI <small>STUDIO / ADMIN</small></a>
+  <nav class="adm-header-links">
+    <a href="/raboty" target="_blank" rel="noopener">Каталог <span aria-hidden="true">↗</span></a>
+    <a href="/admin" target="_blank" rel="noopener">Админка магазина <span aria-hidden="true">↗</span></a>
+  </nav>
+</header>
+<main>
+  <section class="adm-login" id="adm-login">
+    <div class="adm-login-card">
+      <p class="adm-kicker">SATORI STUDIO / УПРАВЛЕНИЕ</p>
+      <h1>Панель управления</h1>
+      <p>Редактирование проектов и фотографий сайта. Доступ только по паролю администратора Satori.</p>
+      <form id="adm-login-form">
+        <label for="adm-password">Пароль администратора</label>
+        <input id="adm-password" type="password" autocomplete="current-password" required>
+        <button type="submit" class="adm-btn adm-btn-primary">Войти <span aria-hidden="true">↗</span></button>
+      </form>
+      <p id="adm-login-error" class="adm-error" role="alert" hidden></p>
+    </div>
+  </section>
+
+  <section class="adm-app" id="adm-app" hidden>
+    <div class="adm-app-head">
+      <div>
+        <p class="adm-kicker">САЙТ / ПОРТФОЛИО</p>
+        <h1>Управление проектами</h1>
+        <p>Добавляйте работы, редактируйте описания и выбирайте порядок снимков. Первый снимок будет обложкой.</p>
+      </div>
+      <div class="adm-head-actions">
+        <button type="button" class="adm-btn adm-btn-ghost" id="adm-logout">Выйти</button>
+        <button type="button" class="adm-btn adm-btn-primary" id="adm-save">Опубликовать изменения <span aria-hidden="true">↗</span></button>
+      </div>
+    </div>
+    <p id="adm-status" class="adm-status" aria-live="polite"></p>
+    <div class="adm-layout">
+      <aside class="adm-sidebar">
+        <div class="adm-side-head"><h2>Проекты <span id="adm-total"></span></h2><button type="button" class="adm-small-button" id="adm-add-project">+ Новый</button></div>
+        <div class="adm-project-list" id="adm-projects" role="list"></div>
+      </aside>
+      <section class="adm-editor" aria-label="Редактирование проекта">
+        <div class="adm-editor-heading">
+          <div><p class="adm-kicker">РЕДАКТОР</p><h2 id="adm-edit-heading">Выберите проект</h2></div>
+          <button type="button" class="adm-delete" id="adm-delete-project">Удалить проект</button>
+        </div>
+        <div class="adm-form-fields">
+          <label for="adm-title">Название работы
+            <input id="adm-title" type="text" maxlength="150" required placeholder="Название проекта">
+          </label>
+          <label for="adm-description">Описание проекта
+            <textarea id="adm-description" rows="6" placeholder="Каждый абзац — с новой строки"></textarea>
+            <small>Каждая строка отображается отдельным абзацем в карточке.</small>
+          </label>
+        </div>
+        <div class="adm-photos-heading">
+          <div><h3>Фотографии</h3><p>Меняйте порядок стрелками. Первое фото показывается на карточке.</p></div>
+          <label class="adm-btn adm-btn-ghost adm-upload-label">
+            <input id="adm-photo-upload" type="file" accept="image/jpeg,image/png,image/webp" multiple hidden>
+            Загрузить фото +
+          </label>
+        </div>
+        <div class="adm-photo-grid" id="adm-photos"></div>
+        <div class="adm-add-url">
+          <input id="adm-photo-url" type="url" placeholder="Или вставьте HTTPS-ссылку на фотографию">
+          <button type="button" class="adm-small-button" id="adm-add-url">Добавить ссылку</button>
+        </div>
+        <div class="adm-editor-footer">
+          <p>Изменения в редакторе не видны посетителям, пока вы не нажмёте «Опубликовать изменения».</p>
+          <button type="button" class="adm-btn adm-btn-primary" id="adm-save-bottom">Опубликовать изменения ↗</button>
+        </div>
+      </section>
+    </div>
+  </section>
+</main>
+</body>
+</html>
