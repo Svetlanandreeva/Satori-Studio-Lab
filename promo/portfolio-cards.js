@@ -165,6 +165,9 @@
       const photo = project.photos[activePhoto];
       image.src = photo.src;
       image.alt = photo.alt + ' — ракурс ' + (activePhoto + 1);
+      // Same photo provides a soft backdrop behind portrait / landscape
+      // images; the actual photo is always shown in full (object-fit: contain).
+      media.style.setProperty('--portfolio-cover-url', 'url(' + JSON.stringify(photo.src) + ')');
       photoCount.textContent = (activePhoto + 1) + ' / ' + project.photos.length;
     }
     setPhoto(0);
