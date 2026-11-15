@@ -72,6 +72,7 @@
     const card = make('article', 'portfolio-project-card');
     card.id = project.anchor;
     const media = make('div', 'portfolio-project-media');
+    media.style.setProperty('--portfolio-cover-url', 'url("' + project.photos[0].src + '")');
     const cover = make('button', 'portfolio-project-cover');
     cover.type = 'button';
     cover.setAttribute('aria-label', 'Открыть фотографии: ' + project.title);
@@ -82,8 +83,7 @@
     image.decoding = 'async';
     const photoCount = make('span', 'portfolio-photo-count',
       project.photos.length + ' фото');
-    const prompt = make('span', 'portfolio-view-prompt', 'Посмотреть фотографии ↗');
-    cover.append(image, photoCount, prompt);
+    cover.append(image, photoCount);
     cover.addEventListener('click', () => openProject(project, 0));
     media.append(cover);
 
@@ -98,15 +98,15 @@
 
     const cardBottom = make('div', 'portfolio-project-bottom');
     const galleryLink = make('button', 'portfolio-gallery-link',
-      'Смотреть все фото (' + project.photos.length + ') ↗');
+      'Смотреть фото (' + project.photos.length + ')');
     galleryLink.type = 'button';
     galleryLink.addEventListener('click', () => openProject(project, 0));
-    const like = make('a', 'portfolio-project-like', 'Хочу похожий ↗');
+    const like = make('a', 'portfolio-project-like', 'Хочу похожий');
     like.href = '/?like=' + encodeURIComponent(project.title) + '#zayavka';
     like.addEventListener('click', function (event) {
       dispatchLike(event, project);
     });
-    cardBottom.append(galleryLink, like);
+    cardBottom.append(like, galleryLink);
     copy.append(cardBottom);
     card.append(media, copy);
     return card;
