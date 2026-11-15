@@ -1,0 +1,153 @@
+name: Deploy CRM spam cleanup safely
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: satori-crm-spam-hotfix
+  cancel-in-progress: false
+
+env:
+  DEPLOY_HOST: ${{ vars.SATORI_DEPLOY_HOST || '194.226.97.103' }}
+  DEPLOY_PORT: ${{ vars.SATORI_DEPLOY_PORT || '22' }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Verify CRM source and tests
+        run: |
+          node --check crm/server.js
+          node --check server/leads.js
+          node --check crm/public/app.js
+          node --check crm/public/sw.js
+          node --test crm/tests/dom-feedback.test.cjs crm/tests/lead-cleanup.test.cjs
+
+      - uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.DEPLOY_SSH_KEY }}
+
+      - name: Check SSH before any writes
+        shell: bash
+        run: |
+          set -euo pipefail
+          case "$DEPLOY_PORT" in ''|*[!0-9]*) echo "::error::Invalid SSH port"; exit 1;; esac
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          for n in 1 2 3; do
+            if ssh-keyscan -T 8 -H -p "$DEPLOY_PORT" "$DEPLOY_HOST" > "$RUNNER_TEMP/satori-host-keys" 2>/dev/null &&
+               test -s "$RUNNER_TEMP/satori-host-keys"; then
+              cat "$RUNNER_TEMP/satori-host-keys" >> ~/.ssh/known_hosts
+              chmod 600 ~/.ssh/known_hosts
+              exit 0
+            fi
+            if [ "$n" -lt 3 ]; then sleep 4; fi
+          done
+          echo "::error::SSH unavailable; server files were not changed."
+          exit 1
+
+      - name: Verify legacy CRM paths before overwriting anything
+        shell: bash
+        run: |
+          set -euo pipefail
+          shared="$(ssh -p "$DEPLOY_PORT" -o StrictHostKeyChecking=yes "root@$DEPLOY_HOST"             'set -eu; test -f /var/www/satori/crm/server.js; test -f /var/www/satori/crm/public/index.html; test -f /var/www/satori/crm/../server/leads.js; readlink -e /var/www/satori/crm/../server/leads.js')"
+          case "$shared" in /var/www/satori/*/leads.js) ;; *) echo "::error::Unexpected shared lead storage path"; exit 1 ;; esac
+          echo "SHARED_LEADS_PATH=$shared" >> "$GITHUB_ENV"
+          echo "BACKUP_TAG=crm-spam-${GITHUB_RUN_ID}" >> "$GITHUB_ENV"
+
+      - name: Backup application files and lead data before deploy
+        shell: bash
+        run: |
+          ssh -p "$DEPLOY_PORT" -o StrictHostKeyChecking=yes "root@$DEPLOY_HOST" \
+            "BACKUP_TAG=$BACKUP_TAG SHARED_LEADS_PATH=$SHARED_LEADS_PATH bash -se" <<'REMOTE'
+          set -euo pipefail
+          base="/var/backups/satori/$BACKUP_TAG"
+          mkdir -p "$base"
+          for file in \
+            /var/www/satori/crm/server.js \
+            /var/www/satori/crm/public/index.html \
+            /var/www/satori/crm/public/app.js \
+            /var/www/satori/crm/public/satori-theme.css \
+            /var/www/satori/crm/public/sw.js \
+            /var/www/satori/crm/public/pwa.js \
+            /var/www/satori/crm/public/source-link-ui.js \
+            /var/www/satori/crm/public/brief-ui.js \
+            /var/www/satori/crm/public/post-auth-loader.js \
+            "$SHARED_LEADS_PATH" \
+            "$(dirname "$SHARED_LEADS_PATH")/data/leads.json" \
+            /var/www/satori/crm/data/crm.json; do
+            if [ -f "$file" ]; then cp -a --parents "$file" "$base/"; fi
+          done
+          echo "Backup saved under $base"
+          REMOTE
+
+      - name: Publish only CRM source and browser files
+        id: publish
+        shell: bash
+        run: |
+          set -euo pipefail
+          ssh_arg="ssh -p $DEPLOY_PORT -o StrictHostKeyChecking=yes"
+          rsync -az -e "$ssh_arg" server/leads.js "root@$DEPLOY_HOST:$SHARED_LEADS_PATH"
+          rsync -az -e "$ssh_arg" crm/server.js "root@$DEPLOY_HOST:/var/www/satori/crm/server.js"
+          rsync -az -e "$ssh_arg" \
+            crm/public/index.html \
+            crm/public/app.js \
+            crm/public/satori-theme.css \
+            crm/public/sw.js \
+            crm/public/pwa.js \
+            crm/public/source-link-ui.js \
+            crm/public/brief-ui.js \
+            crm/public/post-auth-loader.js \
+            "root@$DEPLOY_HOST:/var/www/satori/crm/public/"
+
+      - name: Restart legacy CRM and verify health
+        id: health
+        shell: bash
+        run: |
+          ssh -p "$DEPLOY_PORT" -o StrictHostKeyChecking=yes "root@$DEPLOY_HOST" 'bash -se' <<'REMOTE'
+          set -euo pipefail
+          node --check /var/www/satori/crm/server.js
+          node --check /var/www/satori/crm/public/app.js
+          systemctl restart satori-crm
+          systemctl is-active --quiet satori-crm
+          curl --fail --silent --show-error --retry 8 --retry-connrefused --retry-delay 2 --max-time 10 \
+            http://127.0.0.1:3010/health >/dev/null
+          curl --fail --silent --show-error http://127.0.0.1:3010/ | grep -q 'lead-cleanup-1'
+          echo 'Legacy CRM lead cleanup update verified'
+          REMOTE
+
+      - name: Restore prior code if deployment or restart fails
+        if: ${{ failure() && (steps.publish.outcome == 'failure' || steps.health.outcome == 'failure') }}
+        shell: bash
+        run: |
+          ssh -p "$DEPLOY_PORT" -o StrictHostKeyChecking=yes "root@$DEPLOY_HOST" \
+            "BACKUP_TAG=$BACKUP_TAG SHARED_LEADS_PATH=$SHARED_LEADS_PATH bash -se" <<'REMOTE'
+          set -eu
+          base="/var/backups/satori/$BACKUP_TAG"
+          if [ -d "$base" ]; then
+            for file in \
+              /var/www/satori/crm/server.js \
+              /var/www/satori/crm/public/index.html \
+              /var/www/satori/crm/public/app.js \
+              /var/www/satori/crm/public/satori-theme.css \
+              /var/www/satori/crm/public/sw.js \
+              /var/www/satori/crm/public/pwa.js \
+              /var/www/satori/crm/public/source-link-ui.js \
+              /var/www/satori/crm/public/brief-ui.js \
+              /var/www/satori/crm/public/post-auth-loader.js \
+              "$SHARED_LEADS_PATH"; do
+              if [ -f "$base/$file" ]; then cp -a "$base/$file" "$file"; fi
+            done
+            systemctl restart satori-crm || true
+            echo 'Prior code restored; customer lead data was not overwritten'
+          fi
+          REMOTE
