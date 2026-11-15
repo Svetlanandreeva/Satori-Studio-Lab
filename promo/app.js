@@ -5,12 +5,21 @@
     var back = card.querySelector('.category-back');
     var openLabel = button.getAttribute('aria-label');
     button.hidden = false;
-    button.addEventListener('click', function () {
-      var flipped = card.classList.toggle('is-flipped');
+    function showBack(flipped) {
+      card.classList.toggle('is-flipped', flipped);
       button.setAttribute('aria-expanded', String(flipped));
       button.setAttribute('aria-label', flipped ? 'Вернуть фото' : openLabel);
       front.inert = flipped;
       back.inert = !flipped;
+    }
+    button.addEventListener('click', function () {
+      showBack(!card.classList.contains('is-flipped'));
+    });
+    card.addEventListener('pointerenter', function (event) {
+      if (event.pointerType === 'mouse' && document.activeElement !== front) showBack(true);
+    });
+    card.addEventListener('pointerleave', function (event) {
+      if (event.pointerType === 'mouse' && !back.contains(document.activeElement)) showBack(false);
     });
   });
 

@@ -877,3 +877,28 @@ body > header .logo img[src$=".svg"] {
 @media (prefers-reduced-motion: reduce) {
   .category-flip-inner { transition: none; }
 }
+
+.studio-residency {
+  margin-top: 14px;
+  color: #efd3ae;
+  font-size: .88rem;
+}
+
+.project-quick-facts {
+  display: grid;
+  gap: 4px;
+  margin: 0;
+  font-size: clamp(12px, 1.2vw, 16px);
+  line-height: 1.3;
+}
+
+.project-quick-facts dt { color: #e8b9c7; }
+.project-quick-facts dd { margin: 0; }
+
+@media (max-width: 700px) {
+  .category-grid { grid-template-columns: minmax(0, 1fr); }
+  .category-flip:first-child,
+  .category-flip:not(:first-child) { aspect-ratio: auto; min-height: 205px; }
+}
+
+.category-flip { min-height: 218px; }
