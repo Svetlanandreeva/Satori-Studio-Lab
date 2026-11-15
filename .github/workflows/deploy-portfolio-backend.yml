@@ -23,6 +23,9 @@ jobs:
           node --check server/index.js
           node --check server/portfolio.js
           node --check server/auth.js
+          node --check promo/adm.js
+          node --check promo/portfolio-cards.js
+          node --input-type=module -e 'import { listPortfolio } from "./server/portfolio.js"; const {projects}=await listPortfolio(); if (projects.length < 1 || projects.some(p=>!p.images.length)) process.exit(1); console.log("Portfolio seed OK:", projects.length, "projects")'
 
       - name: Connect to Satori server
         uses: webfactory/ssh-agent@v0.9.0
