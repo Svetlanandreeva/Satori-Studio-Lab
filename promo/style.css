@@ -204,7 +204,7 @@ header .contact-button{display:inline-flex;gap:10px;border-radius:100px;white-sp
 .facts{margin-top:18px}
 .facts div{padding-top:15px}
 .facts b{font-family:inherit;font-size:clamp(18px,2.4vw,25px);font-weight:500}
-.category-grid{display:grid;grid-template-columns:1.25fr 1fr 1fr;gap:16px}
+.category-grid{display:grid;grid-template-columns:minmax(0,1.25fr) repeat(2,minmax(0,1fr));gap:16px}
 .category{position:relative;isolation:isolate;display:flex;align-items:end;aspect-ratio:1.22;overflow:hidden;border-radius:18px;background:#4c3c32;color:#fff;text-decoration:none}
 .category img{position:absolute;z-index:-2;inset:0;width:100%;height:100%;object-fit:cover}
 .category::after{content:"";position:absolute;inset:0;z-index:-1;background:linear-gradient(transparent 40%,#201812e6)}
@@ -774,6 +774,9 @@ body > header .logo img[src$=".svg"] {
 
 .category-flip {
   display: block;
+  align-self: start;
+  width: 100%;
+  min-width: 0;
   perspective: 1000px;
   isolation: auto;
   overflow: visible;
