@@ -189,7 +189,9 @@
     copy.append(number, title);
     const descriptions = project.description.length ? project.description :
       ['Индивидуальный проект студии Satori. Детали исполнения и размеры для нового заказа обсудим отдельно.'];
-    descriptions.forEach(line => copy.append(make('p', 'portfolio-project-description', line)));
+    // Show a concise preview on the card; keep the full original texts in
+    // the hidden source gallery and in the server-side project record.
+    copy.append(make('p', 'portfolio-project-description', descriptions.join(' ')));
 
     const cardBottom = make('div', 'portfolio-project-bottom');
     const galleryLink = make('button', 'portfolio-gallery-link',
@@ -220,25 +222,49 @@
   root.append(heading, rail, source);
 
   const cards = Array.from(rail.children);
-  function closestIndex() {
+  // Desktop: 3 cards, tablet: 2 cards, mobile: 1 card.
+  // The actual visible number comes from CSS card width instead of a
+  // hardcoded breakpoint, so carousel pages always align with the layout.
+  function visibleCount() {
+    if (!cards.length) return 1;
+    const gap = parseFloat(getComputedStyle(rail).columnGap) || 0;
+    const width = cards[0].getBoundingClientRect().width;
+    return width ? Math.max(1, Math.min(cards.length,
+      Math.round((rail.clientWidth + gap) / (width + gap)))) : 1;
+  }
+  function pageStarts() {
+    const visible = visibleCount();
+    const pageTotal = Math.ceil(cards.length / visible);
+    return Array.from({ length: pageTotal }, (_, index) =>
+      Math.min(index * visible, Math.max(0, cards.length - visible)));
+  }
+  function currentPage() {
     const left = rail.getBoundingClientRect().left;
+    const starts = pageStarts();
     let best = 0;
     let distance = Infinity;
-    cards.forEach((card, index) => {
-      const delta = Math.abs(card.getBoundingClientRect().left - left);
+    starts.forEach((cardIndex, index) => {
+      const delta = Math.abs(cards[cardIndex].getBoundingClientRect().left - left);
       if (delta < distance) { best = index; distance = delta; }
     });
     return best;
   }
   function updateNavigation() {
-    const index = closestIndex();
-    counter.textContent = String(index + 1).padStart(2, '0') + ' / ' +
-      String(cards.length).padStart(2, '0');
-    previous.disabled = index === 0;
-    next.disabled = index === cards.length - 1;
+    const starts = pageStarts();
+    const page = currentPage();
+    const first = starts[page];
+    const last = Math.min(cards.length, first + visibleCount());
+    counter.textContent =
+      String(first + 1).padStart(2, '0') +
+      (first + 1 !== last ? '–' + String(last).padStart(2, '0') : '') +
+      ' / ' + String(cards.length).padStart(2, '0');
+    previous.disabled = page === 0;
+    next.disabled = page === starts.length - 1;
   }
-  function goToCard(index) {
-    const target = cards[Math.max(0, Math.min(cards.length - 1, index))];
+  function goToPage(page) {
+    const starts = pageStarts();
+    const index = starts[Math.max(0, Math.min(page, starts.length - 1))];
+    const target = cards[index];
     if (!target) return;
     rail.scrollTo({
       left: rail.scrollLeft + target.getBoundingClientRect().left -
@@ -246,12 +272,12 @@
       behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'
     });
   }
-  previous.addEventListener('click', () => goToCard(closestIndex() - 1));
-  next.addEventListener('click', () => goToCard(closestIndex() + 1));
+  previous.addEventListener('click', () => goToPage(currentPage() - 1));
+  next.addEventListener('click', () => goToPage(currentPage() + 1));
   rail.addEventListener('keydown', function (event) {
     if (event.target !== rail) return;
-    if (event.key === 'ArrowRight') { event.preventDefault(); goToCard(closestIndex() + 1); }
-    if (event.key === 'ArrowLeft') { event.preventDefault(); goToCard(closestIndex() - 1); }
+    if (event.key === 'ArrowRight') { event.preventDefault(); goToPage(currentPage() + 1); }
+    if (event.key === 'ArrowLeft') { event.preventDefault(); goToPage(currentPage() - 1); }
   });
   let pending = false;
   rail.addEventListener('scroll', function () {
@@ -377,7 +403,7 @@
   if (location.hash) {
     const target = cards.find(card => '#' + card.id === location.hash);
     if (target) {
-      goToCard(cards.indexOf(target));
+      goToPage(Math.floor(cards.indexOf(target) / visibleCount()));
       setTimeout(() => section.scrollIntoView({ block: 'start' }), 0);
     }
   }
