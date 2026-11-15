@@ -256,6 +256,18 @@
     showEditor();
     $("#adm-title").focus();
   });
+  $("#adm-move-up").addEventListener("click", () => {
+    storeValues();
+    const index = projects.findIndex(project => project.id === selectedId);
+    if (index > 0) moveProject(index, -1);
+    showEditor();
+  });
+  $("#adm-move-down").addEventListener("click", () => {
+    storeValues();
+    const index = projects.findIndex(project => project.id === selectedId);
+    if (index >= 0 && index < projects.length - 1) moveProject(index, 1);
+    showEditor();
+  });
   $("#adm-delete-project").addEventListener("click", () => {
     const project = selected();
     if (!project) return;
