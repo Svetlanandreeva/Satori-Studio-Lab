@@ -104,6 +104,21 @@ export async function markAllLeadsRead() {
   });
 }
 
+// Atomic conditional removal: a lead can be permanently deleted through
+// CRM only if it is still in the Spam folder at the moment of writing.
+// This prevents a concurrent restore in another admin tab from being lost.
+export async function deleteLeadIfSpam(id) {
+  return withWriteLock(async () => {
+    const leads = await readLeads();
+    const index = leads.findIndex((lead) => lead.id === id);
+    if (index < 0) return "missing";
+    if (leads[index].isSpam !== true) return "not-spam";
+    leads.splice(index, 1);
+    await writeFile(LEADS_FILE, JSON.stringify(leads, null, 2), "utf-8");
+    return "deleted";
+  });
+}
+
 export async function deleteLead(id) {
   return withWriteLock(async () => {
     const leads = await readLeads();
