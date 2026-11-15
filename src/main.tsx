@@ -8,6 +8,7 @@ import "./styles/mobile-hero-width-fix.css";
 import "./styles/mobile-admin-link.css";
 import "./styles/admin-figma.css";
 import "./styles/admin-portfolio.css";
+import "./styles/admin-leads.css";
 import "./styles/admin-order-drawer.css";
 import "./styles/admin-crm-summary.css";
 import "./styles/page-transitions.css";
