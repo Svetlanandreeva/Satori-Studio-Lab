@@ -6,6 +6,8 @@ on:
     paths:
       - "crm/public/**"
       - "crm/tests/**"
+      - "crm/server.js"
+      - "server/leads.js"
       - ".github/workflows/check-crm-freeze.yml"
   workflow_dispatch:
 
@@ -23,6 +25,8 @@ jobs:
           node-version: '20'
       - name: Verify CRM JavaScript syntax
         run: |
+          node --check crm/server.js
+          node --check server/leads.js
           node --check crm/public/app.js
           node --check crm/public/source-link-ui.js
           node --check crm/public/brief-ui.js
@@ -30,4 +34,4 @@ jobs:
           node --check crm/public/sw.js
           node --check crm/public/pwa.js
       - name: Check CRM does not get trapped in DOM mutation feedback
-        run: node --test crm/tests/dom-feedback.test.cjs
+        run: node --test crm/tests/dom-feedback.test.cjs crm/tests/lead-cleanup.test.cjs
