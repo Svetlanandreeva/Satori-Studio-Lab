@@ -4,9 +4,10 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <script>
-  // Short alias for the password-protected Satori portfolio editor.
+  // Compatibility for hosts that still route /adm to the promo HTML fallback.
+  // Go directly to the ONE admin app, never to the old standalone editor.
   if (location.pathname === '/adm' || location.pathname === '/adm/') {
-    location.replace('/promo/adm.html' + location.search + location.hash);
+    location.replace('/admin' + location.search + location.hash);
   }
 </script>
 <title>Светильники на заказ по вашему эскизу — люстры, бра, торшеры | SATORI</title>
