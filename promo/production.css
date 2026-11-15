@@ -143,3 +143,50 @@
 @media (max-width: 760px) {
   .delivery-calculator { grid-template-columns: minmax(0, 1fr); }
 }
+
+/* Consistent call-to-action group on the Business page */
+.production-actions.series-actions {
+  display: grid;
+  width: 100%;
+  max-width: 290px;
+  justify-self: end;
+  gap: 10px;
+}
+.production-actions.series-actions .btn {
+  width: 100%;
+  min-height: 54px;
+  padding: 0 21px;
+  justify-content: space-between;
+  gap: 14px;
+  font-size: 15px;
+  font-weight: 600;
+  border-radius: 100px;
+  text-align: left;
+  text-decoration: none;
+}
+.production-actions.series-actions .btn span {
+  flex: 0 0 auto;
+  font-size: 20px;
+  line-height: 1;
+  font-weight: 400;
+}
+.production-actions.series-actions .btn.ghost {
+  background: rgba(255, 255, 255, .38);
+  color: var(--wine);
+  border-color: rgba(112, 38, 62, .3);
+}
+.production-actions.series-actions .btn.ghost:hover {
+  background: #fff8f8;
+  color: var(--wine);
+  border-color: var(--wine);
+}
+.production-actions.series-actions .btn:focus-visible {
+  outline: 2px solid var(--wine);
+  outline-offset: 3px;
+}
+@media (max-width: 800px) {
+  .production-actions.series-actions {
+    max-width: 100%;
+    justify-self: stretch;
+  }
+}
