@@ -3,6 +3,7 @@
   grid-template-columns: minmax(0, 1fr) minmax(0, .96fr);
   grid-template-areas: "copy photo";
   min-height: clamp(530px, 81svh, 860px);
+  padding: 0;
   overflow: hidden;
   color: #fff6ea;
   background: radial-gradient(ellipse at 65% 45%, #37281e, #17130f 73%);
@@ -71,7 +72,7 @@
 }
 
 .studio-intro h1 {
-  font-size: clamp(50px, 6.7vw, 108px);
+  font-size: clamp(50px, 5.65vw, 98px);
   line-height: .99;
   color: inherit;
 }
