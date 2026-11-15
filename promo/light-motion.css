@@ -37,3 +37,58 @@
   .wave-case { grid-template-columns: minmax(0, 1fr); }
   .wave-case img { grid-row: 1; }
 }
+
+.sourcing-spotlight strong {
+  color: #563817;
+  font-weight: 750;
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .sourcing-spotlight {
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+  }
+
+  .sourcing-spotlight::before {
+    position: absolute;
+    z-index: -1;
+    inset: 0;
+    pointer-events: none;
+    background:
+      radial-gradient(ellipse at 50% 0%, #fff2cb 0%, transparent 64%),
+      linear-gradient(112deg, transparent 34%, #ffffffd9 50%, transparent 66%);
+    opacity: 0;
+  }
+
+  .sourcing-spotlight.studio-light-on {
+    animation: none;
+  }
+
+  .sourcing-spotlight.studio-light-on::before {
+    content: "";
+    animation: satori-spotlight-sweep 1.45s cubic-bezier(.22,.65,.28,1) both;
+  }
+
+  .sourcing-spotlight.studio-light-on strong {
+    box-decoration-break: clone;
+    -webkit-box-decoration-break: clone;
+    border-radius: 3px;
+    animation: satori-spotlight-emphasis 1.05s ease .48s both;
+  }
+
+  .sourcing-spotlight.studio-light-on p + p strong {
+    animation-delay: .98s;
+  }
+
+  @keyframes satori-spotlight-sweep {
+    from { opacity: 0; transform: translateX(-86%); }
+    34% { opacity: 1; }
+    to { opacity: 0; transform: translateX(86%); }
+  }
+
+  @keyframes satori-spotlight-emphasis {
+    0%, 100% { background-color: transparent; box-shadow: 0 0 0 transparent; }
+    36% { background-color: #f6dca3; box-shadow: 0 0 16px #e2a94780; }
+  }
+}
