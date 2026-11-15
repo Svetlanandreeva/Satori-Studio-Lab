@@ -443,6 +443,17 @@ h1, h2, h3, .hero h1 { font-weight: 600; letter-spacing: -.055em; line-height: 1
 .footer-contact > a:hover { text-decoration: underline; text-underline-offset: 3px; }
 .footer-contact svg { flex: none; margin-top: 2px; }
 .footer-contact small { display: block; font-size: 13px; font-weight: 400; color: var(--muted); }
+@media (width > 760px) {
+  .studio-story { padding-block: clamp(40px, 4vw, 60px); }
+  .studio-story-grid {
+    align-items: start;
+    gap: clamp(24px, 4vw, 64px);
+  }
+  .studio-story img {
+    height: clamp(250px, 28vw, 370px);
+    object-position: center 66%;
+  }
+}
 @media (max-width: 760px) {
   .studio-story-grid { grid-template-columns: minmax(0, 1fr); }
 }
