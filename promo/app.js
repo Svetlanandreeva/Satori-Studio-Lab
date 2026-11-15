@@ -13,7 +13,7 @@
         timelineObserver.unobserve(entry.target);
       });
     }, { threshold: 0.25 });
-    document.querySelectorAll('.process-timeline > li, [data-designer-reveal]').forEach(function (element) {
+    document.querySelectorAll('.process-timeline, [data-designer-reveal]').forEach(function (element) {
       timelineObserver.observe(element);
     });
   }

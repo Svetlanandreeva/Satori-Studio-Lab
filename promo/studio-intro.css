@@ -2,7 +2,8 @@
   display: grid;
   grid-template-columns: minmax(0, 1fr) minmax(0, .96fr);
   grid-template-areas: "copy photo";
-  min-height: clamp(530px, 81svh, 860px);
+  min-height: calc(100vh - var(--header-row-height) - 1px);
+  min-height: calc(100dvh - var(--header-row-height) - 1px);
   padding: 0;
   overflow: hidden;
   color: #fff6ea;
@@ -121,11 +122,10 @@
   .studio-intro {
     grid-template-columns: minmax(0, 1fr);
     grid-template-areas: "photo" "copy";
-    min-height: auto;
+    grid-template-rows: minmax(clamp(170px, 42svh, 460px), 1fr) auto;
   }
 
   .studio-intro-photo {
-    height: clamp(240px, 43svh, 460px);
     --photo-fade: none;
     --mobile-photo-fade: linear-gradient(180deg, #000 65%, transparent);
   }

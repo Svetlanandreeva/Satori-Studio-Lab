@@ -397,47 +397,49 @@ h1, h2, h3, .hero h1 { font-weight: 600; letter-spacing: -.055em; line-height: 1
   margin-bottom: 16px;
   font-variant-numeric: tabular-nums;
 }
-/* Warm light radiates from each step number, like a lamp switching on. */
-.process-timeline li {
-  isolation: isolate;
-  --light-origin: 35px 39px;
-}
-.process-timeline li::after {
-  content: "";
-  position: absolute;
-  inset: 0;
-  z-index: -1;
-  pointer-events: none;
-  opacity: 0;
-  background: radial-gradient(ellipse at var(--light-origin), #ffd897 0%, #fff0d4 38%, transparent 79%);
-}
+/* A single beam crosses the whole timeline without covering the text. */
 @media (prefers-reduced-motion: no-preference) {
-  .process-timeline li:nth-child(2) { --switch-delay: .19s; }
-  .process-timeline li:nth-child(3) { --switch-delay: .38s; }
-  .process-timeline li:nth-child(4) { --switch-delay: .57s; }
-  .process-timeline li:nth-child(5) { --switch-delay: .76s; }
-  .process-timeline li.step-visible::after {
-    animation: satori-light-spread .82s ease-out var(--switch-delay, 0s) both;
+  .process-timeline {
+    position: relative;
+    isolation: isolate;
   }
-  .process-timeline li.step-visible::before {
-    animation: satori-light-switch .82s ease-out var(--switch-delay, 0s) both;
+
+  .process-timeline::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    z-index: -1;
+    pointer-events: none;
+    opacity: 0;
+    background: linear-gradient(108deg, transparent 33%, #efad4d65 47%, #fff1ca 50%, #efad4d65 53%, transparent 67%);
   }
-}
-@keyframes satori-light-spread {
-  0% { opacity: 0; }
-  42% { opacity: .88; }
-  100% { opacity: .54; }
-}
-@keyframes satori-light-switch {
-  0% { box-shadow: 0 0 0 #e9a94b00; }
-  42% { background-color: #fff3d5; border-color: #d6a662; box-shadow: 0 0 22px #e9a94ba6; }
-  100% { background-color: #fff6e5; border-color: #d9b179; box-shadow: 0 0 12px #e9a94b4d; }
+
+  .process-timeline.step-visible::after {
+    animation: satori-process-beam 1.7s ease-in-out both;
+  }
+
+  @keyframes satori-process-beam {
+    0% { opacity: 0; transform: translateX(-88%); }
+    18%, 82% { opacity: 1; }
+    100% { opacity: 0; transform: translateX(88%); }
+  }
 }
 @media (max-width: 760px) {
   .process-timeline { grid-template-columns: minmax(0, 1fr); }
-  .process-timeline li { padding: 16px 16px 16px 68px; --light-origin: 35px 37px; }
+  .process-timeline li { padding: 16px 16px 16px 68px; }
   .process-timeline li + li { border-inline-start: 0; border-top: 1px solid var(--line); }
   .process-timeline li::before { position: absolute; inset: 16px auto auto 14px; }
+}
+@media (max-width: 760px) and (prefers-reduced-motion: no-preference) {
+  .process-timeline::after {
+    background: linear-gradient(174deg, transparent 35%, #efad4d65 47%, #fff1ca 50%, #efad4d65 53%, transparent 65%);
+  }
+
+  @keyframes satori-process-beam {
+    0% { opacity: 0; transform: translateY(-84%); }
+    18%, 82% { opacity: 1; }
+    100% { opacity: 0; transform: translateY(84%); }
+  }
 }
 /* Keep the supplied wordmark, compositing its background into the page. */
 .logo img {
