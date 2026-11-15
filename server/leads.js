@@ -37,6 +37,8 @@ async function enrichLeads(leads) {
     ...lead,
     crmNumber: lead.crmNumber || crmNumber(lead.id),
     crmStatus: stages[lead.id] || lead.crmStatus || "Новый запрос",
+    status: lead.status || "Новая",
+    isSpam: lead.isSpam === true,
     crmId: `lead:${lead.id}`,
   }));
 }
@@ -75,7 +77,7 @@ export async function createLead(data) {
   return withWriteLock(async () => {
     const leads = await readLeads();
     const id = randomUUID();
-    const lead = { ...data, id, crmNumber: crmNumber(id), createdAt: new Date().toISOString(), read: false };
+    const lead = { ...data, id, crmNumber: crmNumber(id), createdAt: new Date().toISOString(), read: false, status: "Новая", isSpam: false };
     leads.push(lead);
     await writeFile(LEADS_FILE, JSON.stringify(leads, null, 2), "utf-8");
     return lead;
