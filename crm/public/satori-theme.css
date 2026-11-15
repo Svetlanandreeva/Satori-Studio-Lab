@@ -1,0 +1,214 @@
+/* SATORI CRM — brand-aligned interface.
+   Presentation only: no changes to CRM logic, permissions, or records. */
+:root {
+  --bg: #f5f1ed;
+  --paper: #fdfaf8;
+  --panel: #fffdfb;
+  --ink: #262021;
+  --muted: #766c69;
+  --line: #e2d6d5;
+  --dark: #1b1718;
+  --accent: #76283f;
+  --green: #456e5b;
+  --red: #a4434b;
+  --shadow: 0 15px 42px rgba(49,28,35,.07);
+}
+html, body { background: #f5f1ed; }
+body { color: var(--ink); }
+.shell { grid-template-columns: 240px minmax(0,1fr); }
+.sidebar {
+  background: #1b1718;
+  border-right: 1px solid rgba(255,255,255,.08);
+}
+.sidebar .brand { font-size: 22px; letter-spacing: .19em; color: #fff; }
+.sidebar .eyebrow { color: #bca6ad; }
+.sidebar .nav button { font-size: 13px; border-radius: 13px; }
+.sidebar .nav button:hover, .sidebar .nav button.active {
+  background: #39222b;
+  color: #fff;
+}
+.sidebar .nav button.active { box-shadow: inset 3px 0 #a75a75; }
+.sidebar .nav .count { background: #543340; color: #f6e8ef; }
+
+.main { width: 100%; min-width: 0; padding: 28px clamp(22px,2.7vw,40px) 55px; }
+.topbar { align-items: center; gap: 14px 28px; flex-wrap: wrap; margin-bottom: 24px; }
+.topbar > div:first-child { flex: 1 1 270px; min-width: 0; }
+.topbar h1 {
+  color: #2b2424;
+  font-size: clamp(27px,2.35vw,36px);
+  line-height: 1.15;
+  letter-spacing: -.045em;
+}
+.topbar p { font-size: 13px; line-height: 1.5; }
+.topbar .actions {
+  display: flex;
+  flex: 0 1 auto;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+}
+.actions .secondary, .actions .primary {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 42px;
+  max-width: 100%;
+  padding: 9px 15px;
+  border-radius: 13px;
+  line-height: 1.25;
+  font-size: 12px;
+  white-space: nowrap;
+}
+.actions .primary {
+  background: var(--accent);
+  color: #fff;
+}
+.actions .primary:hover { background: #592037; }
+.secondary {
+  background: rgba(255,253,251,.93);
+  border-color: var(--line);
+}
+.secondary:hover { border-color: #cbaab6; background: #fffafc; }
+
+.stats {
+  grid-template-columns: repeat(4,minmax(0,1fr));
+  gap: 12px;
+  margin-bottom: 24px;
+}
+.stat {
+  min-width: 0;
+  min-height: 107px;
+  padding: 17px 18px;
+  border: 1px solid #e8dedc;
+  border-radius: 18px;
+  background: #fffdfb;
+  box-shadow: 0 4px 17px rgba(44,26,32,.025);
+}
+.stat span { color: #776a68; font-size: 12px; }
+.stat b { color: #2a2223; font-size: 28px; }
+.stat small { line-height: 1.35; color: #8c7d79; }
+
+/* Horizontal pipeline should scroll itself, not stretch or crop the page. */
+.kanban {
+  display: flex;
+  gap: 14px;
+  width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: 17px;
+  scroll-snap-type: x proximity;
+  scrollbar-width: thin;
+  scrollbar-color: #bda1aa #eee7e4;
+}
+.column {
+  flex: 0 0 clamp(252px,23vw,295px);
+  min-width: 252px;
+  min-height: 520px;
+  border: 1px solid #e1d5d2;
+  border-radius: 18px;
+  background: #eee8e4;
+  scroll-snap-align: start;
+}
+.column-head { padding: 9px 8px 13px; }
+.column-head b { font-size: 13px; color: #332a2a; }
+.column-head span { background: #fbf8f5; color: #705d61; }
+.deal {
+  background: #fffdfb;
+  border: 1px solid #eadfdc;
+  border-radius: 15px;
+  box-shadow: 0 5px 15px rgba(42,28,34,.035);
+}
+.deal:hover { border-color: #cdabb8; }
+.deal .source { color: #8f5367; }
+.deal h3 { color: #262021; }
+.deal .client { line-height: 1.4; }
+.progress { background: #efe6e2; }
+.progress i { background: #92506a; }
+
+/* Three extensions become a tidy tool strip in the otherwise empty sidebar.
+   Keep them outside the workspace so they cannot obscure cards or top actions. */
+@media (min-width: 761px) {
+  body > .channel-fab,
+  body > .ai-fab,
+  body > .parser-fab {
+    position: fixed;
+    left: 21px;
+    right: auto;
+    top: auto;
+    width: 198px;
+    height: 44px;
+    min-height: 44px;
+    padding: 8px 12px;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    border: 1px solid rgba(230,191,204,.24);
+    border-radius: 12px;
+    color: #f5e9eb;
+    font-size: 12px;
+    line-height: 1.2;
+    white-space: nowrap;
+    box-shadow: none;
+    z-index: 30;
+    background: #312029;
+  }
+  body > .channel-fab { bottom: 196px; }
+  body > .ai-fab { bottom: 144px; background: #74263f; }
+  body > .parser-fab { bottom: 92px; }
+  body > .channel-fab:hover,
+  body > .ai-fab:hover,
+  body > .parser-fab:hover { border-color: #d7a5b5; background: #6f2b43; }
+  body > .channel-fab span { color: #91d1a8; }
+}
+@media (max-width: 1100px) and (min-width: 761px) {
+  .stats { grid-template-columns: repeat(2,minmax(0,1fr)); }
+  .topbar .actions { justify-content: flex-start; }
+  .main { padding-inline: 23px; }
+}
+@media (max-width: 760px) {
+  .shell { display: block; }
+  .main { padding: 19px 16px 132px; }
+  .topbar { display: block; }
+  .topbar h1 { font-size: 28px; }
+  .topbar .actions {
+    display: grid;
+    grid-template-columns: repeat(2,minmax(0,1fr));
+    width: 100%;
+    margin-top: 16px;
+    gap: 8px;
+  }
+  .topbar .actions button { min-width: 0; padding-inline: 8px; white-space: normal; }
+  .stats { grid-template-columns: repeat(2,minmax(0,1fr)); gap: 9px; }
+  .stat { padding: 14px; }
+  .kanban { margin-inline: -16px; padding-inline: 16px; gap: 10px; }
+  .column { flex-basis: min(85vw,330px); min-width: min(85vw,330px); min-height: 430px; }
+  /* All three quick tools stay in one row above mobile navigation. */
+  body > .channel-fab,
+  body > .ai-fab,
+  body > .parser-fab {
+    position: fixed;
+    top: auto;
+    bottom: calc(73px + env(safe-area-inset-bottom));
+    height: 39px;
+    min-height: 39px;
+    padding: 8px 5px;
+    font-size: 11px;
+    justify-content: center;
+    box-shadow: 0 6px 15px rgba(32,20,24,.12);
+    border-radius: 12px;
+    width: calc((100vw - 40px) / 3);
+    z-index: 26;
+    white-space: nowrap;
+  }
+  body > .channel-fab { left: 10px; right: auto; background: #fffdfb; }
+  body > .ai-fab { left: calc((100vw - 40px) / 3 + 20px); right: auto; background: #74263f; color: white; }
+  body > .parser-fab { left: calc(2 * (100vw - 40px) / 3 + 30px); right: auto; background: #fffdfb; }
+}
+@media (max-width: 420px) {
+  body > .channel-fab,
+  body > .ai-fab,
+  body > .parser-fab { font-size: 10px; letter-spacing: -.03em; padding-inline: 3px; }
+}
