@@ -992,3 +992,97 @@ dialog.portfolio-viewer::backdrop {
     padding: 8px 12px;
   }
 }
+
+/* Portfolio text-fit fix — editorial header and visible card descriptions */
+/* Horizontal introduction gives the work cards more vertical room. */
+@media (min-width: 1001px) {
+  .studio-catalog .page-head {
+    display: grid;
+    grid-template-columns: minmax(0, 1.03fr) minmax(0, .97fr);
+    grid-template-rows: auto auto;
+    column-gap: clamp(28px, 5vw, 70px);
+    align-items: center;
+    max-width: 1100px;
+    padding-top: 7px;
+    padding-bottom: 7px;
+  }
+  .studio-catalog .page-head .kicker {
+    grid-column: 1;
+    grid-row: 1;
+    align-self: end;
+    margin-bottom: 3px;
+  }
+  .studio-catalog .page-head h1 {
+    grid-column: 1;
+    grid-row: 2;
+    margin-top: 0 !important;
+    font-size: clamp(35px, 3.65vw, 47px);
+  }
+  .studio-catalog .page-head > p:last-child {
+    grid-column: 2;
+    grid-row: 1 / 3;
+    align-self: center;
+    margin: 0;
+    max-width: 48ch;
+    font-size: 15px;
+    line-height: 1.5;
+  }
+  .studio-catalog .catalog-projects-section {
+    padding-top: 4px;
+  }
+  .studio-catalog .portfolio-toolbar {
+    margin-bottom: 10px;
+  }
+}
+/* Balance photograph, project title, description and the two actions. */
+.studio-catalog .portfolio-project-card {
+  height: 465px;
+}
+.studio-catalog .portfolio-project-media {
+  flex: 0 0 235px;
+  height: 235px;
+}
+.studio-catalog .portfolio-project-cover {
+  height: 235px;
+  padding: 7px 10px;
+}
+.studio-catalog .portfolio-project-cover img {
+  max-width: 100%;
+  max-height: 100%;
+  object-fit: contain;
+}
+.studio-catalog .portfolio-project-copy {
+  padding: 14px 17px 15px;
+}
+.studio-catalog .portfolio-project-title {
+  min-height: 0;
+  max-height: none;
+  margin: 5px 0 8px;
+  font-size: clamp(21px, 1.85vw, 24px);
+  line-height: 1.15;
+}
+.studio-catalog .portfolio-project-description {
+  -webkit-line-clamp: 3;
+  line-height: 1.42;
+}
+.studio-catalog .portfolio-project-bottom {
+  gap: 8px;
+  padding-top: 10px;
+}
+.studio-catalog .portfolio-project-like,
+.studio-catalog .portfolio-gallery-link {
+  min-height: 40px;
+  font-size: 12px;
+}
+@media (min-width: 621px) and (max-width: 1000px) {
+  .studio-catalog .portfolio-project-card { height: 470px; }
+  .studio-catalog .portfolio-project-media { flex-basis: 245px; height: 245px; }
+  .studio-catalog .portfolio-project-cover { height: 245px; }
+}
+@media (max-width: 620px) {
+  .studio-catalog .portfolio-project-card { height: 485px; }
+  .studio-catalog .portfolio-project-media { flex-basis: 255px; height: 255px; }
+  .studio-catalog .portfolio-project-cover { height: 255px; }
+  .studio-catalog .portfolio-project-copy { padding: 15px 17px 17px; }
+  .studio-catalog .portfolio-project-title { font-size: 23px; }
+}
