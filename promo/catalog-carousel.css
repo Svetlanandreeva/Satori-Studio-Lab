@@ -16,7 +16,7 @@
   display: none;
 }
 .studio-catalog .group .works.catalog-carousel-track figure {
-  flex: 0 0 clamp(240px, calc((100% - 28px) / 2.4), 455px);
+  flex: 0 0 clamp(240px, 38%, 455px);
   min-width: 0;
   margin: 0;
   scroll-snap-align: start;
