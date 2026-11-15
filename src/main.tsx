@@ -7,6 +7,7 @@ import "./styles/storefront-enhancements.css";
 import "./styles/mobile-hero-width-fix.css";
 import "./styles/mobile-admin-link.css";
 import "./styles/admin-figma.css";
+import "./styles/admin-portfolio.css";
 import "./styles/admin-order-drawer.css";
 import "./styles/admin-crm-summary.css";
 import "./styles/page-transitions.css";
@@ -38,7 +39,7 @@ import { startNaZakazPage } from "./naZakazPage";
 import { startNaZakazImageQuality } from "./naZakazImageQuality";
 import { startNaZakazSalesUpgrade } from "./naZakazSalesUpgrade";
 
-const isAdmin = window.location.pathname.startsWith("/admin");
+const isAdmin = /^\/(?:admin|adm)(?:\/|$)/.test(window.location.pathname);
 if (!isAdmin) prepareSeoRoute();
 
 createRoot(document.getElementById("root")!).render(isAdmin ? <AdminFigmaApp /> : <App />);
