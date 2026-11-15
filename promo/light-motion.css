@@ -1,0 +1,31 @@
+.sourcing-panel {
+  margin-top: clamp(22px, 4vw, 52px);
+  padding: clamp(22px, 5vw, 54px);
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: radial-gradient(ellipse at top right, #efe2cc, var(--paper2) 72%);
+}
+.sourcing-panel h2 { max-width: 24ch; margin-bottom: 14px; }
+.sourcing-panel p { max-width: 72ch; color: var(--muted); }
+.sourcing-panel p + p { margin-top: 9px; }
+@media (prefers-reduced-motion: no-preference) {
+  .studio-light-on {
+    animation: satori-warm-reveal .85s cubic-bezier(.2,.7,.25,1) var(--light-delay, 0ms) both;
+  }
+  :is(.detail-grid, .project-example-grid, .category-grid, .collab-grid, .process-drawings) > :nth-child(2) { --light-delay: 90ms; }
+  :is(.detail-grid, .project-example-grid, .category-grid) > :nth-child(3) { --light-delay: 180ms; }
+  main :is(h1, h2).studio-light-on {
+    animation-name: satori-heading-light;
+    animation-duration: .95s;
+  }
+  @keyframes satori-warm-reveal {
+    from { transform: translateY(9px); opacity: .68; box-shadow: 0 0 0 #cc9b5000; }
+    42% { box-shadow: 0 4px 25px #c1883938; }
+    to { transform: none; opacity: 1; box-shadow: 0 0 0 #cc9b5000; }
+  }
+  @keyframes satori-heading-light {
+    from { opacity: .76; transform: translateY(7px); text-shadow: 0 0 0 transparent; }
+    48% { text-shadow: 0 0 20px #d7a66070; }
+    to { opacity: 1; transform: none; text-shadow: 0 0 0 transparent; }
+  }
+}
