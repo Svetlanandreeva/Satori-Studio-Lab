@@ -152,6 +152,7 @@ function Dashboard({ token, onLogout }: { token: string; onLogout: () => void })
   const [gallery,setGallery]=useState<GalleryItem[]>([]); const [hero,setHero]=useState<{type?:string|null;url?:string|null;slides?:HeroSlide[]}>({slides:[]}); const [promos,setPromos]=useState<Promo[]>([]);
   const [loading,setLoading]=useState(true); const [error,setError]=useState(""); const [editing,setEditing]=useState<Product|"new"|null>(null);
   const [selectedOrder,setSelectedOrder]=useState<string>(""); const [selectedLead,setSelectedLead]=useState<string>("");
+  const [portfolioDirty,setPortfolioDirty]=useState(false);
   const [orderSearch,setOrderSearch]=useState(""); const [leadSearch,setLeadSearch]=useState(""); const [productSearch,setProductSearch]=useState(""); const [productCategory,setProductCategory]=useState("Все");
   const auth={Authorization:`Bearer ${token}`,"Content-Type":"application/json"};
   const authOnly={Authorization:`Bearer ${token}`};
@@ -166,14 +167,14 @@ function Dashboard({ token, onLogout }: { token: string; onLogout: () => void })
   const newOrders=orders.filter(o=>(o.fulfillmentStatus??"Новый")==="Новый").length;
   const unread=leads.filter(l=>!l.read).length;
   const countFor=(t:AdminTab)=>t==="orders"?orders.length:t==="leads"?unread:t==="products"?products.length:t==="promocodes"?promos.filter(p=>p.active).length:0;
-  function go(t:AdminTab){setTab(t);setMobileMenu(false);setEditing(null);window.scrollTo({top:0,behavior:"smooth"});}
+  function go(t:AdminTab){if(tab==="portfolio"&&t!=="portfolio"&&portfolioDirty&&!window.confirm("В редакторе есть неопубликованные изменения. Перейти без сохранения?"))return;setTab(t);setMobileMenu(false);setEditing(null);if(t!=="portfolio")setPortfolioDirty(false);window.scrollTo({top:0,behavior:"smooth"});}
 
   if(editing){ const initial=editing==="new"?null:editing; return <div className="admin-figma"><Shell tab="products" nav={nav} countFor={countFor} go={go} onLogout={onLogout} mobileMenu={mobileMenu} setMobileMenu={setMobileMenu}><ProductEditor initial={initial} token={token} onCancel={()=>setEditing(null)} onSaved={async()=>{await reload();setEditing(null)}} onDelete={initial?()=>deleteProduct(initial):undefined}/></Shell></div>; }
 
   return <div className="admin-figma"><Shell tab={tab} nav={nav} countFor={countFor} go={go} onLogout={onLogout} mobileMenu={mobileMenu} setMobileMenu={setMobileMenu}>
     {loading?<div className="fa-loading">Загрузка…</div>:<>{error&&<div className="fa-error">{error}</div>}
       {tab==="orders"&&<OrdersPage orders={orders} selectedId={selectedOrder} setSelectedId={setSelectedOrder} search={orderSearch} setSearch={setOrderSearch} token={token} onChanged={reload}/>} 
-      {tab==="portfolio"&&<PortfolioAdminPage token={token}/>} 
+      {tab==="portfolio"&&<PortfolioAdminPage token={token} onDirtyChange={setPortfolioDirty}/>} 
       {tab==="leads"&&<LeadsPage leads={leads} selectedId={selectedLead} setSelectedId={setSelectedLead} search={leadSearch} setSearch={setLeadSearch} token={token} onChanged={reload}/>} 
       {tab==="products"&&<ProductsPage products={products} search={productSearch} setSearch={setProductSearch} category={productCategory} setCategory={setProductCategory} onEdit={setEditing}/>} 
       {tab==="home"&&<HomePage hero={hero} gallery={gallery} token={token} onChanged={reload} onPromos={()=>go("promocodes")}/>} 
@@ -184,7 +185,7 @@ function Dashboard({ token, onLogout }: { token: string; onLogout: () => void })
 
 function Shell({tab,nav,countFor,go,onLogout,mobileMenu,setMobileMenu,children}:{tab:AdminTab;nav:[AdminTab,string,any][];countFor:(t:AdminTab)=>number;go:(t:AdminTab)=>void;onLogout:()=>void;mobileMenu:boolean;setMobileMenu:(v:boolean)=>void;children:React.ReactNode}){
   return <div className="fa-shell"><aside className={`fa-sidebar ${mobileMenu?"is-open":""}`}><div><div className="fa-brand">SATORI</div><div className="fa-kicker">LAB / ADMIN</div></div><nav>{nav.map(([id,label,Icon])=><button key={id} className={tab===id?"active":""} onClick={()=>go(id)}><Icon size={15}/><span>{label}</span>{countFor(id)>0&&<b>{countFor(id)}</b>}</button>)}</nav><div className="fa-side-extra"><span>ДОПОЛНИТЕЛЬНО</span><a href="/" target="_blank">Открыть сайт <ExternalLink size={12}/></a></div><div className="fa-user"><i>S</i><div><b>Светлана</b><span>Администратор</span></div><button onClick={onLogout}>Выйти</button></div></aside>
-  <div className="fa-work"><header className="fa-top"><span>SATORI / Управление</span><a href="/" target="_blank">Витрина <ExternalLink size={12}/></a></header><header className="fa-mobile-head"><button onClick={()=>setMobileMenu(!mobileMenu)}>{mobileMenu?<X/>:<Menu/>}</button><b>SATORI LAB / ADMIN</b><i>S</i></header><main>{children}</main><nav className="fa-bottom-nav">{nav.slice(0,4).map(([id,label,Icon])=><button key={id} className={tab===id?"active":""} onClick={()=>go(id)}><Icon size={19}/><span>{label}</span></button>)}</nav></div></div>;
+  <div className="fa-work"><header className="fa-top"><span>SATORI / Управление</span><a href="/" target="_blank">Витрина <ExternalLink size={12}/></a></header><header className="fa-mobile-head"><button onClick={()=>setMobileMenu(!mobileMenu)}>{mobileMenu?<X/>:<Menu/>}</button><b>SATORI LAB / ADMIN</b><i>S</i></header><main>{children}</main><nav className="fa-bottom-nav">{nav.slice(0,4).map(([id,label,Icon])=><button key={id} className={tab===id?"active":""} onClick={()=>go(id)}><Icon size={19}/><span>{id==="portfolio"?"Работы":label}</span></button>)}</nav></div></div>;
 }
 
 function OrdersPage({orders,selectedId,setSelectedId,search,setSearch,token,onChanged}:{orders:Order[];selectedId:string;setSelectedId:(x:string)=>void;search:string;setSearch:(x:string)=>void;token:string;onChanged:()=>void}){
