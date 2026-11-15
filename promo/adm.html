@@ -7,8 +7,8 @@
 <meta name="referrer" content="same-origin">
 <title>Управление сайтом | Satori Studio</title>
 <link rel="icon" href="/favicon.svg" type="image/svg+xml">
-<link rel="stylesheet" href="/promo/adm.css?v=2">
-<script src="/promo/adm.js?v=2" defer></script>
+<link rel="stylesheet" href="/promo/adm.css?v=3">
+<script src="/promo/adm.js?v=3" defer></script>
 </head>
 <body>
 <header class="adm-header">
@@ -23,7 +23,7 @@
     <div class="adm-login-card">
       <p class="adm-kicker">SATORI STUDIO / УПРАВЛЕНИЕ</p>
       <h1>Панель управления</h1>
-      <p>Редактирование проектов и фотографий сайта. Доступ только по паролю администратора Satori.</p>
+      <p>Заявки клиентов, заказы магазина и редактор работ. Доступ только по паролю администратора Satori.</p>
       <form id="adm-login-form">
         <label for="adm-password">Пароль администратора</label>
         <input id="adm-password" type="password" autocomplete="current-password" required>
@@ -36,17 +36,66 @@
   <section class="adm-app" id="adm-app" hidden>
     <div class="adm-app-head">
       <div>
-        <p class="adm-kicker">САЙТ / ПОРТФОЛИО</p>
-        <h1>Управление проектами</h1>
-        <p>Добавляйте работы, редактируйте описания и выбирайте порядок снимков. Первый снимок будет обложкой.</p>
+        <p class="adm-kicker">SATORI STUDIO / УПРАВЛЕНИЕ</p>
+        <h1>Панель Satori</h1>
+        <p>Заявки клиентов и управление работами студии — в одном месте.</p>
       </div>
       <div class="adm-head-actions">
         <button type="button" class="adm-btn adm-btn-ghost" id="adm-logout">Выйти</button>
-        <button type="button" class="adm-btn adm-btn-primary" id="adm-save">Опубликовать изменения <span aria-hidden="true">↗</span></button>
       </div>
     </div>
-    <p id="adm-status" class="adm-status" aria-live="polite"></p>
-    <div class="adm-layout">
+    <div class="adm-tabs" role="tablist" aria-label="Разделы админ-панели">
+      <button type="button" class="adm-tab" id="adm-tab-inbox" role="tab" aria-controls="adm-inbox-panel" aria-selected="true">Заявки <span id="adm-unread-count" class="adm-tab-count" hidden></span></button>
+      <button type="button" class="adm-tab" id="adm-tab-editor" role="tab" aria-controls="adm-editor-panel" aria-selected="false" tabindex="-1">Редактирование сайта</button>
+    </div>
+
+    <section class="adm-inbox-panel" id="adm-inbox-panel" role="tabpanel" aria-labelledby="adm-tab-inbox">
+      <div class="adm-inbox-intro">
+        <div>
+          <p class="adm-kicker">ВХОДЯЩИЕ ОБРАЩЕНИЯ</p>
+          <h2>Заявки и заказы</h2>
+          <p>Заявки со всех форм сайта и заказы из магазина. Данные доступны только после входа.</p>
+        </div>
+        <div class="adm-inbox-actions">
+          <button type="button" class="adm-btn adm-btn-ghost" id="adm-read-all">Отметить прочитанными</button>
+          <button type="button" class="adm-btn adm-btn-primary" id="adm-inbox-refresh">Обновить</button>
+        </div>
+      </div>
+      <p id="adm-inbox-status" class="adm-status" aria-live="polite"></p>
+      <div class="adm-stats">
+        <div class="adm-stat"><span>Всего обращений</span><strong id="adm-stat-total">—</strong></div>
+        <div class="adm-stat"><span>Новые заявки</span><strong id="adm-stat-unread">—</strong></div>
+        <div class="adm-stat"><span>Заказы магазина</span><strong id="adm-stat-orders">—</strong></div>
+      </div>
+      <div class="adm-inbox-filters">
+        <label for="adm-inbox-search">Поиск
+          <input id="adm-inbox-search" type="search" placeholder="Имя, телефон, номер, проект…">
+        </label>
+        <label for="adm-inbox-filter">Показать
+          <select id="adm-inbox-filter">
+            <option value="all">Все обращения</option>
+            <option value="unread">Непрочитанные</option>
+            <option value="custom">Индивидуальные заказы</option>
+            <option value="business">Для бизнеса</option>
+            <option value="orders">Заказы магазина</option>
+          </select>
+        </label>
+      </div>
+      <div class="adm-inbox-layout">
+        <div class="adm-inbox-list" id="adm-inbox-list" aria-label="Список обращений"></div>
+        <section class="adm-inbox-detail" id="adm-inbox-detail" aria-label="Детали обращения">
+          <div class="adm-inbox-placeholder"><h3>Выберите заявку</h3><p>Здесь появятся контакты, описание проекта, дата и вложения.</p></div>
+        </section>
+      </div>
+    </section>
+
+    <section class="adm-editor-panel" id="adm-editor-panel" role="tabpanel" aria-labelledby="adm-tab-editor" hidden>
+      <div class="adm-editor-intro">
+        <div><p class="adm-kicker">РЕДАКТИРОВАНИЕ САЙТА</p><h2>Работы студии</h2><p>Добавляйте проекты, меняйте описания, фотографии и их порядок.</p></div>
+        <button type="button" class="adm-btn adm-btn-primary" id="adm-save">Опубликовать изменения <span aria-hidden="true">↗</span></button>
+      </div>
+      <p id="adm-status" class="adm-status" aria-live="polite"></p>
+      <div class="adm-layout">
       <aside class="adm-sidebar">
         <div class="adm-side-head"><h2>Проекты <span id="adm-total"></span></h2><button type="button" class="adm-small-button" id="adm-add-project">+ Новый</button></div>
         <div class="adm-project-list" id="adm-projects" role="list"></div>
@@ -86,7 +135,8 @@
           <button type="button" class="adm-btn adm-btn-primary" id="adm-save-bottom">Опубликовать изменения ↗</button>
         </div>
       </section>
-    </div>
+      </div>
+    </section>
   </section>
 </main>
 </body>
