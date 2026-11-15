@@ -465,3 +465,42 @@ h1, h2, h3, .hero h1 { font-weight: 600; letter-spacing: -.055em; line-height: 1
 @media (max-width: 560px) {
   .footer-contact { grid-template-columns: minmax(0, 1fr); }
 }
+
+.designer-partnership {
+  margin-top: 28px;
+  padding: clamp(24px, 5vw, 62px);
+  border-radius: 22px;
+  background: radial-gradient(ellipse at top right, #554739, #27221e 70%);
+  color: var(--cream);
+}
+.designer-partnership-intro { max-width: 65ch; }
+.designer-partnership-intro p { margin-top: 14px; color: #f1e8dc; }
+.designer-invoice {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin: 28px 0 22px;
+}
+.designer-invoice > div { padding: clamp(14px, 2.4vw, 25px); border: 1px solid #ffffff38; border-radius: 14px; background: #ffffff0a; }
+.designer-invoice > div:last-child { background: #f6e7cc; color: #30241b; }
+.designer-invoice dt { font-size: 14px; }
+.designer-invoice dd { margin: 3px 0 0; font-size: clamp(26px, 4vw, 48px); font-weight: 650; font-variant-numeric: tabular-nums; }
+.designer-partnership .btn { border-radius: 100px; }
+@media (max-width: 650px) {
+  .designer-invoice { grid-template-columns: minmax(0, 1fr); }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .designer-partnership.step-visible .designer-invoice > div { animation: designer-invoice-in .65s ease-out both; }
+  .designer-partnership.step-visible .designer-invoice > div:nth-child(2) { animation-delay: .15s; }
+  .designer-partnership.step-visible .designer-invoice > div:nth-child(3) { animation-delay: .30s; }
+  [data-designer-reveal].detail-hero.step-visible img,
+  [data-designer-reveal].project-example.step-visible img { animation: designer-photo-in .7s ease-out both; }
+  @keyframes designer-invoice-in {
+    from { transform: translateY(8px); opacity: .68; }
+    to { transform: translateY(0); opacity: 1; }
+  }
+  @keyframes designer-photo-in {
+    from { filter: brightness(.82); }
+    to { filter: brightness(1); }
+  }
+}
