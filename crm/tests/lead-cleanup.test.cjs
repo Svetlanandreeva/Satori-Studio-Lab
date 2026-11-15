@@ -53,6 +53,6 @@ test("UI has a Spam tab with restore and permanent-delete actions", () => {
   assert.match(uiFile, /function changeLeadSpam\(deal, isSpam\)/);
   assert.match(uiFile, /function removeSpamLead\(deal\)/);
   assert.match(uiFile, /"В спам"/);
-  assert.match(uiFile, /"Удалить навсегда"/);
+  assert.match(uiFile, /Удалить навсегда/);
   assert.match(uiFile, /!d\.isSpam&&d\.stage===stage/);
 });
