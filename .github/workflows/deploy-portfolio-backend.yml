@@ -7,6 +7,10 @@ concurrency:
   group: portfolio-backend-deploy
   cancel-in-progress: false
 
+env:
+  DEPLOY_HOST: ${{ vars.SATORI_DEPLOY_HOST || '194.226.97.103' }}
+  DEPLOY_PORT: ${{ vars.SATORI_DEPLOY_PORT || '22' }}
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
@@ -32,17 +36,38 @@ jobs:
         with:
           ssh-private-key: ${{ secrets.DEPLOY_SSH_KEY }}
 
-      - name: Trust server SSH host
-        run: ssh-keyscan -H 194.226.97.103 >> ~/.ssh/known_hosts
+      - name: Check SSH reachability and trust server host key
+        shell: bash
+        run: |
+          set -euo pipefail
+          case "$DEPLOY_PORT" in
+            ''|*[!0-9]*) echo "::error::SATORI_DEPLOY_PORT must be numeric"; exit 1 ;;
+          esac
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          printf 'Checking Satori SSH endpoint %s:%s\n' "$DEPLOY_HOST" "$DEPLOY_PORT"
+          for attempt in 1 2 3; do
+            echo "SSH check: attempt $attempt of 3"
+            if ssh-keyscan -T 8 -H -p "$DEPLOY_PORT" "$DEPLOY_HOST" > "$RUNNER_TEMP/satori-host-keys" 2>/dev/null && test -s "$RUNNER_TEMP/satori-host-keys"; then
+              cat "$RUNNER_TEMP/satori-host-keys" >> ~/.ssh/known_hosts
+              chmod 600 ~/.ssh/known_hosts
+              echo "SSH host key received."
+              exit 0
+            fi
+            if [ "$attempt" -lt 3 ]; then sleep 5; fi
+          done
+          echo "::error title=SSH server unavailable::Could not connect to $DEPLOY_HOST:$DEPLOY_PORT. Deployment NOT attempted. Check VPS status, SSH service, firewall, current IP and SSH port. Change repository Actions variables SATORI_DEPLOY_HOST / SATORI_DEPLOY_PORT if required."
+          exit 1
 
       - name: Deploy backend without changing stored data or uploaded photos
         run: |
           rsync -az \
+            -e "ssh -p $DEPLOY_PORT -o StrictHostKeyChecking=yes" \
             --exclude 'data/' \
             --exclude 'uploads/' \
             --exclude '.env' \
-            server/ root@194.226.97.103:/var/www/satori/backend/
+            server/ "root@$DEPLOY_HOST:/var/www/satori/backend/"
 
       - name: Restart and check portfolio API
         run: |
-          ssh root@194.226.97.103 'set -eu; systemctl restart satori-backend; systemctl is-active --quiet satori-backend; curl --fail --silent --show-error --retry 8 --retry-connrefused --retry-delay 2 --max-time 10 http://127.0.0.1:3001/api/products >/dev/null; curl --fail --silent --show-error --retry 8 --retry-delay 2 --max-time 10 http://127.0.0.1:3001/api/portfolio >/dev/null; echo "Portfolio backend: OK"'
+          ssh -p "$DEPLOY_PORT" -o StrictHostKeyChecking=yes "root@$DEPLOY_HOST" 'set -eu; systemctl restart satori-backend; systemctl is-active --quiet satori-backend; curl --fail --silent --show-error --retry 8 --retry-connrefused --retry-delay 2 --max-time 10 http://127.0.0.1:3001/api/products >/dev/null; curl --fail --silent --show-error --retry 8 --retry-delay 2 --max-time 10 http://127.0.0.1:3001/api/portfolio >/dev/null; echo "Portfolio backend: OK"'
