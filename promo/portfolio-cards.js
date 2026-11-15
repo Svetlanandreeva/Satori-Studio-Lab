@@ -102,7 +102,7 @@
   counter.setAttribute('aria-live', 'polite');
 
   function arrow(direction, label, className) {
-    const button = make('button', 'portfolio-arrow ' + className, direction === -1 ? 'Назад' : 'Далее');
+    const button = make('button', 'portfolio-arrow ' + className, direction === -1 ? '←' : '→');
     button.type = 'button';
     button.setAttribute('aria-label', label);
     button.setAttribute('aria-controls', 'portfolio-project-track');
