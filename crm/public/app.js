@@ -32,10 +32,11 @@ function renderLogin(error=""){
 async function load(){ data=await api("/api/bootstrap"); render(); }
 
 function stats(){
-  const active=data.deals.filter(d=>d.stage!=="Завершено");
+  const active=data.deals.filter(d=>!d.isSpam&&d.stage!=="Завершено");
   const pipeline=active.reduce((s,d)=>s+Number(d.amount||0),0);
-  const paid=data.deals.reduce((s,d)=>s+Number(d.paid||0),0);
-  const due=data.tasks.filter(t=>!t.done).length;
+  const paid=data.deals.filter(d=>!d.isSpam).reduce((s,d)=>s+Number(d.paid||0),0);
+  const spamDealIds=new Set(data.deals.filter(d=>d.isSpam).map(d=>d.id));
+  const due=data.tasks.filter(t=>!t.done&&!spamDealIds.has(t.dealId)).length;
   return {active:active.length,pipeline,paid,due};
 }
 
@@ -43,7 +44,7 @@ function navButton(id,label,count=""){return `<button data-tab="${id}" class="${
 
 function shell(content,title,subtitle){
   const s=stats();
-  root.innerHTML=`<div class="shell"><aside class="sidebar"><div class="brand">SATORI</div><div class="eyebrow">LAB / CRM</div><nav class="nav">${navButton("pipeline","Воронка",s.active)}${navButton("clients","Клиенты",data.contacts.length)}${navButton("tasks","Задачи",s.due)}</nav><div class="sidebar-foot"><button id="logout">Выйти</button></div></aside><main class="main"><header class="topbar"><div><h1>${esc(title)}</h1><p>${esc(subtitle)}</p></div><div class="actions">${tab==="pipeline"?'<button class="secondary" data-action="new-task">+ Задача</button><button class="primary" data-action="new-deal">+ Новый заказ</button>':tab==="clients"?'<button class="primary" data-action="new-client">+ Новый клиент</button>':'<button class="primary" data-action="new-task">+ Новая задача</button>'}</div></header>${content}</main><nav class="mobile-bar">${navButton("pipeline","Воронка")}${navButton("clients","Клиенты")}${navButton("tasks","Задачи")}</nav></div>`;
+  root.innerHTML=`<div class="shell"><aside class="sidebar"><div class="brand">SATORI</div><div class="eyebrow">LAB / CRM</div><nav class="nav">${navButton("pipeline","Воронка",s.active)}${navButton("clients","Клиенты",data.contacts.length)}${navButton("tasks","Задачи",s.due)}${navButton("spam","Спам",data.deals.filter(d=>d.isSpam).length)}</nav><div class="sidebar-foot"><button id="logout">Выйти</button></div></aside><main class="main"><header class="topbar"><div><h1>${esc(title)}</h1><p>${esc(subtitle)}</p></div><div class="actions">${tab==="pipeline"?'<button class="secondary" data-action="new-task">+ Задача</button><button class="primary" data-action="new-deal">+ Новый заказ</button>':tab==="clients"?'<button class="primary" data-action="new-client">+ Новый клиент</button>':tab==="tasks"?'<button class="primary" data-action="new-task">+ Новая задача</button>':""}</div></header>${content}</main><nav class="mobile-bar">${navButton("pipeline","Воронка")}${navButton("clients","Клиенты")}${navButton("tasks","Задачи")}${navButton("spam","Спам")}</nav></div>`;
   root.querySelectorAll("[data-tab]").forEach(btn=>btn.addEventListener("click",()=>{tab=btn.dataset.tab;search="";render();}));
   root.querySelector("#logout")?.addEventListener("click",logout);
   root.querySelectorAll("[data-action]").forEach(btn=>btn.addEventListener("click",()=>openModal(btn.dataset.action)));
@@ -58,7 +59,7 @@ function dealCard(d){
 }
 
 function pipelineView(){
-  const columns=data.stages.map(stage=>{const deals=data.deals.filter(d=>d.stage===stage);return `<section class="column" data-stage="${esc(stage)}"><div class="column-head"><b>${esc(stage)}</b><span>${deals.length}</span></div>${deals.map(dealCard).join("")}</section>`}).join("");
+  const columns=data.stages.map(stage=>{const deals=data.deals.filter(d=>!d.isSpam&&d.stage===stage);return `<section class="column" data-stage="${esc(stage)}"><div class="column-head"><b>${esc(stage)}</b><span>${deals.length}</span></div>${deals.map(dealCard).join("")}</section>`}).join("");
   shell(`${statCards()}<div class="kanban">${columns}</div>`,`Проекты`,`Весь путь Satori — от первого запроса до доставки`);
   root.querySelectorAll(".deal").forEach(card=>{
     card.addEventListener("dragstart",()=>card.classList.add("dragging"));
@@ -69,6 +70,50 @@ function pipelineView(){
     col.addEventListener("dragover",e=>e.preventDefault());
     col.addEventListener("drop",async(e)=>{e.preventDefault();const card=root.querySelector(".deal.dragging");if(!card)return;try{await api(`/api/deals/${encodeURIComponent(card.dataset.dealId)}`,{method:"PATCH",body:JSON.stringify({stage:col.dataset.stage})});toast("Этап обновлён");await load();}catch(err){toast(err.message);}});
   });
+}
+
+
+async function changeLeadSpam(deal, isSpam) {
+  if(deal.source!=="lead")return;
+  try{
+    await api(`/api/deals/${encodeURIComponent(deal.id)}`,{method:"PATCH",body:JSON.stringify({isSpam})});
+    toast(isSpam?"Заявка перемещена в «Спам»":"Заявка восстановлена");
+    await load();
+  }catch(error){toast(error.message||"Не удалось изменить заявку");}
+}
+
+async function removeSpamLead(deal) {
+  if(deal.source!=="lead"||!deal.isSpam)return;
+  if(!confirm(`Безвозвратно удалить заявку «${deal.clientName||deal.title}» и связанные с ней задачи? Это действие нельзя отменить.`))return;
+  try{
+    await api(`/api/deals/${encodeURIComponent(deal.id)}`,{method:"DELETE"});
+    toast("Заявка удалена из сайта и CRM");
+    await load();
+  }catch(error){toast(error.message||"Не удалось удалить заявку");}
+}
+
+function spamView(){
+  const leads=data.deals.filter(d=>d.source==="lead"&&d.isSpam);
+  const list=leads.map(d=>`<article class="crm-spam-item" data-spam-id="${esc(d.id)}">
+    <div class="crm-spam-info"><div class="source">ЗАЯВКА С САЙТА</div>
+      <h3>${esc(d.clientName||"Без имени")}</h3>
+      <p>${esc(d.notes||d.title||"Без описания")}</p>
+      <small>${esc(fmtDate(d.createdAt))}</small></div>
+    <div class="crm-spam-actions">
+      <button type="button" class="secondary" data-spam-restore="${esc(d.id)}">Восстановить</button>
+      <button type="button" class="secondary crm-spam-delete" data-spam-delete="${esc(d.id)}">Удалить навсегда</button>
+    </div>
+  </article>`).join("");
+  shell(`<div class="crm-spam-list">${list||'<div class="empty">Спам-заявок пока нет. Здесь появятся обращения, которые вы отметили как спам.</div>'}</div>`,
+    "Спам и тестовые заявки","Отсюда можно восстановить заявку или безвозвратно удалить её после подтверждения.");
+  root.querySelectorAll("[data-spam-restore]").forEach(button=>button.addEventListener("click",()=>{
+    const deal=leads.find(d=>d.id===button.dataset.spamRestore);
+    if(deal)void changeLeadSpam(deal,false);
+  }));
+  root.querySelectorAll("[data-spam-delete]").forEach(button=>button.addEventListener("click",()=>{
+    const deal=leads.find(d=>d.id===button.dataset.spamDelete);
+    if(deal)void removeSpamLead(deal);
+  }));
 }
 
 function filteredContacts(){const q=search.trim().toLowerCase();if(!q)return data.contacts;return data.contacts.filter(c=>[c.name,c.company,c.phone,c.email,c.contact].some(v=>String(v||"").toLowerCase().includes(q)));}
@@ -86,7 +131,7 @@ function tasksView(){
   root.querySelectorAll("[data-task-delete]").forEach(el=>el.addEventListener("click",async()=>{await api(`/api/tasks/${encodeURIComponent(el.dataset.taskDelete)}`,{method:"DELETE"});await load();}));
 }
 
-function render(){ if(!token)return renderLogin(); if(tab==="clients")return clientsView(); if(tab==="tasks")return tasksView(); pipelineView(); }
+function render(){ if(!token)return renderLogin(); if(tab==="clients")return clientsView(); if(tab==="tasks")return tasksView(); if(tab==="spam")return spamView(); pipelineView(); }
 
 function dialog(html){const d=document.createElement("dialog");d.innerHTML=`<div class="modal">${html}</div>`;document.body.appendChild(d);d.addEventListener("close",()=>d.remove());d.showModal();return d;}
 function field(label,name,value="",type="text",wide=false){return `<label class="field ${wide?"wide":""}"><span>${label}</span>${type==="textarea"?`<textarea name="${name}" rows="4">${esc(value)}</textarea>`:`<input name="${name}" type="${type}" value="${esc(value)}">`}</label>`}
@@ -113,11 +158,13 @@ function openDeal(id){
   const deal=data.deals.find(d=>d.id===id);if(!deal)return;
   const isSystem=deal.source!=="manual";
   const isWeb=deal.source==="web";
-  const d=dialog(`<div class="modal-head"><div><div class="eyebrow">${sourceLabel(deal).toUpperCase()}</div><h2>${esc(deal.title)}</h2></div><button data-close>×</button></div><form id="f" class="form-grid"><label class="field wide"><span>ЭТАП</span><select name="stage">${data.stages.map(s=>`<option ${s===deal.stage?"selected":""}>${esc(s)}</option>`).join("")}</select></label>${field("КЛИЕНТ","clientName",deal.clientName||"","text",true)}${field("СУММА, ₽","amount",deal.amount||0,"number")}${field("ОПЛАЧЕНО, ₽","paid",deal.paid||0,"number")}${field("СРОК","deadline",deal.deadline||"","date")}${isWeb?field("ТРЕК-НОМЕР","trackingCode",deal.trackingCode||""):""}${field("ЗАМЕТКИ","notes",deal.notes||"","textarea",true)}<div class="modal-actions wide">${!isSystem?'<button type="button" class="secondary" id="delete-deal">Удалить</button>':""}<button class="primary">Сохранить</button></div></form>`);
+  const d=dialog(`<div class="modal-head"><div><div class="eyebrow">${sourceLabel(deal).toUpperCase()}</div><h2>${esc(deal.title)}</h2></div><button data-close>×</button></div><form id="f" class="form-grid"><label class="field wide"><span>ЭТАП</span><select name="stage">${data.stages.map(s=>`<option ${s===deal.stage?"selected":""}>${esc(s)}</option>`).join("")}</select></label>${field("КЛИЕНТ","clientName",deal.clientName||"","text",true)}${field("СУММА, ₽","amount",deal.amount||0,"number")}${field("ОПЛАЧЕНО, ₽","paid",deal.paid||0,"number")}${field("СРОК","deadline",deal.deadline||"","date")}${isWeb?field("ТРЕК-НОМЕР","trackingCode",deal.trackingCode||""):""}${field("ЗАМЕТКИ","notes",deal.notes||"","textarea",true)}<div class="modal-actions wide">${deal.source==="lead"?`<button type="button" class="secondary" id="mark-lead-spam">${deal.isSpam?"Восстановить":"В спам"}</button>${deal.isSpam?'<button type="button" class="secondary crm-spam-delete" id="delete-lead">Удалить навсегда</button>':""}`:(!isSystem?'<button type="button" class="secondary" id="delete-deal">Удалить</button>':"")}<button class="primary">Сохранить</button></div></form>`);
   closeButtons(d);
   if(isSystem){d.querySelectorAll('input[name="clientName"],input[name="amount"],input[name="paid"],input[name="deadline"],textarea[name="notes"]').forEach(x=>x.disabled=true);}
   d.querySelector("#f").addEventListener("submit",async e=>{e.preventDefault();const body=Object.fromEntries(new FormData(e.currentTarget));await api(`/api/deals/${encodeURIComponent(deal.id)}`,{method:"PATCH",body:JSON.stringify(body)});d.close();toast("Проект обновлён");await load();});
   d.querySelector("#delete-deal")?.addEventListener("click",async()=>{if(!confirm("Удалить проект из CRM?"))return;try{await api(`/api/deals/${encodeURIComponent(deal.id)}`,{method:"DELETE"});d.close();await load();}catch(err){toast(err.message);}});
+  d.querySelector("#mark-lead-spam")?.addEventListener("click",async()=>{d.close();await changeLeadSpam(deal,!deal.isSpam);});
+  d.querySelector("#delete-lead")?.addEventListener("click",async()=>{d.close();await removeSpamLead(deal);});
 }
 
 function openClient(id){
