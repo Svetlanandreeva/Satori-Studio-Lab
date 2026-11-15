@@ -29,3 +29,11 @@
     to { opacity: 1; transform: none; text-shadow: 0 0 0 transparent; }
   }
 }
+
+.wave-case { display: grid; grid-template-columns: minmax(0, 1.45fr) minmax(0, 1fr); align-items: center; gap: clamp(18px, 4vw, 48px); }
+.wave-case .kicker { margin-bottom: 8px; }
+.wave-case img { display: block; width: 100%; height: auto; aspect-ratio: 5 / 3; object-fit: cover; object-position: center 52%; border-radius: 13px; }
+@media (max-width: 680px) {
+  .wave-case { grid-template-columns: minmax(0, 1fr); }
+  .wave-case img { grid-row: 1; }
+}
