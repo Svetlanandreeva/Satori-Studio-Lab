@@ -8,7 +8,7 @@ import { config as loadEnv } from "dotenv";
 import webpush from "web-push";
 import { login, requireAdmin } from "../server/auth.js";
 import { listOrders, updateOrder } from "../server/orders.js";
-import { listLeads } from "../server/leads.js";
+import { listLeads, updateLead, deleteLead } from "../server/leads.js";
 import { createIntegrationsRouter, startIntegrationWatcher } from "./integrations-router.js";
 import { createParserHistoryRouter } from "./parser-history.js";
 import { createAiSalesManager } from "./ai-sales-manager.js";
@@ -142,7 +142,8 @@ function leadPush(lead) {
 
 async function pollSiteActivity() {
   try {
-    const [orders, leads] = await Promise.all([listOrders(), listLeads()]);
+    const [orders, allLeads] = await Promise.all([listOrders(), listLeads()]);
+    const leads = allLeads.filter((lead) => !lead.isSpam);
     if (!watcherReady) {
       seenOrderIds = new Set(orders.map((item) => item.id));
       seenLeadIds = new Set(leads.map((item) => item.id));
@@ -304,6 +305,7 @@ app.post("/api/push/test", requireAdmin, async (req, res) => {
 app.get("/api/bootstrap", requireAdmin, async (req, res) => {
   try {
     const [crm, orders, leads] = await Promise.all([readCrm(), listOrders(), listLeads()]);
+    const activeLeads = leads.filter((lead) => !lead.isSpam);
     const webDeals = orders.map((o) => ({
       id: `web:${o.id}`,
       source: "web",
@@ -325,6 +327,8 @@ app.get("/api/bootstrap", requireAdmin, async (req, res) => {
       id: `lead:${l.id}`,
       source: "lead",
       sourceId: l.id,
+      isSpam: l.isSpam === true,
+      leadStatus: l.status || "Новая",
       title: l.type === "business" ? `B2B: ${l.company || "новая заявка"}` : "Индивидуальный заказ",
       clientName: l.name || l.company || "Новая заявка",
       phone: l.phone || l.contact || "",
@@ -336,7 +340,8 @@ app.get("/api/bootstrap", requireAdmin, async (req, res) => {
       brief: crm.leadBriefs[l.id] || null,
       createdAt: l.createdAt,
     }));
-    res.json({ stages: STAGES, contacts: inferredContacts(orders, leads, crm.clients), deals: [...crm.deals, ...leadDeals, ...webDeals], tasks: crm.tasks, stats: { webOrders: orders.length, leads: leads.length } });
+    res.set("Cache-Control", "no-store");
+    res.json({ stages: STAGES, contacts: inferredContacts(orders, activeLeads, crm.clients), deals: [...crm.deals, ...leadDeals, ...webDeals], tasks: crm.tasks, stats: { webOrders: orders.length, leads: activeLeads.length, spam: leads.length - activeLeads.length } });
   } catch (error) {
     console.error(error);
     res.status(500).json({ error: "Не удалось загрузить CRM" });
@@ -373,13 +378,20 @@ app.patch("/api/deals/:id", requireAdmin, async (req, res) => {
   if (dealId.startsWith("lead:")) {
     const leadId = dealId.slice(5);
     if (req.body?.stage !== undefined && !STAGES.includes(req.body.stage)) return res.status(400).json({ error: "Некорректный этап" });
-    await mutate((data) => {
-      data.leadStages = data.leadStages || {};
-      data.leadBriefs = data.leadBriefs || {};
-      if (req.body?.stage !== undefined) data.leadStages[leadId] = req.body.stage;
-      if (req.body?.brief !== undefined) data.leadBriefs[leadId] = req.body.brief && typeof req.body.brief === "object" ? req.body.brief : null;
-      return true;
-    });
+    if (req.body?.isSpam !== undefined && typeof req.body.isSpam !== "boolean") return res.status(400).json({ error: "Некорректная отметка спама" });
+    if (req.body?.isSpam !== undefined) {
+      const lead = await updateLead(leadId, { isSpam: req.body.isSpam, read: true });
+      if (!lead) return res.status(404).json({ error: "Заявка не найдена" });
+    }
+    if (req.body?.stage !== undefined || req.body?.brief !== undefined) {
+      await mutate((data) => {
+        data.leadStages = data.leadStages || {};
+        data.leadBriefs = data.leadBriefs || {};
+        if (req.body?.stage !== undefined) data.leadStages[leadId] = req.body.stage;
+        if (req.body?.brief !== undefined) data.leadBriefs[leadId] = req.body.brief && typeof req.body.brief === "object" ? req.body.brief : null;
+        return true;
+      });
+    }
     return res.json({ ok: true });
   }
 
@@ -418,8 +430,24 @@ app.patch("/api/deals/:id", requireAdmin, async (req, res) => {
 });
 
 app.delete("/api/deals/:id", requireAdmin, async (req, res) => {
-  if (String(req.params.id).startsWith("web:") || String(req.params.id).startsWith("lead:")) return res.status(400).json({ error: "Системные заявки и заказы не удаляются из CRM" });
-  const removed = await mutate((data) => { const before = data.deals.length; data.deals = data.deals.filter((item) => item.id !== req.params.id); return data.deals.length !== before; });
+  const dealId = String(req.params.id);
+  // Paid/site orders are managed separately; this route must never delete an order.
+  if (dealId.startsWith("web:")) return res.status(403).json({ error: "Заказы магазина здесь удалять нельзя" });
+  if (dealId.startsWith("lead:")) {
+    const leadId = dealId.slice(5);
+    const lead = (await listLeads()).find((item) => item.id === leadId);
+    if (!lead) return res.status(404).json({ error: "Заявка уже удалена" });
+    if (!lead.isSpam) return res.status(409).json({ error: "Сначала перенесите заявку в «Спам», затем подтвердите удаление" });
+    const removed = await deleteLead(leadId);
+    if (!removed) return res.status(404).json({ error: "Заявка уже удалена" });
+    await mutate((data) => {
+      delete data.leadStages[leadId];
+      delete data.leadBriefs[leadId];
+      data.tasks = data.tasks.filter((task) => task.dealId !== dealId);
+    });
+    return res.json({ ok: true });
+  }
+  const removed = await mutate((data) => { const before = data.deals.length; data.deals = data.deals.filter((item) => item.id !== dealId); return data.deals.length !== before; });
   if (!removed) return res.status(404).json({ error: "Сделка не найдена" });
   res.json({ ok: true });
 });
