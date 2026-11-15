@@ -940,3 +940,61 @@ body > header .logo img[src$=".svg"] {
 @media (max-width: 720px) {
   .project-stories-grid { grid-template-columns: 1fr; }
 }
+
+/* Mobile Satori request-form contacts: prevent broken email and social names */
+@media (max-width: 700px) {
+  .order .grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .order .grid > * {
+    min-width: 0;
+  }
+  .order .contacts {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr);
+    gap: 9px;
+    width: 100%;
+    margin: 14px 0 0;
+  }
+  .order .contacts a {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    width: 100%;
+    max-width: none;
+    min-width: 0;
+    min-height: 52px;
+    padding: 7px 12px;
+    margin: 0;
+    border: 1px solid var(--line);
+    border-radius: 13px;
+    background: var(--paper);
+    color: var(--ink);
+    font-size: clamp(12px, 3.5vw, 15px);
+    font-weight: 600;
+    line-height: 1.35;
+    text-decoration: none;
+    overflow-wrap: normal;
+    word-break: normal;
+  }
+  .order .contacts a > .order-contact-icon {
+    flex: 0 0 38px;
+    width: 38px;
+    height: 38px;
+    background: transparent;
+    border: 0;
+  }
+  .order .contacts a > span:last-child {
+    display: block;
+    flex: 1 1 auto;
+    min-width: 0;
+    white-space: nowrap;
+    overflow-wrap: normal;
+    word-break: normal;
+    letter-spacing: -.02em;
+  }
+  .order .contacts a:focus-visible {
+    outline: 2px solid var(--wine, #70263e);
+    outline-offset: 2px;
+  }
+}
