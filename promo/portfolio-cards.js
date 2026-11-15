@@ -1,11 +1,63 @@
 /* Satori portfolio: project cards carousel with dedicated photo viewer.
    Source HTML stays in the page for indexing and no-JavaScript fallback. */
-(function () {
+(async function () {
   'use strict';
 
   const section = document.querySelector('.studio-catalog .catalog-projects-section');
   const root = section && section.querySelector('.wrap');
   if (!root) return;
+
+  // The HTML gallery remains a complete fallback while the admin API is
+  // unavailable (or before the backend deployment has finished).
+  try {
+    const response = await fetch('/api/portfolio', { cache: 'no-store' });
+    if (response.ok) {
+      const payload = await response.json();
+      if (Array.isArray(payload.projects) && payload.projects.length) {
+        const freshGroups = document.createDocumentFragment();
+        payload.projects.forEach(project => {
+          if (!project || !Array.isArray(project.images) || !project.images.length) return;
+          const group = document.createElement('div');
+          group.className = 'group';
+          const heading = document.createElement('h2');
+          heading.id = String(project.id || '');
+          heading.textContent = String(project.title || 'Работа Satori');
+          group.append(heading);
+          (project.descriptions || []).forEach(description => {
+            const paragraph = document.createElement('p');
+            paragraph.className = 'sub';
+            paragraph.textContent = String(description);
+            group.append(paragraph);
+          });
+          const works = document.createElement('div');
+          works.className = 'works';
+          project.images.forEach(photo => {
+            if (!photo || !photo.url) return;
+            const figure = document.createElement('figure');
+            figure.dataset.name = project.title;
+            const image = document.createElement('img');
+            image.src = String(photo.url);
+            image.alt = String(photo.alt || project.title);
+            image.loading = 'lazy';
+            const like = document.createElement('button');
+            like.type = 'button';
+            like.className = 'like';
+            like.textContent = 'Хочу похожий';
+            figure.append(image, like);
+            works.append(figure);
+          });
+          group.append(works);
+          freshGroups.append(group);
+        });
+        if (freshGroups.childElementCount) {
+          Array.from(root.children)
+            .filter(el => el.classList.contains('group'))
+            .forEach(group => group.remove());
+          root.append(freshGroups);
+        }
+      }
+    }
+  } catch (_) { /* Keep the existing static catalog if API is unavailable. */ }
 
   const groups = Array.from(root.children).filter(el => el.classList.contains('group'));
   if (!groups.length) return;
