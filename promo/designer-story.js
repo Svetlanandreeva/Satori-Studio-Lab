@@ -8,7 +8,6 @@
   const next = story.querySelector('[data-story-next]');
   const play = story.querySelector('[data-story-play]');
   const counter = story.querySelector('[data-story-counter]');
-  const motion = window.matchMedia('(prefers-reduced-motion: reduce)');
   const sceneDuration = 4400;
   let current = 0;
   let timer;
@@ -59,15 +58,10 @@
     schedule();
   });
 
-  if (motion.matches || !('IntersectionObserver' in window)) return;
-  const observer = new IntersectionObserver(entries => {
-    if (!entries.some(entry => entry.isIntersecting)) return;
-    observer.disconnect();
-    if (current !== 0 || playing || finished) return;
-    playing = true;
-    render();
+  story.addEventListener('toggle', () => {
+    if (story.open) return;
+    playing = false;
     schedule();
-  }, { threshold: 0.55 });
-  observer.observe(story.querySelector('.designer-summary'));
-  controls.addEventListener('click', () => observer.disconnect(), { once: true });
+    render();
+  });
 })();

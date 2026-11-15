@@ -608,7 +608,12 @@ h1, h2, h3, .hero h1 { font-weight: 600; letter-spacing: -.055em; line-height: 1
   border-bottom: 0;
 }
 
-/* Satori's dark wordmark palette carries through the floating header. */
+/* Satori's accent colors for navigation and primary actions. */
+:root {
+  --wine: #70263e;
+  --wine-hover: #87344d;
+  --wine-light: #f2bbc9;
+}
 body > header {
   padding: 6px clamp(8px, 2vw, 28px);
   background: transparent;
@@ -653,12 +658,12 @@ body > header nav a[aria-current=page] {
 }
 
 body > header nav a[aria-current=page] {
-  color: #f1d4aa;
+  color: var(--wine-light);
   text-decoration: none;
 }
 
 body > header nav:not(.nav-follower) a:is(:hover, :focus-visible, [aria-current=page]) {
-  background: #e5bd7f24;
+  background: #bd54813b;
 }
 
 .nav-follower::before {
@@ -669,28 +674,28 @@ body > header nav:not(.nav-follower) a:is(:hover, :focus-visible, [aria-current=
   width: var(--nav-highlight-width, 0px);
   transform: translateX(var(--nav-highlight-x, 0px));
   border-radius: 100px;
-  background: #e5bd7f24;
-  box-shadow: inset 0 0 0 1px #e5bd7f35;
+  background: #bd54813b;
+  box-shadow: inset 0 0 0 1px #e097b242;
   transition: transform 260ms ease, width 260ms ease;
   pointer-events: none;
 }
 
 body > header .contact-button,
 .studio-home .hero-actions .btn {
-  background: #e5bd7f;
-  border-color: #e5bd7f;
-  color: #21180e;
+  background: var(--wine);
+  border-color: var(--wine);
+  color: #fff6f6;
 }
 
 body > header .contact-button:hover,
 .studio-home .hero-actions .btn:hover {
-  background: #f1d4aa;
-  border-color: #f1d4aa;
+  background: var(--wine-hover);
+  border-color: var(--wine-hover);
 }
 
 body > header :focus-visible,
 .studio-home .hero-actions :focus-visible {
-  outline-color: #f1d4aa;
+  outline-color: var(--wine-light);
 }
 
 @media (max-width: 900px) {
@@ -847,7 +852,7 @@ body > header .logo img[src$=".svg"] {
 
 .category-back h3 { font-size: clamp(14px, 2vw, 26px); }
 .category-back p { font-size: clamp(12px, 1.2vw, 16px); line-height: 1.3; }
-.category-back a { color: #e5bd7f; font-size: clamp(12px, 1.25vw, 16px); }
+.category-back a { color: var(--wine-light); font-size: clamp(12px, 1.25vw, 16px); }
 
 .category-flip-toggle:not([hidden]) {
   position: absolute;
