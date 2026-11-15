@@ -28,7 +28,8 @@
   width: 100%;
   height: clamp(310px, 33vw, 430px);
   aspect-ratio: auto;
-  object-fit: cover;
+  object-fit: contain;
+  background: var(--paper2);
 }
 .studio-catalog .catalog-carousel-controls {
   display: flex;
