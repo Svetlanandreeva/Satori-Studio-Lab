@@ -10,6 +10,7 @@ import {
 const TOKEN_KEY = "satori_admin_token";
 const CATEGORIES = ["Декор", "Лампы", "Украшения"];
 const FULFILLMENT_STATUSES = ["Новый", "В работе", "Собран", "Отправлен", "Выполнен", "Отменён"];
+const LEAD_STATUSES = ["Новая", "Связаться", "В работе", "Ожидаем ответ", "Завершена", "Отказ"] as const;
 
 type AdminTab = "orders" | "leads" | "portfolio" | "products" | "home" | "promocodes";
 type HeroSlide = { type: "image" | "video"; url: string };
@@ -35,6 +36,7 @@ type Lead = {
   name?: string; company?: string; phone?: string; email?: string; contact?: string;
   budget?: string; idea?: string; inquiryType?: string; volume?: string; comment?: string;
   referenceName?: string; referenceDataUrl?: string;
+  status?: string; isSpam?: boolean; crmStatus?: string; crmNumber?: string;
 };
 
 type Promo = {
@@ -165,7 +167,7 @@ function Dashboard({ token, onLogout }: { token: string; onLogout: () => void })
 
   const nav:[AdminTab,string,any][]=[["leads","Заявки",Inbox],["orders","Заказы",ClipboardList],["portfolio","Редактирование сайта",Pencil],["products","Товары",PackageSearch],["home","Главная",Home],["promocodes","Промокоды",Tag]];
   const newOrders=orders.filter(o=>(o.fulfillmentStatus??"Новый")==="Новый").length;
-  const unread=leads.filter(l=>!l.read).length;
+  const unread=leads.filter(l=>!l.read&&!l.isSpam).length;
   const countFor=(t:AdminTab)=>t==="orders"?orders.length:t==="leads"?unread:t==="products"?products.length:t==="promocodes"?promos.filter(p=>p.active).length:0;
   function go(t:AdminTab){if(tab==="portfolio"&&t!=="portfolio"&&portfolioDirty&&!window.confirm("В редакторе есть неопубликованные изменения. Перейти без сохранения?"))return;setTab(t);setMobileMenu(false);setEditing(null);if(t!=="portfolio")setPortfolioDirty(false);window.scrollTo({top:0,behavior:"smooth"});}
 
@@ -175,7 +177,7 @@ function Dashboard({ token, onLogout }: { token: string; onLogout: () => void })
     {loading?<div className="fa-loading">Загрузка…</div>:<>{error&&<div className="fa-error">{error}</div>}
       {tab==="orders"&&<OrdersPage orders={orders} selectedId={selectedOrder} setSelectedId={setSelectedOrder} search={orderSearch} setSearch={setOrderSearch} token={token} onChanged={reload}/>} 
       {tab==="portfolio"&&<PortfolioAdminPage token={token} onDirtyChange={setPortfolioDirty}/>} 
-      {tab==="leads"&&<LeadsPage leads={leads} selectedId={selectedLead} setSelectedId={setSelectedLead} search={leadSearch} setSearch={setLeadSearch} token={token} onChanged={reload}/>} 
+      {tab==="leads"&&<LeadsPage leads={leads} selectedId={selectedLead} setSelectedId={setSelectedLead} search={leadSearch} setSearch={setLeadSearch} token={token} onChanged={reload} onUpdated={updated=>setLeads(prev=>prev.map(lead=>lead.id===updated.id?{...lead,...updated}:lead))} onDeleted={id=>setLeads(prev=>prev.filter(lead=>lead.id!==id))}/>} 
       {tab==="products"&&<ProductsPage products={products} search={productSearch} setSearch={setProductSearch} category={productCategory} setCategory={setProductCategory} onEdit={setEditing}/>} 
       {tab==="home"&&<HomePage hero={hero} gallery={gallery} token={token} onChanged={reload} onPromos={()=>go("promocodes")}/>} 
       {tab==="promocodes"&&<PromosPage promos={promos} token={token} onChanged={reload}/>} 
@@ -197,10 +199,146 @@ function OrdersPage({orders,selectedId,setSelectedId,search,setSearch,token,onCh
   return <><div className="fa-page-head"><div><h1>Заказы</h1><p>Оплата, комплектация и отправка заказов.</p></div></div><div className="fa-stats"><Stat label="НОВЫЕ" value={orders.filter(o=>(o.fulfillmentStatus??"Новый")==="Новый").length} note="требуют внимания"/><Stat label="ОПЛАЧЕНО" value={paid.length} note="за всё время"/><Stat label="К ОТПРАВКЕ" value={ship} note="статус «Собран»"/><Stat label="ВЫРУЧКА" value={fmtMoney(revenue)} note="оплаченные заказы"/></div><div className="fa-toolbar"><label><Search size={15}/><input placeholder="Поиск по заказу или клиенту" value={search} onChange={e=>setSearch(e.target.value)}/></label></div><div className="fa-split"><section className="fa-card fa-table-card"><div className="fa-table-wrap"><table><thead><tr><th>ЗАКАЗ</th><th>КЛИЕНТ</th><th>ТОВАРЫ</th><th>СУММА</th><th>ОПЛАТА</th><th>ДОСТАВКА</th><th>ДАТА</th></tr></thead><tbody>{filtered.map(o=><tr key={o.id} className={selected?.id===o.id?"selected":""} onClick={()=>setSelectedId(o.id)}><td><b>#{o.id.slice(0,8)}</b></td><td>{o.customer?.name||"—"}</td><td>{o.items?.map(i=>`${i.name} ×${i.qty}`).join(", ")||"—"}</td><td><b>{fmtMoney(o.amount)}</b></td><td><Badge tone={o.status==="paid"?"green":o.status==="canceled"?"red":"neutral"}>{o.status==="paid"?"Оплачен":o.status==="canceled"?"Отменён":"Ожидает"}</Badge></td><td><Badge tone={(o.fulfillmentStatus||"Новый")==="Отправлен"?"green":(o.fulfillmentStatus||"")==="Собран"?"sand":"neutral"}>{o.fulfillmentStatus||"Новый"}</Badge></td><td>{fmtDate(o.createdAt)}</td></tr>)}</tbody></table></div></section>{selected&&<aside className="fa-card fa-detail"><div className="fa-detail-title"><h2>Заказ #{selected.id.slice(0,8)}</h2><Badge tone={selected.status==="paid"?"green":"neutral"}>{selected.status==="paid"?"Оплачен":"Ожидает"}</Badge></div><p>{fmtDate(selected.createdAt)}</p><hr/><div className="fa-section-label">КЛИЕНТ</div><h3>{selected.customer?.name||"—"}</h3><p>{[selected.customer?.phone,selected.customer?.contactMethod,selected.customer?.contactHandle].filter(Boolean).join(" · ")}</p><div className="fa-section-label">ДОСТАВКА</div><h3>{selected.customer?.delivery||"—"}</h3><p>{[selected.customer?.address,selected.customer?.apartment,selected.customer?.postalCode].filter(Boolean).join(", ")}</p><div className="fa-section-label">СОСТАВ ЗАКАЗА</div>{selected.items?.map((i,n)=><div className="fa-order-item" key={n}>{i.img&&<img src={i.img}/>}<div><b>{i.name}</b><span>{i.qty} × {fmtMoney(i.price||0)}</span></div><b>{fmtMoney((i.price||0)*i.qty)}</b></div>)}<label className="fa-field-label">СТАТУС ИСПОЛНЕНИЯ<select value={status} onChange={e=>setStatus(e.target.value)}>{FULFILLMENT_STATUSES.map(s=><option key={s}>{s}</option>)}</select></label><label className="fa-field-label">ТРЕК-НОМЕР<input value={track} onChange={e=>setTrack(e.target.value)} placeholder="Будет доступен после отправки"/></label><div className="fa-actions"><button className="fa-primary" onClick={save}>Сохранить изменения</button><button className="fa-outline-button" onClick={()=>navigator.clipboard?.writeText(`${selected.customer?.name||""} ${selected.customer?.phone||""}`)}><Copy size={13}/> Скопировать данные</button></div></aside>}</div></>;
 }
 
-function LeadsPage({leads,selectedId,setSelectedId,search,setSearch,token,onChanged}:{leads:Lead[];selectedId:string;setSelectedId:(x:string)=>void;search:string;setSearch:(x:string)=>void;token:string;onChanged:()=>void}){
-  const [filter,setFilter]=useState<"all"|"custom"|"business">("all"); const list=leads.filter(l=>(filter==="all"||l.type===filter)&&`${l.name||""} ${l.company||""} ${l.phone||""} ${l.contact||""}`.toLowerCase().includes(search.toLowerCase())); const selected=list.find(l=>l.id===selectedId)||list[0];
-  async function readAll(){await fetch("/api/admin/leads/read-all",{method:"POST",headers:{Authorization:`Bearer ${token}`}});onChanged();} async function del(){if(!selected||!confirm("Удалить заявку?"))return;await fetch(`/api/admin/leads/${selected.id}`,{method:"DELETE",headers:{Authorization:`Bearer ${token}`}});setSelectedId("");onChanged();}
-  return <><div className="fa-page-head"><div><h1>Заявки</h1><p>Брифы «На заказ» и обращения для бизнеса.</p></div><button className="fa-outline-button" onClick={readAll}>Прочитать все</button></div><div className="fa-stats"><Stat label="НОВЫЕ" value={leads.filter(l=>!l.read).length} note="непрочитанных"/><Stat label="НА ЗАКАЗ" value={leads.filter(l=>l.type==="custom").length} note="частные проекты"/><Stat label="БИЗНЕСУ" value={leads.filter(l=>l.type==="business").length} note="партнёрские запросы"/><Stat label="ЗА НЕДЕЛЮ" value={leads.filter(l=>Date.now()-new Date(l.createdAt).getTime()<604800000).length} note="всего обращений"/></div><div className="fa-toolbar"><label><Search size={15}/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Имя, контакт или компания"/></label><div className="fa-chips"><button className={filter==="all"?"active":""} onClick={()=>setFilter("all")}>Все</button><button className={filter==="custom"?"active":""} onClick={()=>setFilter("custom")}>На заказ</button><button className={filter==="business"?"active":""} onClick={()=>setFilter("business")}>Бизнесу</button></div></div><div className="fa-leads-split"><section className="fa-card fa-inbox"><div className="fa-inbox-head"><span>ВХОДЯЩИЕ</span><b>{leads.filter(l=>!l.read).length} новых</b></div>{list.map(l=><button key={l.id} className={`${selected?.id===l.id?"selected":""} ${!l.read?"unread":""}`} onClick={()=>setSelectedId(l.id)}><i></i><div><b>{l.type==="business"?l.company||l.name:l.name}</b><p>{l.type==="business"?(l.comment||l.inquiryType):(l.idea||"")}</p></div><div><Badge tone={l.type==="business"?"sand":"neutral"}>{l.type==="business"?"Бизнесу":"На заказ"}</Badge><small>{fmtDate(l.createdAt)}</small></div></button>)}</section>{selected&&<aside className="fa-card fa-detail"><div className="fa-section-label">ЗАЯВКА / {selected.type==="business"?"БИЗНЕСУ":"НА ЗАКАЗ"}</div><h2>{selected.type==="business"?selected.company||selected.name:selected.name}</h2><p>{fmtDate(selected.createdAt)}</p><hr/><div className="fa-section-label">КОНТАКТ</div><h3>{[selected.phone,selected.email,selected.contact].filter(Boolean).join(" · ")||"—"}</h3>{selected.budget&&<><div className="fa-section-label">БЮДЖЕТ</div><h3>{selected.budget}</h3></>}<div className="fa-section-label">ИДЕЯ</div><div className="fa-idea">{selected.type==="business"?[selected.inquiryType,selected.volume,selected.comment].filter(Boolean).join(" · "):selected.idea||"—"}</div><LeadReference lead={selected}/><div className="fa-actions"><button className="fa-primary" onClick={()=>navigator.clipboard?.writeText([selected.phone,selected.email,selected.contact].filter(Boolean).join(" "))}><Copy size={13}/> Скопировать контакт</button><button className="fa-outline-button" onClick={del}>Удалить</button></div></aside>}</div></>;
+function LeadsPage({leads,selectedId,setSelectedId,search,setSearch,token,onChanged,onUpdated,onDeleted}:{
+  leads:Lead[];selectedId:string;setSelectedId:(x:string)=>void;search:string;setSearch:(x:string)=>void;
+  token:string;onChanged:()=>void;onUpdated:(lead:Lead)=>void;onDeleted:(id:string)=>void;
+}){
+  type LeadFilter = "active" | "unread" | "custom" | "business" | "spam";
+  const [filter,setFilter]=useState<LeadFilter>("active");
+  const [busyId,setBusyId]=useState("");
+  const [actionError,setActionError]=useState("");
+  const activeLeads=leads.filter(lead=>!lead.isSpam);
+  const spamLeads=leads.filter(lead=>lead.isSpam);
+  const unread=activeLeads.filter(lead=>!lead.read);
+  const normalizedQuery=search.trim().toLowerCase();
+  const list=leads.filter(lead=>{
+    if(filter==="spam"){if(!lead.isSpam)return false;}
+    else {
+      if(lead.isSpam)return false;
+      if(filter==="unread"&&lead.read)return false;
+      if((filter==="custom"||filter==="business")&&lead.type!==filter)return false;
+    }
+    return !normalizedQuery || `${lead.name||""} ${lead.company||""} ${lead.phone||""} ${lead.email||""} ${lead.contact||""} ${lead.idea||""} ${lead.comment||""} ${lead.crmNumber||""}`.toLowerCase().includes(normalizedQuery);
+  });
+  const selected=list.find(lead=>lead.id===selectedId)||list[0]||null;
+
+  async function patchLead(lead:Lead, patch:Pick<Lead,"status"|"isSpam"|"read">){
+    if(busyId)return;
+    setBusyId(lead.id);
+    setActionError("");
+    try{
+      const res=await fetch(`/api/admin/leads/${encodeURIComponent(lead.id)}`,{
+        method:"PATCH",headers:{Authorization:`Bearer ${token}`,"Content-Type":"application/json"},
+        body:JSON.stringify(patch),
+      });
+      const result=await res.json().catch(()=>({}));
+      if(!res.ok)throw new Error(result.error||(res.status===404?"Нужна публикация серверного обновления":"Не удалось обновить заявку"));
+      onUpdated({...lead,...result});
+    }catch(err){setActionError(err instanceof Error?err.message:"Ошибка сохранения");}
+    finally{setBusyId("");}
+  }
+  async function removeLead(lead:Lead){
+    if(busyId)return;
+    if(!window.confirm(`Удалить заявку «${lead.company||lead.name||"Без имени"}» навсегда? Восстановить её после удаления нельзя.`))return;
+    setBusyId(lead.id);
+    setActionError("");
+    try{
+      const res=await fetch(`/api/admin/leads/${encodeURIComponent(lead.id)}`,{
+        method:"DELETE",headers:{Authorization:`Bearer ${token}`},
+      });
+      if(!res.ok)throw new Error("Не удалось удалить заявку");
+      onDeleted(lead.id);
+      if(selectedId===lead.id)setSelectedId("");
+    }catch(err){setActionError(err instanceof Error?err.message:"Ошибка удаления");}
+    finally{setBusyId("");}
+  }
+  async function readAll(){
+    if(busyId)return;
+    setActionError("");
+    try{
+      const res=await fetch("/api/admin/leads/read-all",{method:"POST",headers:{Authorization:`Bearer ${token}`}});
+      if(!res.ok)throw new Error("Не удалось отметить заявки прочитанными");
+      onChanged();
+    }catch(err){setActionError(err instanceof Error?err.message:"Ошибка сохранения");}
+  }
+  function statusSelect(lead:Lead,description:string){
+    return <select className="fa-lead-status" aria-label={description} title={description}
+      value={LEAD_STATUSES.includes((lead.status||"Новая") as typeof LEAD_STATUSES[number])?lead.status||"Новая":"Новая"}
+      disabled={busyId===lead.id||Boolean(busyId)}
+      onChange={event=>void patchLead(lead,{status:event.target.value})}>
+      {LEAD_STATUSES.map(status=><option key={status} value={status}>{status}</option>)}
+    </select>;
+  }
+  return <>
+    <div className="fa-page-head">
+      <div><h1>Заявки</h1><p>Быстрая обработка обращений. Статусы сохраняются, спам убирается из входящих одним нажатием.</p></div>
+      <button className="fa-outline-button" onClick={()=>void readAll()} disabled={Boolean(busyId)}>Прочитать все</button>
+    </div>
+    <div className="fa-stats">
+      <Stat label="НОВЫЕ" value={unread.length} note="непрочитанных"/>
+      <Stat label="АКТИВНЫЕ" value={activeLeads.filter(lead=>!["Завершена","Отказ"].includes(lead.status||"Новая")).length} note="без спама"/>
+      <Stat label="В РАБОТЕ" value={activeLeads.filter(lead=>lead.status==="В работе").length} note="текущие проекты"/>
+      <Stat label="СПАМ" value={spamLeads.length} note="убраны из входящих"/>
+    </div>
+    <div className="fa-toolbar">
+      <label><Search size={15}/><input value={search} onChange={event=>setSearch(event.target.value)} placeholder="Имя, контакт или номер"/></label>
+      <div className="fa-chips fa-lead-filters">
+        {([["active","Все"],["unread","Новые"],["custom","На заказ"],["business","Бизнесу"],["spam",`Спам (${spamLeads.length})`]] as [LeadFilter,string][]).map(([id,label])=>
+          <button key={id} className={filter===id?"active":""} onClick={()=>{setFilter(id);setSelectedId("");}}>{label}</button>)}
+      </div>
+    </div>
+    {actionError&&<div className="fa-error fa-lead-action-error" role="alert">{actionError}</div>}
+    <div className="fa-leads-split">
+      <section className="fa-card fa-inbox fa-lead-inbox">
+        <div className="fa-inbox-head"><span>{filter==="spam"?"СПАМ":"ВХОДЯЩИЕ"}</span><b>{filter==="spam"?`${spamLeads.length} в папке`:`${unread.length} новых`}</b></div>
+        {list.length===0&&<p className="fa-lead-empty">{filter==="spam"?"В папке «Спам» пока нет обращений.":"В этом разделе пока нет заявок."}</p>}
+        {list.map(lead=>
+          <div className={`fa-lead-row ${selected?.id===lead.id?"selected":""} ${!lead.read?"unread":""}`} key={lead.id}>
+            <button type="button" className="fa-lead-open" onClick={()=>setSelectedId(lead.id)} aria-label={`Открыть заявку ${lead.company||lead.name||""}`}>
+              <i></i>
+              <span className="fa-lead-summary"><b>{lead.type==="business"?lead.company||lead.name:lead.name}</b>
+                <small>{lead.type==="business"?"Бизнесу":"На заказ"} · {fmtDate(lead.createdAt)}</small>
+                <span>{lead.type==="business"?(lead.comment||lead.inquiryType):(lead.idea||"")}</span>
+              </span>
+            </button>
+            <div className="fa-lead-quick-actions">
+              {!lead.isSpam&&statusSelect(lead,`Статус заявки ${lead.company||lead.name||""}`)}
+              <button type="button" className={"fa-lead-spam-btn"+(lead.isSpam?" fa-lead-restore":"")}
+                title={lead.isSpam?"Вернуть заявку в работу":"Убрать заявку из входящих в спам"}
+                disabled={Boolean(busyId)}
+                onClick={()=>void patchLead(lead,{isSpam:!lead.isSpam})}>{lead.isSpam?"Вернуть":"Спам"}</button>
+              {lead.isSpam&&<button type="button" className="fa-lead-delete-btn" disabled={Boolean(busyId)}
+                onClick={()=>void removeLead(lead)} title="Удалить навсегда"><Trash2 size={14}/><span>Удалить</span></button>}
+            </div>
+          </div>)}
+      </section>
+      {selected&&<aside className="fa-card fa-detail fa-lead-detail">
+        <div className="fa-section-label">ЗАЯВКА / {selected.type==="business"?"БИЗНЕСУ":"НА ЗАКАЗ"}</div>
+        <h2>{selected.type==="business"?selected.company||selected.name:selected.name}</h2>
+        <p>{fmtDate(selected.createdAt)}{selected.crmNumber?` · ${selected.crmNumber}`:""}</p>
+        <hr/>
+        <div className="fa-section-label">КОНТАКТ</div>
+        <h3>{[selected.phone,selected.email,selected.contact].filter(Boolean).join(" · ")||"—"}</h3>
+        {selected.budget&&<><div className="fa-section-label">БЮДЖЕТ</div><h3>{selected.budget}</h3></>}
+        <div className="fa-section-label">ИДЕЯ</div>
+        <div className="fa-idea">{selected.type==="business"?[selected.inquiryType,selected.volume,selected.comment].filter(Boolean).join(" · "):selected.idea||"—"}</div>
+        <LeadReference lead={selected}/>
+        {!selected.isSpam&&<label className="fa-lead-detail-status-label">Статус заявки
+          {statusSelect(selected,"Изменить статус выбранной заявки")}
+        </label>}
+        {selected.crmStatus&&<p className="fa-lead-crm-stage">Этап в CRM: {selected.crmStatus}</p>}
+        <div className="fa-actions">
+          <button className="fa-primary" onClick={()=>navigator.clipboard?.writeText([selected.phone,selected.email,selected.contact].filter(Boolean).join(" "))}><Copy size={13}/> Скопировать контакт</button>
+          <button className="fa-outline-button" disabled={Boolean(busyId)}
+            onClick={()=>void patchLead(selected,{isSpam:!selected.isSpam})}>{selected.isSpam?"Вернуть из спама":"В спам"}</button>
+          <button className="fa-outline-button fa-lead-danger" disabled={Boolean(busyId)} onClick={()=>void removeLead(selected)}>
+            <Trash2 size={13}/> Удалить навсегда
+          </button>
+        </div>
+        {selected.isSpam&&<p className="fa-lead-note">Перемещение в спам обратимо. Удаление навсегда необратимо и не удаляет отдельную сделку в CRM.</p>}
+      </aside>}
+    </div>
+  </>;
 }
 
 function LeadReference({ lead }: { lead: Lead }) {
