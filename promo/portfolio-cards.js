@@ -165,6 +165,9 @@
       const photo = project.photos[activePhoto];
       image.src = photo.src;
       image.alt = photo.alt + ' — ракурс ' + (activePhoto + 1);
+      // Per-project framing is only for the cover photo. Other views still
+      // use object-fit: contain, and the full-screen gallery is untouched.
+      cover.classList.toggle('portfolio-project-cover--featured', activePhoto === 0);
       // Same photo provides a soft backdrop behind portrait / landscape
       // images; the actual photo is always shown in full (object-fit: contain).
       media.style.setProperty('--portfolio-cover-url', 'url(' + JSON.stringify(photo.src) + ')');
