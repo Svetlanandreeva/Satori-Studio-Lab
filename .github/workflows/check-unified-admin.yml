@@ -6,6 +6,9 @@ on:
       - "src/PortfolioAdminPage.tsx"
       - "src/AdminFigmaApp.tsx"
       - "src/main.tsx"
+      - "src/styles/admin-leads.css"
+      - "server/index.js"
+      - "server/leads.js"
       - "src/styles/admin-portfolio.css"
       - "vite.config.ts"
       - ".github/workflows/check-unified-admin.yml"
@@ -26,5 +29,9 @@ jobs:
           cache: npm
       - name: Install dependencies
         run: npm ci
+      - name: Validate server routes and lead persistence (without deploying)
+        run: |
+          node --check server/index.js
+          node --check server/leads.js
       - name: Build frontend (without deploying)
         run: npm run build
