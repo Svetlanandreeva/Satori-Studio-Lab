@@ -536,3 +536,4 @@ dialog.portfolio-viewer::backdrop {
   .studio-catalog .portfolio-photo-navigation { left: 14px; right: 14px; bottom: 14px; }
   .studio-catalog .portfolio-photo-arrow { width: 42px; height: 42px; }
 }
+.studio-catalog .portfolio-project-cover { touch-action: pan-y; }
