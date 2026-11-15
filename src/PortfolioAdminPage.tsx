@@ -10,7 +10,7 @@ function messageFor(error: unknown): string {
   return error instanceof Error ? error.message : "Не удалось выполнить действие";
 }
 
-export default function PortfolioAdminPage({ token }: { token: string }) {
+export default function PortfolioAdminPage({ token, onDirtyChange }: { token: string; onDirtyChange?: (dirty: boolean) => void }) {
   const [projects, setProjects] = useState<PortfolioProject[]>([]);
   const [version, setVersion] = useState("");
   const [selectedId, setSelectedId] = useState("");
@@ -50,6 +50,8 @@ export default function PortfolioAdminPage({ token }: { token: string }) {
   }
 
   useEffect(() => { void fetchProjects(); }, [token]);
+
+  useEffect(() => { onDirtyChange?.(dirty); }, [dirty, onDirtyChange]);
 
   useEffect(() => {
     if (!dirty) return;
@@ -257,7 +259,7 @@ export default function PortfolioAdminPage({ token }: { token: string }) {
            <label className="fa-portfolio-field">
              <span>Описание проекта</span>
              <textarea rows={4} value={selected.descriptions.join("\n")} onChange={event => editProject(project => ({
-               ...project, descriptions: event.target.value.split("\n").map(line => line.trim()).filter(Boolean),
+               ...project, descriptions: event.target.value.split("\n"),
              }))}/>
              <small>Каждая строка станет отдельным абзацем в каталоге.</small>
            </label>
