@@ -5,7 +5,7 @@ import { fileURLToPath } from "node:url";
 
 const BACKEND_DIR = path.dirname(fileURLToPath(import.meta.url));
 const DATA_FILE = path.join(BACKEND_DIR, "data", "portfolio-projects.json");
-const SEED_FILE = path.join(BACKEND_DIR, "..", "promo", "projects.json");
+const SEED_FILE = path.join(BACKEND_DIR, "portfolio-seed.json");
 let writeQueue = Promise.resolve();
 
 function revision(projects) {
