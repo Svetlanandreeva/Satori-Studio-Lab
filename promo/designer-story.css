@@ -1,0 +1,53 @@
+.designer-story { margin: 26px 0 22px; }
+.designer-scenes { display: grid; gap: 10px; list-style: none; padding: 0; margin: 0; }
+.designer-scene {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  align-items: center;
+  overflow: hidden;
+  border: 1px solid #ffffff38;
+  border-radius: 16px;
+}
+.designer-scene[hidden], .designer-story-controls[hidden] { display: none; }
+.designer-scene-art {
+  display: grid;
+  justify-items: center;
+  gap: 12px;
+  padding: 20px 12px;
+  background: radial-gradient(ellipse at center, #75614a, #3e3328 75%);
+}
+.designer-scene-route { font-size: 13px; text-align: center; }
+.designer-scene-document {
+  display: grid;
+  gap: 4px;
+  background: #f8e9cf;
+  color: #30241b;
+  padding: 16px 21px;
+  min-width: 150px;
+  border-radius: 10px;
+  box-shadow: 0 8px 24px #1d160c55;
+}
+.designer-scene-document strong { font-size: clamp(23px, 4vw, 42px); line-height: 1.1; }
+.designer-scene-copy { padding: clamp(15px, 3vw, 32px); }
+.designer-scene-copy h3 { font-size: clamp(24px, 3vw, 36px); margin-bottom: 8px; }
+.designer-scene-copy p { color: #f1e8dc; }
+.designer-story-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-top: 12px; }
+.designer-story-controls button { min-height: 44px; padding: 0 13px; border: 1px solid #ffffff55; border-radius: 22px; background: transparent; color: inherit; font: inherit; font-size: 13px; cursor: pointer; }
+.designer-story-controls button:disabled { cursor: default; opacity: .5; }
+.designer-story-controls span { font-size: 13px; }
+@media (max-width: 620px) {
+  .designer-scene { grid-template-columns: minmax(0, 1fr); }
+}
+@media (prefers-reduced-motion: no-preference) {
+  .designer-story.is-enhanced .designer-scene:not([hidden]) .designer-scene-document { animation: designer-document-arrive .65s cubic-bezier(.2,.75,.25,1) both; }
+  .designer-story.is-enhanced .designer-scene:last-child:not([hidden]) .designer-scene-document { animation-name: designer-payment-arrive; }
+  @keyframes designer-document-arrive {
+    from { transform: translateX(-30px) rotate(-7deg); opacity: .1; }
+    to { transform: none; opacity: 1; }
+  }
+  @keyframes designer-payment-arrive {
+    from { transform: translateY(14px) scale(.9); opacity: .1; }
+    58% { box-shadow: 0 0 32px #ffc87dc2; }
+    to { transform: none; opacity: 1; }
+  }
+}

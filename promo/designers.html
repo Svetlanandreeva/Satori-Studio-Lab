@@ -8,6 +8,7 @@
 <link rel="canonical" href="https://satorilabural.ru/promo/designers.html">
 <link rel="stylesheet" href="/promo/style.css?v=14">
 <link rel="stylesheet" href="/promo/project-examples.css">
+<link rel="stylesheet" href="/promo/designer-story.css">
 <script>
 window.dataLayer = window.dataLayer || [];
 (function(m,e,t,r,i,k,a){m[i]=m[i]||function(){(m[i].a=m[i].a||[]).push(arguments)};m[i].l=1*new Date();
@@ -40,11 +41,51 @@ ym(110458266,'init',{webvisor:true,clickmap:true,referrer:document.referrer,url:
       <h2 id="partnership-title">С нами выгодно</h2>
       <p>Вы предлагаете сумму своего вознаграждения, а мы согласовываем её с вами до выставления счёта. Клиент получает единый счёт от Satori. После оплаты мы переводим согласованное вознаграждение напрямую вам.</p>
     </div>
-    <dl class="designer-invoice" aria-label="Пример расчёта по одному светильнику">
-      <div><dt>Стоимость светильника</dt><dd>100 000 ₽</dd></div>
-      <div><dt>Ваше вознаграждение</dt><dd>30 000 ₽</dd></div>
-      <div><dt>Единый счёт клиенту</dt><dd>130 000 ₽</dd></div>
-    </dl>
+    <div class="designer-story">
+      <ol class="designer-scenes" aria-label="Пример сотрудничества по шагам">
+      <li class="designer-scene">
+        <div class="designer-scene-art">
+          <span class="designer-scene-route">Satori → дизайнер</span>
+          <span class="designer-scene-document"><small>Смета</small><strong>100 000 ₽</strong></span>
+        </div>
+        <div class="designer-scene-copy"><h3>Расчёт</h3><p>Вы получаете от Satori расчёт стоимости светильника.</p></div>
+      </li>
+      <li class="designer-scene">
+        <div class="designer-scene-art">
+          <span class="designer-scene-route">Дизайнер → Satori</span>
+          <span class="designer-scene-document"><small>Комиссия</small><strong>+30 000 ₽</strong></span>
+        </div>
+        <div class="designer-scene-copy"><h3>Комиссия</h3><p>Вы сообщаете нам, какую комиссию хотите добавить к стоимости.</p></div>
+      </li>
+      <li class="designer-scene">
+        <div class="designer-scene-art">
+          <span class="designer-scene-route">Satori → дизайнер</span>
+          <span class="designer-scene-document"><small>Счёт</small><strong>130 000 ₽</strong></span>
+        </div>
+        <div class="designer-scene-copy"><h3>Общий счёт</h3><p>Мы добавляем вашу комиссию и передаём вам единый счёт на 130 000 ₽.</p></div>
+      </li>
+      <li class="designer-scene">
+        <div class="designer-scene-art">
+          <span class="designer-scene-route">Дизайнер → клиент</span>
+          <span class="designer-scene-document"><small>Счёт клиенту</small><strong>130 000 ₽</strong></span>
+        </div>
+        <div class="designer-scene-copy"><h3>Отправка</h3><p>Вы отправляете готовый счёт своему клиенту. Клиент оплачивает его Satori.</p></div>
+      </li>
+      <li class="designer-scene">
+        <div class="designer-scene-art">
+          <span class="designer-scene-route">Satori → дизайнер</span>
+          <span class="designer-scene-document"><small>Перевод</small><strong>30 000 ₽</strong></span>
+        </div>
+        <div class="designer-scene-copy"><h3>Выплата</h3><p>Как только получаем оплату от клиента, сразу переводим вашу комиссию напрямую вам.</p></div>
+      </li>
+      </ol>
+      <div class="designer-story-controls" hidden>
+        <button type="button" data-story-back>Назад</button>
+        <span data-story-counter aria-hidden="true"></span>
+        <button type="button" data-story-next>Далее</button>
+        <button type="button" data-story-play>Пауза</button>
+      </div>
+    </div>
     <a class="btn light" href="/#zayavka">Обсудить сотрудничество</a>
   </section>
   <section class="project-examples" aria-labelledby="project-examples-title">
@@ -91,5 +132,6 @@ ym(110458266,'init',{webvisor:true,clickmap:true,referrer:document.referrer,url:
   </div>
 </footer>
 <script src="/promo/app.js?v=7" defer></script>
+<script src="/promo/designer-story.js" defer></script>
 </body>
 </html>
