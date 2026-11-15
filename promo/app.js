@@ -28,11 +28,12 @@
   }
 
   var COUNTER = 110458266;
-  function goal(name) { try { window.ym && window.ym(COUNTER, 'reachGoal', name); } catch (e) {} }
+  function goal(name) { try { if (window.satoriAnalyticsAllowed?.()) window.ym?.(COUNTER, 'reachGoal', name); } catch (e) {} }
 
   // Метки рекламы: сохраняем при первом заходе, прикладываем к заявке
   function tracking() {
     var out = {};
+    if (!window.satoriAnalyticsAllowed?.()) return out;
     try {
       var p = new URLSearchParams(location.search);
       var saved = JSON.parse(localStorage.getItem('satori_utm') || '{}');
@@ -48,7 +49,8 @@
     return out;
   }
   tracking();
-  try { window.ym(COUNTER, 'getClientID', function (id) { try { localStorage.setItem('satori_cid', id); } catch (e) {} }); } catch (e) {}
+  window.addEventListener("satori-analytics-allowed", tracking);
+
 
   document.querySelectorAll('[data-goal]').forEach(function (a) {
     a.addEventListener('click', function () { goal(a.getAttribute('data-goal')); });
@@ -146,6 +148,11 @@
     var contact = String(d.get('contact') || '').trim();
     var idea = String(d.get('idea') || '').trim();
     var file = d.get('reference');
+    if (!d.has('personalDataConsent')) {
+      say('Отметьте согласие на обработку персональных данных', 'err');
+      form.elements.personalDataConsent.focus();
+      return;
+    }
     if (!name) { say('Напишите, как к вам обращаться', 'err'); form.elements.name.focus(); return; }
     if (!validContact(contact)) { say('Укажите телефон или ник в мессенджере', 'err'); form.elements.contact.focus(); return; }
     button.disabled = true; say('Отправляем…');
@@ -156,7 +163,8 @@
       return send({
         name: name, phone: contact, contact: contact,
         idea: [idea, refName ? 'Референс прикреплён: ' + refName + '.' : ''].filter(Boolean).join('\n\n'),
-        referenceName: refName, referenceDataUrl: dataUrl, source: 'promo'
+        referenceName: refName, referenceDataUrl: dataUrl, source: 'promo',
+        personalDataConsent: { accepted: true, version: '2026-11-15', acceptedAt: new Date().toISOString() }
       });
     }).then(function () {
       form.reset();
