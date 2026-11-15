@@ -1,4 +1,19 @@
 (function () {
+  document.querySelectorAll('.category-flip').forEach(function (card) {
+    var button = card.querySelector('.category-flip-toggle');
+    var front = card.querySelector('.category-front');
+    var back = card.querySelector('.category-back');
+    var openLabel = button.getAttribute('aria-label');
+    button.hidden = false;
+    button.addEventListener('click', function () {
+      var flipped = card.classList.toggle('is-flipped');
+      button.setAttribute('aria-expanded', String(flipped));
+      button.setAttribute('aria-label', flipped ? 'Вернуть фото' : openLabel);
+      front.inert = flipped;
+      back.inert = !flipped;
+    });
+  });
+
   var desktopNav = document.querySelector('body > header > .wrap > nav');
   if (desktopNav && 'ResizeObserver' in window) {
     var currentLink = desktopNav.querySelector('[aria-current="page"]');

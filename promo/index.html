@@ -34,7 +34,7 @@
     }, { once: true });
   })();
 </script>
-<link rel="stylesheet" href="/promo/style.css?v=22">
+<link rel="stylesheet" href="/promo/style.css?v=23">
 <link rel="stylesheet" href="/promo/privacy.css">
 <script src="/promo/privacy.js" defer></script>
 <link rel="stylesheet" href="/promo/light-motion.css?v=2">
@@ -55,7 +55,7 @@
   </svg>
 </div>
 <header><div class="wrap">
-    <a class="logo" href="/" aria-label="SATORI"><img src="/promo/img/satori-wordmark.jpg" alt="Satori" width="1063" height="404"></a>
+    <a class="logo" href="/" aria-label="SATORI"><img src="/promo/img/satori-wordmark.svg" alt="Satori" width="844" height="220"></a>
     <nav aria-label="Разделы сайта"><a href="/promo/business.html">Бизнесу</a><a href="/promo/designers.html">Дизайнерам</a><a href="/promo/studio.html">О студии</a><a href="/promo/process.html">Как мы работаем</a><a href="/raboty">Наши работы</a></nav>
     <a class="btn contact-button" href="#kontakty">Связаться <svg class="arrow-icon" aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 12 12 4M5 4h7v7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></a>
     <details class="section-menu"><summary>Меню</summary><nav aria-label="Разделы сайта"><a href="/promo/business.html">Бизнесу</a><a href="/promo/designers.html">Дизайнерам</a><a href="/promo/studio.html">О студии</a><a href="/promo/process.html">Как мы работаем</a><a href="/raboty">Наши работы</a></nav></details>
@@ -93,9 +93,12 @@
     <div class="wrap studio-story-grid">
       <div class="studio-story-copy">
         <h2 id="studio-story-title">От вашей идеи до&nbsp;светильника</h2>
-        <p>Понравились изгиб на эскизе, фактура стекла или мягкий свет на фотографии? Пришлите то, с чего началась задумка. Мы подберём материалы и пропорции под ваше пространство, продумаем крепление и покажем 3D-макет до производства.</p>
-        <p>Делаем и один светильник для дома, и серию для ресторана, отеля или проекта дизайн-бюро.</p>
-        <p>Работаем в промышленном регионе Урала. Договоры с поставщиками рядом с производством помогают быстрее получать материалы и заказывать нужный профиль по договорным ценам.</p>
+        <p>Пришлите эскиз, фото или описание. Подберём материалы и покажем 3D-макет до производства.</p>
+        <details class="studio-story-more">
+          <summary>Подробнее</summary>
+          <p>Делаем и один светильник для дома, и серию для ресторана, отеля или проекта дизайн-бюро.</p>
+          <p>Работаем в промышленном регионе Урала. Договоры с поставщиками рядом с производством помогают быстрее получать материалы и заказывать нужный профиль по договорным ценам.</p>
+        </details>
         <div class="studio-story-actions"><a class="btn" href="#zayavka">Рассказать о задумке</a><a class="section-link" href="/promo/studio.html">О студии</a></div>
       </div>
       <figure><img src="/promo/img/works/6197.jpg" width="575" height="950" loading="lazy" alt="Люстра-волна Satori в интерьере"><figcaption>Люстра-волна · камень и латунь</figcaption></figure>
@@ -106,9 +109,39 @@
     <div class="wrap">
       <div class="head"><h2>Свет для вашего пространства</h2></div>
       <div class="category-grid">
-        <a href="/raboty#catalog-chandeliers" class="category"><img src="/promo/img/works/6198.jpg" alt="" loading="lazy" width="720" height="900"><span>Люстры и подвесы <span class="category-arrow"><svg class="arrow-icon" aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 12 12 4M5 4h7v7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span></span></a>
-        <a href="/raboty#catalog-wall-lights" class="category"><img src="/promo/img/works/6753.jpg" alt="" loading="lazy" width="720" height="900"><span>Бра <span class="category-arrow"><svg class="arrow-icon" aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 12 12 4M5 4h7v7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span></span></a>
-        <a href="#installyacii" class="category"><img src="/promo/img/works/7055.jpg" alt="" loading="lazy" width="720" height="900"><span>Световые инсталляции <span class="category-arrow"><svg class="arrow-icon" aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 12 12 4M5 4h7v7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span></span></a>
+        <article class="category category-flip">
+          <div class="category-flip-inner">
+            <a class="category-front" href="/raboty#catalog-chandeliers"><img src="/promo/img/works/6198.jpg" alt="" loading="lazy" width="720" height="900"><span>Люстры и подвесы <span class="category-arrow"><svg class="arrow-icon" aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 12 12 4M5 4h7v7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span></span></a>
+            <div class="category-back" id="category-details-1" inert>
+              <h3>Люстры и подвесы</h3>
+              <p>Подберём размер и высоту подвеса под ваше помещение.</p>
+              <a href="/raboty#catalog-chandeliers">Смотреть работы ↗</a>
+            </div>
+          </div>
+          <button class="category-flip-toggle" type="button" aria-controls="category-details-1" aria-expanded="false" aria-label="Подробнее: Люстры и подвесы" hidden>↻</button>
+        </article>
+        <article class="category category-flip">
+          <div class="category-flip-inner">
+            <a class="category-front" href="/raboty#catalog-wall-lights"><img src="/promo/img/works/6753.jpg" alt="" loading="lazy" width="720" height="900"><span>Бра <span class="category-arrow"><svg class="arrow-icon" aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 12 12 4M5 4h7v7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span></span></a>
+            <div class="category-back" id="category-details-2" inert>
+              <h3>Бра</h3>
+              <p>Согласуем фактуру стекла, оттенок и размеры.</p>
+              <a href="/raboty#catalog-wall-lights">Смотреть работы ↗</a>
+            </div>
+          </div>
+          <button class="category-flip-toggle" type="button" aria-controls="category-details-2" aria-expanded="false" aria-label="Подробнее: Бра" hidden>↻</button>
+        </article>
+        <article class="category category-flip">
+          <div class="category-flip-inner">
+            <a class="category-front" href="#installyacii"><img src="/promo/img/works/7055.jpg" alt="" loading="lazy" width="720" height="900"><span>Световые инсталляции <span class="category-arrow"><svg class="arrow-icon" aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 12 12 4M5 4h7v7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/></svg></span></span></a>
+            <div class="category-back" id="category-details-3" inert>
+              <h3>Световые инсталляции</h3>
+              <p>Спроектируем форму, свет и крепление под пространство.</p>
+              <a href="#installyacii">Смотреть работы ↗</a>
+            </div>
+          </div>
+          <button class="category-flip-toggle" type="button" aria-controls="category-details-3" aria-expanded="false" aria-label="Подробнее: Световые инсталляции" hidden>↻</button>
+        </article>
       </div>
     </div>
   </section>
@@ -248,7 +281,7 @@
 
 <footer id="kontakty">
   <div class="wrap footer-grid">
-    <div class="footer-brand"><a class="logo" href="/"><img src="/promo/img/satori-wordmark.jpg" alt="Satori" width="1063" height="404"></a><p>Студия света · Екатеринбург</p></div>
+    <div class="footer-brand"><a class="logo" href="/"><img src="/promo/img/satori-wordmark.svg" alt="Satori" width="844" height="220"></a><p>Студия света · Екатеринбург</p></div>
     <div class="footer-legal"><p>ИП Рассыхаева Светлана Андреевна</p><p>ИНН 668400302968</p></div>
     <address class="footer-contact">
       <a href="tel:+79221226063" data-goal="phone_click"><svg width="19" height="19" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3H4a1 1 0 0 0-1 1c0 9.4 7.6 17 17 17a1 1 0 0 0 1-1v-3l-5-2-2 2a13 13 0 0 1-7-7l2-2z"/></svg><span>Позвонить <small>+7 922 122-60-63</small></span></a>
@@ -260,6 +293,6 @@
   <div class="wrap"><nav class="legal-links" aria-label="Работа и партнёрство"><a href="/promo/careers.html">Работа в Satori</a><a href="/promo/franchise.html">Франшиза</a></nav><nav class="legal-links" aria-label="Документы сайта"><a href="/promo/privacy.html">Политика обработки данных</a><a href="/promo/consent.html">Согласие на обработку данных</a><a href="/promo/cookies.html">Правила cookie</a></nav><button type="button" class="cookie-settings" data-cookie-settings hidden>Настроить cookie</button></div>
 </footer>
 <div class="lb" id="lb" role="dialog" aria-label="Просмотр фото"><button class="x" type="button" aria-label="Закрыть">×</button><img alt=""><button class="btn light" type="button" data-like-lb>Хочу похожий — рассчитать</button></div>
-<script src="/promo/app.js?v=11" defer></script>
+<script src="/promo/app.js?v=12" defer></script>
 </body>
 </html>
