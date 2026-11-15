@@ -1006,6 +1006,4 @@ body > header .logo img[src$=".svg"] {
   padding: 2px 0; user-select: none;
 }
 .form-more > summary::-webkit-details-marker { display: none; }
-.form-more > summary::before { content: "+ "; font-weight: 600; }
-.form-more[open] > summary::before { content: "− "; }
 .form-more > label { margin-top: 12px; }
