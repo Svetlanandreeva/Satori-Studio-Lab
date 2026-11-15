@@ -397,31 +397,19 @@ h1, h2, h3, .hero h1 { font-weight: 600; letter-spacing: -.055em; line-height: 1
   margin-bottom: 16px;
   font-variant-numeric: tabular-nums;
 }
-/* A single beam crosses the whole timeline without covering the text. */
 @media (prefers-reduced-motion: no-preference) {
-  .process-timeline {
-    position: relative;
-    isolation: isolate;
+  .process-timeline.step-visible > li {
+    animation: satori-step-open 560ms cubic-bezier(.24,.72,.28,1) var(--step-delay, 0ms) both;
   }
 
-  .process-timeline::after {
-    content: "";
-    position: absolute;
-    inset: 0;
-    z-index: -1;
-    pointer-events: none;
-    opacity: 0;
-    background: linear-gradient(108deg, transparent 33%, #efad4d65 47%, #fff1ca 50%, #efad4d65 53%, transparent 67%);
-  }
+  .process-timeline > li:nth-child(2) { --step-delay: 150ms; }
+  .process-timeline > li:nth-child(3) { --step-delay: 300ms; }
+  .process-timeline > li:nth-child(4) { --step-delay: 450ms; }
+  .process-timeline > li:nth-child(5) { --step-delay: 600ms; }
 
-  .process-timeline.step-visible::after {
-    animation: satori-process-beam 1.7s ease-in-out both;
-  }
-
-  @keyframes satori-process-beam {
-    0% { opacity: 0; transform: translateX(-88%); }
-    18%, 82% { opacity: 1; }
-    100% { opacity: 0; transform: translateX(88%); }
+  @keyframes satori-step-open {
+    from { clip-path: inset(0 0 82% 0); opacity: .25; }
+    to { clip-path: inset(0); opacity: 1; }
   }
 }
 @media (max-width: 760px) {
@@ -429,17 +417,6 @@ h1, h2, h3, .hero h1 { font-weight: 600; letter-spacing: -.055em; line-height: 1
   .process-timeline li { padding: 16px 16px 16px 68px; }
   .process-timeline li + li { border-inline-start: 0; border-top: 1px solid var(--line); }
   .process-timeline li::before { position: absolute; inset: 16px auto auto 14px; }
-}
-@media (max-width: 760px) and (prefers-reduced-motion: no-preference) {
-  .process-timeline::after {
-    background: linear-gradient(174deg, transparent 35%, #efad4d65 47%, #fff1ca 50%, #efad4d65 53%, transparent 65%);
-  }
-
-  @keyframes satori-process-beam {
-    0% { opacity: 0; transform: translateY(-84%); }
-    18%, 82% { opacity: 1; }
-    100% { opacity: 0; transform: translateY(84%); }
-  }
 }
 /* Keep the supplied wordmark, compositing its background into the page. */
 .logo img {

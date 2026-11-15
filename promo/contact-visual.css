@@ -1,8 +1,8 @@
 .contact-main {
-  padding-block: clamp(56px, 9vw, 136px);
+  padding-block: clamp(28px, 4vw, 58px) clamp(44px, 7vw, 96px);
 }
 
-.contact-intro { margin-bottom: clamp(28px, 5vw, 64px); }
+.contact-intro { margin-bottom: clamp(20px, 3vw, 38px); }
 .contact-intro p { margin-top: 12px; color: var(--muted); }
 .contact-intro .contact-residency { color: var(--wine); }
 
@@ -36,15 +36,15 @@
 
 @media (prefers-reduced-motion: no-preference) {
   .contact-intro, .contact-channels a {
-    animation: contact-arrive 520ms ease-out both;
+    animation: contact-arrive 620ms cubic-bezier(.2,.7,.25,1) both;
   }
 
-  .contact-channels a:nth-child(2) { animation-delay: 70ms; }
-  .contact-channels a:nth-child(3) { animation-delay: 140ms; }
-  .contact-channels a:nth-child(4) { animation-delay: 210ms; }
+  .contact-channels a:nth-child(2) { animation-delay: 90ms; }
+  .contact-channels a:nth-child(3) { animation-delay: 180ms; }
+  .contact-channels a:nth-child(4) { animation-delay: 270ms; }
 
   @keyframes contact-arrive {
-    from { opacity: 0; transform: translateY(9px); }
+    from { opacity: 0; transform: translateY(13px); }
     to { opacity: 1; transform: none; }
   }
 }
