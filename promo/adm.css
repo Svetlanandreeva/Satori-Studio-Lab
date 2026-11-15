@@ -84,3 +84,7 @@ h2{font-size:22px;line-height:1.22;letter-spacing:-.04em}
 @media(max-width:960px){.adm-layout{grid-template-columns:260px minmax(0,1fr)}.adm-editor{padding:19px}}
 @media(max-width:720px){.adm-header{padding:14px 17px}.adm-brand small{display:none}.adm-header-links{gap:13px;font-size:12px}.adm-app{padding-inline:14px}.adm-layout{grid-template-columns:1fr}.adm-sidebar{position:static;max-height:350px}.adm-head-actions{width:100%}.adm-head-actions .adm-btn-primary{flex:1}.adm-add-url{flex-wrap:wrap}.adm-add-url input{flex-basis:100%}}
 @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}}
+
+.adm-editor-tools{display:flex;align-items:center;justify-content:flex-end;gap:9px;flex-wrap:wrap}
+.adm-editor-tools .adm-small-button{min-height:34px}
+@media(max-width:470px){.adm-editor-tools{width:100%;justify-content:space-between}}
