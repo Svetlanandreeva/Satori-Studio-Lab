@@ -16,11 +16,11 @@
   let finished = false;
 
   function render() {
-    scenes.forEach((scene, index) => { scene.hidden = index !== current; });
+    scenes.forEach((scene, index) => { scene.classList.toggle('is-current', index === current); });
     counter.textContent = `Шаг ${current + 1} из ${scenes.length}`;
     back.disabled = current === 0;
     next.disabled = current === scenes.length - 1;
-    play.textContent = playing ? 'Пауза' : finished || current === scenes.length - 1 ? 'Повторить' : 'Воспроизвести';
+    play.textContent = playing ? 'Пауза' : finished || current === scenes.length - 1 ? 'Повторить' : 'Смотреть по шагам';
   }
 
   function schedule() {
@@ -68,6 +68,6 @@
     render();
     schedule();
   }, { threshold: 0.55 });
-  observer.observe(story);
+  observer.observe(story.querySelector('.designer-summary'));
   controls.addEventListener('click', () => observer.disconnect(), { once: true });
 })();
