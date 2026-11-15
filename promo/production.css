@@ -144,49 +144,117 @@
   .delivery-calculator { grid-template-columns: minmax(0, 1fr); }
 }
 
-/* Consistent call-to-action group on the Business page */
-.production-actions.series-actions {
-  display: grid;
+/* Editorial CTA system for the series panel, scoped to Business only */
+.production-invite .series-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-self: stretch;
   width: 100%;
-  max-width: 290px;
-  justify-self: end;
-  gap: 10px;
+  max-width: 340px;
+  margin-left: auto;
+  gap: 0;
 }
-.production-actions.series-actions .btn {
-  width: 100%;
-  min-height: 54px;
-  padding: 0 21px;
+.production-invite .series-actions-label {
+  margin: 0 0 12px;
+  color: var(--wine);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.35;
+  letter-spacing: .17em;
+}
+.production-invite .series-primary-action {
+  display: flex;
   justify-content: space-between;
-  gap: 14px;
-  font-size: 15px;
-  font-weight: 600;
-  border-radius: 100px;
-  text-align: left;
+  align-items: center;
+  gap: 18px;
+  min-height: 90px;
+  padding: 16px 18px 16px 22px;
+  border-radius: 15px;
+  background: var(--wine);
+  border: 1px solid var(--wine);
+  color: #fff7f5;
   text-decoration: none;
+  transition: background .2s, transform .2s;
 }
-.production-actions.series-actions .btn span {
-  flex: 0 0 auto;
+.production-invite .series-primary-action:hover {
+  background: var(--wine-hover);
+  transform: translateY(-2px);
+}
+.production-invite .series-primary-action strong {
+  display: block;
+  font-size: 16px;
+  line-height: 1.3;
+  font-weight: 650;
+}
+.production-invite .series-primary-action small {
+  display: block;
+  margin-top: 6px;
+  font-size: 12px;
+  font-weight: 400;
+  opacity: .85;
+}
+.production-invite .series-action-arrow {
+  display: grid;
+  flex: 0 0 36px;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  border: 1px solid rgba(255,255,255,.36);
+  border-radius: 50%;
   font-size: 20px;
   line-height: 1;
+}
+.production-invite .series-secondary-actions {
+  display: grid;
+  grid-template-columns: 1fr;
+  margin-top: 12px;
+}
+.production-invite .series-secondary-actions a {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 51px;
+  padding: 11px 3px;
+  border-bottom: 1px solid rgba(112,38,62,.23);
+  color: var(--wine);
+  text-decoration: none;
+  font-size: 14px;
+  font-weight: 600;
+  transition: padding .18s, color .18s;
+}
+.production-invite .series-secondary-actions a:hover {
+  padding-left: 10px;
+  color: #421629;
+}
+.production-invite .series-secondary-actions a > span:last-child {
+  font-size: 19px;
   font-weight: 400;
 }
-.production-actions.series-actions .btn.ghost {
-  background: rgba(255, 255, 255, .38);
-  color: var(--wine);
-  border-color: rgba(112, 38, 62, .3);
-}
-.production-actions.series-actions .btn.ghost:hover {
-  background: #fff8f8;
-  color: var(--wine);
-  border-color: var(--wine);
-}
-.production-actions.series-actions .btn:focus-visible {
+.production-invite .series-actions a:focus-visible {
   outline: 2px solid var(--wine);
-  outline-offset: 3px;
+  outline-offset: 4px;
 }
 @media (max-width: 800px) {
-  .production-actions.series-actions {
+  .production-invite .series-actions {
     max-width: 100%;
-    justify-self: stretch;
+    margin-left: 0;
+  }
+  .production-invite .series-secondary-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+  }
+}
+@media (max-width: 470px) {
+  .production-invite .series-secondary-actions {
+    grid-template-columns: 1fr;
+    gap: 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .production-invite .series-primary-action,
+  .production-invite .series-secondary-actions a {
+    transition: none;
   }
 }
