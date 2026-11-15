@@ -369,7 +369,12 @@ header nav a[aria-current=page]{color:var(--ink);text-decoration:underline;text-
 }
 body, h1, h2, h3, .hero h1, .facts b, .band p { font-family: Manrope, "Segoe UI", Arial, sans-serif; }
 h1, h2, h3, .hero h1 { font-weight: 600; letter-spacing: -.055em; line-height: 1.07; }
-.hero-grid-film h1 { margin: 14px 0; }
+.hero-grid-film h1 {
+  margin: 14px 0;
+  font-weight: 450;
+  letter-spacing: -.038em;
+  line-height: 1.02;
+}
 .process-section { padding: 36px 0 8px; }
 .process-section h2 { margin-bottom: 22px; }
 .process-timeline {
