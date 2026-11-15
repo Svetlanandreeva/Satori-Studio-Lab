@@ -1,0 +1,44 @@
+.brand-intro {
+  position: fixed;
+  z-index: 60;
+  inset: 0;
+  display: none;
+  place-items: center;
+  pointer-events: none;
+  background: #17130f;
+  color: #f7efe2;
+}
+
+.brand-intro-active .brand-intro { display: grid; }
+
+.brand-intro svg {
+  width: clamp(190px, 41vw, 430px);
+  height: auto;
+  overflow: visible;
+}
+
+.brand-intro path {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 26;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  stroke-dasharray: 1;
+  stroke-dashoffset: 1;
+  animation: satori-write var(--duration, 250ms) ease-out var(--start, 0ms) both;
+}
+
+.brand-intro-done .brand-intro {
+  opacity: 0;
+  transition: opacity 220ms ease-out;
+}
+
+@keyframes satori-write {
+  from { visibility: hidden; stroke-dashoffset: 1; }
+  1% { visibility: visible; }
+  to { visibility: visible; stroke-dashoffset: 0; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .brand-intro-active .brand-intro { display: none; }
+}

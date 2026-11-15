@@ -10,6 +10,30 @@
 <meta property="og:title" content="Светильники на заказ по вашему эскизу — люстры, бра, торшеры | SATORI">
 <meta property="og:description" content="Студия SATORI делает светильники на заказ: люстры, бра, торшеры и настольные лампы. Придумаем с нуля или сделаем по эскизу. 3D-макет до производства, от 15 000 ₽, от 7 дней, доставка по России.">
 <meta property="og:image" content="https://satorilabural.ru/promo/img/hero-satori.webp">
+<link rel="stylesheet" href="/promo/brand-intro.css">
+<script>
+  (() => {
+    if (location.hash || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    try {
+      if (sessionStorage.getItem('satori-brand-intro')) return;
+      sessionStorage.setItem('satori-brand-intro', '1');
+    } catch {}
+
+    const root = document.documentElement;
+    const started = performance.now();
+    const finish = () => {
+      root.classList.add('brand-intro-done');
+      setTimeout(() => root.classList.remove('brand-intro-active', 'brand-intro-done'), 240);
+    };
+
+    root.classList.add('brand-intro-active');
+    const deadline = setTimeout(finish, 2000);
+    document.addEventListener('DOMContentLoaded', () => {
+      clearTimeout(deadline);
+      setTimeout(finish, Math.max(0, 1120 - (performance.now() - started)));
+    }, { once: true });
+  })();
+</script>
 <link rel="stylesheet" href="/promo/style.css?v=19">
 <link rel="stylesheet" href="/promo/privacy.css">
 <script src="/promo/privacy.js" defer></script>
@@ -17,6 +41,19 @@
 <script src="/promo/light-motion.js" defer></script>
 </head>
 <body class="studio-home">
+<div class="brand-intro" aria-hidden="true">
+  <svg viewBox="115 80 844 220" focusable="false" xmlns="http://www.w3.org/2000/svg">
+    <path pathLength="1" style="--duration:300ms" d="M248 138C229 99 155 102 150 146c-7 47 102 29 102 81 0 59-81 65-107 17"/>
+    <path pathLength="1" style="--start:130ms" d="m291 272 68-159 68 159"/>
+    <path pathLength="1" style="--start:310ms;--duration:120ms" d="M313 229h91"/>
+    <path pathLength="1" style="--start:275ms;--duration:140ms" d="M432 113h111"/>
+    <path pathLength="1" style="--start:370ms;--duration:155ms" d="M487 113v159"/>
+    <path pathLength="1" style="--start:430ms;--duration:285ms" d="M724 193a83 83 0 1 0-7 34"/>
+    <path pathLength="1" style="--start:600ms;--duration:275ms" d="M622 203h206c65 0 65-90 0-90h-56v64"/>
+    <path pathLength="1" style="--start:760ms;--duration:170ms" d="m831 203 44 69M772 230v42"/>
+    <path pathLength="1" style="--start:840ms;--duration:150ms" d="M929 113v159"/>
+  </svg>
+</div>
 <header><div class="wrap">
     <a class="logo" href="/" aria-label="SATORI"><img src="/promo/img/satori-wordmark.jpg" alt="Satori" width="1063" height="404"></a>
     <nav aria-label="Разделы сайта"><a href="/promo/business.html">Бизнесу</a><a href="/promo/designers.html">Дизайнерам</a><a href="/promo/studio.html">О студии</a><a href="/promo/process.html">Как мы работаем</a><a href="/raboty">Наши работы</a></nav>
