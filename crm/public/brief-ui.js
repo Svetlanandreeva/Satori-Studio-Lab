@@ -209,7 +209,8 @@ async function decorateCards() {
         card.appendChild(badge);
       }
       badge.classList.toggle("ready", p.ready);
-      badge.textContent = p.ready ? `ТЗ ${p.filled}/${p.total} · Готово` : `ТЗ ${p.filled}/${p.total}`;
+      const label = p.ready ? `ТЗ ${p.filled}/${p.total} · Готово` : `ТЗ ${p.filled}/${p.total}`;
+      if (badge.textContent !== label) badge.textContent = label;
     });
   } catch {}
   finally { badgeLoading = false; }
