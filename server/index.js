@@ -76,10 +76,12 @@ async function notifyOwnerLead(lead) {
       `Объём: ${lead.volume || "—"}`, `Комментарий: ${lead.comment || "—"}`);
   } else {
     lines.push(`Бюджет: ${lead.budget || "—"}`, `Идея: ${lead.idea || "—"}`);
-    if (lead.referenceDataUrl) lines.push("Референс доступен в CRM.");
   }
   try {
-    await sendVkMessage(process.env.ADMIN_VK_HANDLE, lines.join("\n").slice(0, 3500));
+    await sendVkMessage(process.env.ADMIN_VK_HANDLE, lines.join("\n").slice(0, 3500), {
+      referenceDataUrl: lead.referenceDataUrl,
+      onPhotoError: (err) => console.error(`Owner VK lead photo failed (${lead.crmNumber}):`, err.message),
+    });
   } catch (err) {
     console.error(`Owner VK lead notify failed (${lead.crmNumber}):`, err.message);
   }
