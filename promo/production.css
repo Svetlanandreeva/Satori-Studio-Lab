@@ -123,3 +123,23 @@
   .delivery-pin::after { width: 7px; box-shadow: 0 0 0 2px #482331; }
   .delivery-map-frame .origin { width: 10px; }
 }
+
+.delivery-calculator {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 332px);
+  gap: clamp(20px, 4vw, 54px);
+  align-items: start;
+  margin-top: clamp(24px, 5vw, 52px);
+  padding: clamp(18px, 4vw, 42px);
+  border: 1px solid var(--line);
+  border-radius: 20px;
+  background: var(--paper2);
+}
+
+.delivery-calculator p { max-width: 54ch; margin-top: 12px; color: var(--muted); }
+.delivery-calculator-frame { overflow-x: auto; }
+.delivery-calculator iframe { display: block; border: 0; }
+
+@media (max-width: 760px) {
+  .delivery-calculator { grid-template-columns: minmax(0, 1fr); }
+}
