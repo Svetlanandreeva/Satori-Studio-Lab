@@ -123,8 +123,14 @@
     setTimeout(function () { try { form.elements.name.focus({ preventScroll: true }); } catch (e) {} }, 500);
   }
   try {
-    var like = new URLSearchParams(location.search).get('like');
-    if (like && form) form.elements.idea.value = 'Хочу похожий светильник: ' + like.slice(0, 80) + '.';
+    var params = new URLSearchParams(location.search);
+    var like = params.get('like');
+    var project = params.get('project');
+    var city = (params.get('city') || '').trim().replace(/\s+/g, ' ').slice(0, 100);
+    if (form && like) form.elements.idea.value = 'Хочу похожий светильник: ' + like.slice(0, 80) + '.';
+    if (form && !like && project === 'merch') form.elements.idea.value = 'Проект: премиальный мерч на заказ.\n';
+    if (form && !like && project === 'series') form.elements.idea.value = 'Проект: серийное производство для отеля или офиса.\n';
+    if (form && !like && project === 'delivery') form.elements.idea.value = city ? 'Нужен расчёт доставки. Город: ' + city + '.\n' : 'Нужен расчёт доставки.\n';
   } catch (e) {}
 
   // Просмотр фото

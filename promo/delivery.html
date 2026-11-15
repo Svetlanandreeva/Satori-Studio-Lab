@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Карта доставки по России из Екатеринбурга | Satori Studio</title>
+<meta name="description" content="Доставка изделий Satori по России. Карта направлений, ориентировочные сроки Деловых Линий и расчёт отправлений СДЭК.">
+<link rel="canonical" href="https://satorilabural.ru/promo/delivery.html">
+<link rel="stylesheet" href="/promo/style.css?v=29">
+<link rel="stylesheet" href="/promo/production.css">
+<link rel="stylesheet" href="/promo/privacy.css">
+<script src="/promo/privacy.js" defer></script>
+</head>
+<body class="studio-section">
+<header><div class="wrap">
+    <a class="logo" href="/" aria-label="SATORI"><img src="/promo/img/satori-wordmark.svg" alt="Satori" width="844" height="220"></a>
+    <nav aria-label="Разделы сайта"><a href="/promo/business.html">Бизнесу</a><a href="/promo/merch.html">Мерч</a><a href="/promo/designers.html">Дизайнерам</a><a href="/promo/studio.html">О студии</a><a href="/promo/process.html">Как мы работаем</a><a href="/raboty">Наши работы</a></nav>
+    <a class="btn contact-button" href="/promo/contacts.html">Связаться <svg class="arrow-icon" aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 12 12 4M5 4h7v7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></a>
+    <details class="section-menu"><summary>Меню</summary><nav aria-label="Разделы сайта"><a href="/promo/business.html">Бизнесу</a><a href="/promo/merch.html">Мерч</a><a href="/promo/designers.html">Дизайнерам</a><a href="/promo/studio.html">О студии</a><a href="/promo/process.html">Как мы работаем</a><a href="/raboty">Наши работы</a></nav></details>
+  </div></header>
+<main class="wrap">
+  <section class="production-hero" aria-labelledby="delivery-title">
+    <h1 id="delivery-title">Доставка по России</h1>
+    <p>Отправляем из Екатеринбурга. Выберите город на карте, найдите его в списке или укажите свой населённый пункт для расчёта.</p>
+  </section>
+  <div class="delivery-layout">
+    <figure class="delivery-map">
+      <div class="delivery-map-frame">
+        <img src="/promo/img/delivery-russia.svg" width="1000" height="566" alt="Карта России с направлениями доставки">
+        <span class="origin" style="left:30.69%;top:59.49%" title="Отправление из Екатеринбурга" aria-hidden="true"></span>
+        <button class="delivery-pin" type="button" aria-label="Москва" style="left:18.56%;top:41.81%" title="Москва" data-destination="Москва" aria-pressed="true"></button>
+        <button class="delivery-pin" type="button" aria-label="Санкт-Петербург" style="left:20.32%;top:29.77%" title="Санкт-Петербург" data-destination="Санкт-Петербург" aria-pressed="false"></button>
+        <button class="delivery-pin" type="button" aria-label="Калининград" style="left:11.73%;top:24.15%" title="Калининград" data-destination="Калининград" aria-pressed="false"></button>
+        <button class="delivery-pin" type="button" aria-label="Краснодар" style="left:8.39%;top:57.38%" title="Краснодар" data-destination="Краснодар" aria-pressed="false"></button>
+        <button class="delivery-pin" type="button" aria-label="Новосибирск" style="left:43.76%;top:74.33%" title="Новосибирск" data-destination="Новосибирск" aria-pressed="false"></button>
+        <button class="delivery-pin" type="button" aria-label="Иркутск" style="left:58.99%;top:82.91%" title="Иркутск" data-destination="Иркутск" aria-pressed="false"></button>
+        <button class="delivery-pin" type="button" aria-label="Якутск" style="left:72.35%;top:55.09%" title="Якутск" data-destination="Якутск" aria-pressed="false"></button>
+        <button class="delivery-pin" type="button" aria-label="Владивосток" style="left:84.46%;top:91.00%" title="Владивосток" data-destination="Владивосток" aria-pressed="false"></button>
+        <button class="delivery-pin" type="button" aria-label="Петропавловск-Камчатский" style="left:93.99%;top:49.22%" title="Петропавловск-Камчатский" data-destination="Петропавловск-Камчатский" aria-pressed="false"></button>
+      </div>
+      <figcaption>Отправление из Екатеринбурга · Геоданные Natural Earth</figcaption>
+    </figure>
+    <div class="delivery-card">
+      <form action="/">
+        <input type="hidden" name="project" value="delivery">
+        <label for="destination">Куда доставить</label>
+        <input id="destination" name="city" list="delivery-cities" value="Москва" maxlength="100" autocomplete="off" required>
+        <datalist id="delivery-cities">
+          <option value="Архангельск"></option>
+          <option value="Владивосток"></option>
+          <option value="Воркута"></option>
+          <option value="Иркутск"></option>
+          <option value="Казань"></option>
+          <option value="Калининград"></option>
+          <option value="Краснодар"></option>
+          <option value="Красноярск"></option>
+          <option value="Магадан"></option>
+          <option value="Москва"></option>
+          <option value="Мурманск"></option>
+          <option value="Нижний Новгород"></option>
+          <option value="Новосибирск"></option>
+          <option value="Норильск"></option>
+          <option value="Омск"></option>
+          <option value="Пермь"></option>
+          <option value="Петропавловск-Камчатский"></option>
+          <option value="Ростов-на-Дону"></option>
+          <option value="Самара"></option>
+          <option value="Санкт-Петербург"></option>
+          <option value="Тюмень"></option>
+          <option value="Уфа"></option>
+          <option value="Хабаровск"></option>
+          <option value="Челябинск"></option>
+          <option value="Южно-Сахалинск"></option>
+          <option value="Якутск"></option>
+        </datalist>
+        <div class="delivery-result" aria-live="polite" aria-atomic="true">
+          <p><strong>Деловые Линии</strong><br><span data-route-time>≈ 4 дня</span></p>
+          <a data-route-source href="https://www.dellin.ru/directions/gruzoperevozki-po-rossii/ekaterinburg-moskva/">Проверить маршрут</a>
+        </div>
+        <button class="btn" type="submit" formaction="/#zayavka">Уточнить срок и стоимость</button>
+      </form>
+      <div class="delivery-links">
+        <a href="https://www.cdek.ru/ru/calculate">Калькулятор СДЭК ↗</a>
+        <a href="https://www.dellin.ru/products/ltl/">Калькулятор Деловых Линий ↗</a>
+      </div>
+    </div>
+  </div>
+  <section class="delivery-notes" aria-label="Условия и сроки доставки">
+    <p>На карте указаны ориентиры «Деловых Линий» по опубликованным маршрутам на 15 ноября 2026 года. Они считаются от отправки готового заказа. Для СДЭК укажите Екатеринбург, город назначения, вес и габариты упакованной посылки в калькуляторе. На отдельных направлениях доступен <a href="https://www.cdek.ru/ru/express-light/">«Супер-экспресс» на 1–2 дня</a>. Доступность тарифа нужно проверить по адресу. Для удалённых пунктов и хрупких или крупногабаритных грузов проверяем маршрут, упаковку и дату отправки отдельно.</p>
+    <details>
+      <summary>Все маршруты с опубликованными сроками</summary>
+      <ul class="delivery-routes">
+      <li><a href="https://www.dellin.ru/directions/gruzoperevozki-po-rossii/ekaterinburg-arhangelsk/" data-city="Архангельск">Архангельск</a> <span>≈ 8 дней</span></li>
+      <li><a href="https://www.dellin.ru/directions/gruzoperevozki-po-rossii/ekaterinburg-vladivostok/" data-city="Владивосток">Владивосток</a> <span>≈ 13 дней</span></li>
+      <li><a href="https://www.dellin.ru/directions/gruzoperevozki-po-rossii/ekaterinburg-vorkuta/" data-city="Воркута">Воркута</a> <span>≈ 18 дней</span></li>
+      <li><a href="https://www.dellin.ru/directions/gruzoperevozki-po-rossii/ekaterinburg-irkutsk/" data-city="Иркутск">Иркутск</a> <span>≈ 6 дней</span></li>
+      <li><a href="https://www.dellin.ru/directions/gruzoperevozki-po-rossii/ekaterinburg-kazan/" data-city="Казань">Казань</a> <span>≈ 2 дня</span></li>
+      <li><a href="https://www.dellin.ru/directions/gruzoperevozki-po-rossii/ekaterinburg-kaliningrad/" data-city="Калининград">Калининград</a> <span>≈ 20 дней</span></li>
+      <li><a href="https://www.dellin.ru/directions/gruzoperevozki-po-rossii/ekaterinburg-krasnodar/" data-city="Краснодар">Краснодар</a> <span>≈ 5 дней</span></li>
+      <li><a href="https://www.dellin.ru/directions/gruzoperevozki-po-rossii/ekaterinburg-krasnoyarsk/" data-city="Красноярск">Красноярск</a> <span>≈ 5 дней</span></li>
+      <li><a href="https://www.dellin.ru/directions/gruzoperevozki-po-rossii/ekaterinburg-magadan/" data-city="Магадан">Магадан</a> <span>≈ 56 дней</span></li>
+      <li><a href="https://www.dellin.ru/directions/gruzoperevozki-po-rossii/ekaterinburg-moskva/" data-city="Москва">Москва</a> <span>≈ 4 дня</span></li>
+      <li><a href="https://www.dellin.ru/directions/gruzoperevozki-po-rossii/ekaterinburg-murmansk/" data-city="Мурманск">Мурманск</a> <span>≈ 9 дней</span></li>
+      <li><a href="https://www.dellin.ru/directions/gruzoperevozki-po-rossii/ekaterinburg-nizhniy-novgorod/" data-city="Нижний Новгород">Нижний Новгород</a> <span>≈ 4 дня</span></li>
+      <li><a href="https://www.dellin.ru/directions/gruzoperevozki-po-rossii/ekaterinburg-novosibirsk/" data-city="Новосибирск">Новосибирск</a> <span>≈ 3 дня</span></li>
+      <li><a href="https://www.dellin.ru/directions/gruzoperevozki-po-rossii/ekaterinburg-norilsk/" data-city="Норильск">Норильск</a> <span>≈ 94 дня</span></li>
+      <li><a href="https://www.dellin.ru/directions/gruzoperevozki-po-rossii/ekaterinburg-omsk/" data-city="Омск">Омск</a> <span>≈ 2 дня</span></li>
+      <li><a href="https://www.dellin.ru/directions/gruzoperevozki-po-rossii/ekaterinburg-perm/" data-city="Пермь">Пермь</a> <span>≈ 1 день</span></li>
+      <li><a href="https://www.dellin.ru/directions/gruzoperevozki-po-rossii/ekaterinburg-petropavlovsk-kamchatskiy/" data-city="Петропавловск-Камчатский">Петропавловск-Камчатский</a> <span>≈ 45 дней</span></li>
+      <li><a href="https://www.dellin.ru/directions/gruzoperevozki-po-rossii/ekaterinburg-rostov-na-donu/" data-city="Ростов-на-Дону">Ростов-на-Дону</a> <span>≈ 5 дней</span></li>
+      <li><a href="https://www.dellin.ru/directions/gruzoperevozki-po-rossii/ekaterinburg-samara/" data-city="Самара">Самара</a> <span>≈ 3 дня</span></li>
+      <li><a href="https://www.dellin.ru/directions/gruzoperevozki-po-rossii/ekaterinburg-sankt-peterburg/" data-city="Санкт-Петербург">Санкт-Петербург</a> <span>≈ 5 дней</span></li>
+      <li><a href="https://www.dellin.ru/directions/gruzoperevozki-po-rossii/ekaterinburg-tyumen/" data-city="Тюмень">Тюмень</a> <span>≈ 1 день</span></li>
+      <li><a href="https://www.dellin.ru/directions/gruzoperevozki-po-rossii/ekaterinburg-ufa/" data-city="Уфа">Уфа</a> <span>≈ 2 дня</span></li>
+      <li><a href="https://www.dellin.ru/directions/gruzoperevozki-po-rossii/ekaterinburg-habarovsk/" data-city="Хабаровск">Хабаровск</a> <span>≈ 12 дней</span></li>
+      <li><a href="https://www.dellin.ru/directions/gruzoperevozki-po-rossii/ekaterinburg-chelyabinsk/" data-city="Челябинск">Челябинск</a> <span>≈ 1 день</span></li>
+      <li><a href="https://www.dellin.ru/directions/gruzoperevozki-po-rossii/ekaterinburg-yuzhno-sahalinsk/" data-city="Южно-Сахалинск">Южно-Сахалинск</a> <span>≈ 53 дня</span></li>
+      <li><a href="https://www.dellin.ru/directions/gruzoperevozki-po-rossii/ekaterinburg-yakutsk/" data-city="Якутск">Якутск</a> <span>≈ 69 дней</span></li>
+      </ul>
+    </details>
+  </section>
+</main>
+<footer id="kontakty">
+  <div class="wrap footer-grid">
+    <div class="footer-brand"><a class="logo" href="/"><img src="/promo/img/satori-wordmark.svg" alt="Satori" width="844" height="220"></a><p>Студия света · Екатеринбург</p></div>
+    <div class="footer-legal"><p>ИП Рассыхаева Светлана Андреевна</p><p>ИНН 668400302968</p></div>
+    <address class="footer-contact">
+      <a href="tel:+79221226063" data-goal="phone_click"><svg width="19" height="19" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M7 3H4a1 1 0 0 0-1 1c0 9.4 7.6 17 17 17a1 1 0 0 0 1-1v-3l-5-2-2 2a13 13 0 0 1-7-7l2-2z"/></svg><span>Позвонить <small>+7 922 122-60-63</small></span></a>
+      <a href="https://t.me/Satori_Lab_Ural" target="_blank" rel="noopener" data-goal="telegram_click"><svg width="19" height="19" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="m3 10 18-7-4 18-6-5-4 3v-6zm4 3L21 3M11 16l10-13"/></svg><span>Написать в Telegram</span></a>
+      <a href="mailto:studiosatori@yandex.com"><svg width="19" height="19" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="m4 7 8 6 8-6"/></svg><span>Написать на почту <small>studiosatori@yandex.com</small></span></a>
+      <a href="https://vk.ru/satory_lab" target="_blank" rel="noopener"><svg width="19" height="19" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7c1 6 4 10 9 10h1v-4c2 0 4 2 5 4h3c-1-2-3-4-5-5 2-1 3-3 4-5h-3c-1 2-2 4-4 4V7h-3v6c-2-1-3-3-4-6z"/></svg><span>ВКонтакте</span></a>
+    </address>
+  </div>
+  <div class="wrap"><nav class="legal-links" aria-label="Работа и партнёрство"><a href="/promo/merch.html">Мерч</a><a href="/promo/careers.html">Работа в Satori</a><a href="/promo/franchise.html">Франшиза</a><a href="/promo/delivery.html">Доставка по России</a></nav><nav class="legal-links" aria-label="Документы сайта"><a href="/promo/privacy.html">Политика обработки данных</a><a href="/promo/consent.html">Согласие на обработку данных</a><a href="/promo/cookies.html">Правила cookie</a></nav><button type="button" class="cookie-settings" data-cookie-settings hidden>Настроить cookie</button></div>
+</footer>
+<script src="/promo/app.js?v=16" defer></script>
+<script src="/promo/delivery.js" defer></script>
+</body>
+</html>
