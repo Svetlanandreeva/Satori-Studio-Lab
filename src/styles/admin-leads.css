@@ -1,0 +1,147 @@
+/* SATORI unified admin: quick triage of site leads and reversible spam. */
+.admin-figma .fa-lead-inbox { min-width: 0; padding: 16px 12px; }
+.admin-figma .fa-lead-row {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 11px 9px;
+  border-bottom: 1px solid #e4d9d3;
+  border-radius: 12px;
+  min-width: 0;
+}
+.admin-figma .fa-lead-row:hover { background: #f6efeb; }
+.admin-figma .fa-lead-row.selected { background: #f4e7e8; border-color: #d8b9c4; }
+.admin-figma .fa-lead-open {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 0;
+  flex: 1 1 auto;
+  padding: 0;
+  text-align: left;
+  background: transparent;
+  border: 0;
+  color: var(--ink);
+}
+.admin-figma .fa-lead-open > i {
+  display: block;
+  flex: 0 0 7px;
+  width: 7px;
+  height: 7px;
+  margin-top: 7px;
+  border-radius: 50%;
+  background: transparent;
+}
+.admin-figma .fa-lead-row.unread .fa-lead-open > i { background: #74253f; }
+.admin-figma .fa-lead-summary {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  flex: 1;
+  gap: 4px;
+  overflow: hidden;
+}
+.admin-figma .fa-lead-summary b {
+  display: block;
+  font-size: 13px;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+.admin-figma .fa-lead-summary small { color: #877972; font-size: 10px; }
+.admin-figma .fa-lead-summary > span {
+  color: #746861;
+  font-size: 11px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.admin-figma .fa-lead-quick-actions {
+  display: flex;
+  flex: 0 0 auto;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: center;
+  gap: 6px;
+  max-width: 132px;
+}
+.admin-figma select.fa-lead-status {
+  width: 100%;
+  min-width: 0;
+  max-width: 100%;
+  min-height: 30px;
+  padding: 4px 20px 4px 8px;
+  font-size: 11px;
+  line-height: 1.2;
+  font-weight: 600;
+  background: #fffcf9;
+  color: #68263e;
+  border: 1px solid #cbaeb8;
+  border-radius: 9px;
+  cursor: pointer;
+}
+.admin-figma .fa-lead-spam-btn,
+.admin-figma .fa-lead-delete-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-height: 28px;
+  padding: 4px 9px;
+  background: transparent;
+  border: 1px solid #d9cbc8;
+  border-radius: 100px;
+  color: #6f5660;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+.admin-figma .fa-lead-spam-btn:hover { background: #eadce0; color: #74253f; border-color: #bd92a1; }
+.admin-figma .fa-lead-spam-btn.fa-lead-restore { color: #37694c; border-color: #adc5b3; }
+.admin-figma .fa-lead-delete-btn { color: #9f324c; border-color: #e1c0c7; }
+.admin-figma .fa-lead-delete-btn:hover { background: #fae9ed; }
+.admin-figma .fa-lead-quick-actions button:disabled,
+.admin-figma .fa-lead-quick-actions select:disabled { opacity: .45; cursor: wait; }
+.admin-figma .fa-lead-empty { margin: 0; padding: 29px 12px; color: var(--muted); font-size: 13px; }
+.admin-figma .fa-lead-action-error { margin: -4px 0 18px; }
+.admin-figma .fa-lead-detail-status-label {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  margin-top: 18px;
+  font-size: 12px;
+  font-weight: 650;
+}
+.admin-figma .fa-lead-detail-status-label .fa-lead-status {
+  max-width: 245px;
+  min-height: 40px;
+  font-size: 12px;
+  padding-inline: 12px;
+}
+.admin-figma .fa-lead-crm-stage { margin: 12px 0 0; color: var(--muted); font-size: 11px; }
+.admin-figma .fa-lead-danger { color: #a53a51; border-color: #d9b7c1; }
+.admin-figma .fa-lead-danger:hover { background: #fbecf0; }
+.admin-figma .fa-lead-note { font-size: 11px; color: #806c72; line-height: 1.5; }
+.admin-figma .fa-lead-filters { align-items: center; }
+.admin-figma .fa-lead-filters button:last-child:not(.active) { color: #872b46; border-color: #e0bec9; }
+@media (max-width: 1200px) {
+  .admin-figma .fa-leads-split { grid-template-columns: minmax(0,1fr) minmax(310px, .92fr); gap: 15px; }
+}
+@media (max-width: 940px) {
+  .admin-figma .fa-lead-quick-actions { max-width: 142px; }
+}
+@media (max-width: 760px) {
+  .admin-figma .fa-leads-split { grid-template-columns: minmax(0,1fr); }
+  .admin-figma .fa-lead-detail { min-width: 0; }
+  .admin-figma .fa-lead-quick-actions { max-width: 130px; }
+  .admin-figma .fa-toolbar { flex-wrap: wrap; }
+  .admin-figma .fa-toolbar > label { min-width: 0; width: 100%; }
+  .admin-figma .fa-lead-filters { width: 100%; gap: 6px; }
+}
+@media (max-width: 430px) {
+  .admin-figma .fa-lead-row { padding-inline: 5px; gap: 5px; }
+  .admin-figma .fa-lead-open { gap: 6px; }
+  .admin-figma .fa-lead-summary b { font-size: 12px; }
+  .admin-figma .fa-lead-quick-actions { max-width: 112px; }
+  .admin-figma select.fa-lead-status { font-size: 10px; }
+  .admin-figma .fa-lead-spam-btn, .admin-figma .fa-lead-delete-btn { font-size: 10px; }
+}
