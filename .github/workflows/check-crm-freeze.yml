@@ -1,0 +1,33 @@
+name: Check CRM freeze regression
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - "crm/public/**"
+      - "crm/tests/**"
+      - ".github/workflows/check-crm-freeze.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Verify CRM JavaScript syntax
+        run: |
+          node --check crm/public/app.js
+          node --check crm/public/source-link-ui.js
+          node --check crm/public/brief-ui.js
+          node --check crm/public/post-auth-loader.js
+          node --check crm/public/sw.js
+          node --check crm/public/pwa.js
+      - name: Check CRM does not get trapped in DOM mutation feedback
+        run: node --test crm/tests/dom-feedback.test.cjs
