@@ -1,0 +1,560 @@
+{
+  "projects": [
+    {
+      "id": "catalog-chandeliers",
+      "title": "Люстра-волна",
+      "descriptions": [
+        "Стоимость изготовления в Satori для этого проекта — 350 000 ₽ при оценке 800 000 ₽ от других студий.",
+        "Полупрозрачные каменные пластины на латунном каркасе. Для нового проекта согласуем длину композиции и высоту подвеса под помещение."
+      ],
+      "images": [
+        {
+          "url": "/promo/img/works/6195.jpg",
+          "alt": "Люстра-волна — работа SATORI"
+        },
+        {
+          "url": "/promo/img/works/6197.jpg",
+          "alt": "Люстра-волна — работа SATORI"
+        },
+        {
+          "url": "/promo/img/works/6198.jpg",
+          "alt": "Люстра-волна — работа SATORI"
+        },
+        {
+          "url": "/promo/img/works/6199.jpg",
+          "alt": "Люстра-волна — работа SATORI"
+        },
+        {
+          "url": "/promo/img/works/6200.jpg",
+          "alt": "Люстра-волна — работа SATORI"
+        },
+        {
+          "url": "/promo/img/works/6201.jpg",
+          "alt": "Люстра-волна — работа SATORI"
+        }
+      ]
+    },
+    {
+      "id": "satori-project-2",
+      "title": "Кольца",
+      "descriptions": [
+        "Подвесные кольца с подсветкой"
+      ],
+      "images": [
+        {
+          "url": "/promo/img/works/7006.jpg",
+          "alt": "Кольца — работа SATORI"
+        },
+        {
+          "url": "/promo/img/works/7007.jpg",
+          "alt": "Кольца — работа SATORI"
+        },
+        {
+          "url": "/promo/img/works/7008.jpg",
+          "alt": "Кольца — работа SATORI"
+        }
+      ]
+    },
+    {
+      "id": "catalog-flowers",
+      "title": "Серия «Цветы»",
+      "descriptions": [
+        "Подвесы и каскады из литого стекла. Под ваш интерьер согласуем количество элементов, высоту подвесов и оттенок стекла."
+      ],
+      "images": [
+        {
+          "url": "/promo/img/works/6023.jpg",
+          "alt": "Серия «Цветы» — работа SATORI"
+        },
+        {
+          "url": "/promo/img/works/6024.jpg",
+          "alt": "Серия «Цветы» — работа SATORI"
+        },
+        {
+          "url": "/promo/img/works/6025.jpg",
+          "alt": "Серия «Цветы» — работа SATORI"
+        },
+        {
+          "url": "/promo/img/works/6026.jpg",
+          "alt": "Серия «Цветы» — работа SATORI"
+        },
+        {
+          "url": "/promo/img/works/6027.jpg",
+          "alt": "Серия «Цветы» — работа SATORI"
+        },
+        {
+          "url": "/promo/img/works/6028.jpg",
+          "alt": "Серия «Цветы» — работа SATORI"
+        }
+      ]
+    },
+    {
+      "id": "satori-project-4",
+      "title": "Подвес «Лист»",
+      "descriptions": [
+        "Напечатан на 3D-принтере"
+      ],
+      "images": [
+        {
+          "url": "/promo/img/works/5920.jpg",
+          "alt": "Подвес «Лист» — работа SATORI"
+        }
+      ]
+    },
+    {
+      "id": "satori-project-5",
+      "title": "Листья",
+      "descriptions": [
+        "Люстра из стеклянных листьев"
+      ],
+      "images": [
+        {
+          "url": "/promo/img/works/7013.jpg",
+          "alt": "Листья — работа SATORI"
+        },
+        {
+          "url": "/promo/img/works/7014.jpg",
+          "alt": "Листья — работа SATORI"
+        },
+        {
+          "url": "/promo/img/works/7015.jpg",
+          "alt": "Листья — работа SATORI"
+        },
+        {
+          "url": "/promo/img/works/7016.jpg",
+          "alt": "Листья — работа SATORI"
+        },
+        {
+          "url": "/promo/img/works/7017.jpg",
+          "alt": "Листья — работа SATORI"
+        },
+        {
+          "url": "/promo/img/works/7018.jpg",
+          "alt": "Листья — работа SATORI"
+        },
+        {
+          "url": "/promo/img/works/7019.jpg",
+          "alt": "Листья — работа SATORI"
+        },
+        {
+          "url": "/promo/img/works/7020.jpg",
+          "alt": "Листья — работа SATORI"
+        },
+        {
+          "url": "/promo/img/works/7021.jpg",
+          "alt": "Листья — работа SATORI"
+        }
+      ]
+    },
+    {
+      "id": "satori-project-6",
+      "title": "Луна",
+      "descriptions": [
+        "Настенный светильник с рельефом"
+      ],
+      "images": [
+        {
+          "url": "/promo/img/works/6123.jpg",
+          "alt": "Луна — работа SATORI"
+        },
+        {
+          "url": "/promo/img/works/6124.jpg",
+          "alt": "Луна — работа SATORI"
+        },
+        {
+          "url": "/promo/img/works/6125.jpg",
+          "alt": "Луна — работа SATORI"
+        },
+        {
+          "url": "/promo/img/works/6126.jpg",
+          "alt": "Луна — работа SATORI"
+        }
+      ]
+    },
+    {
+      "id": "catalog-wall-lights",
+      "title": "Бра и подвесы из литого стекла",
+      "descriptions": [
+        "Настенные и подвесные светильники из литого стекла. Размер, фактуру и оттенок согласуем под место установки."
+      ],
+      "images": [
+        {
+          "url": "/promo/img/works/6752.jpg",
+          "alt": "Бра и подвесы из литого стекла — работа SATORI"
+        },
+        {
+          "url": "/promo/img/works/6753.jpg",
+          "alt": "Бра и подвесы из литого стекла — работа SATORI"
+        },
+        {
+          "url": "/promo/img/works/6754.jpg",
+          "alt": "Бра и подвесы из литого стекла — работа SATORI"
+        },
+        {
+          "url": "/promo/img/works/6755.jpg",
+          "alt": "Бра и подвесы из литого стекла — работа SATORI"
+        }
+      ]
+    },
+    {
+      "id": "satori-project-8",
+      "title": "Каскад в лестничный пролёт",
+      "descriptions": [
+        "Трёхъярусная люстра"
+      ],
+      "images": [
+        {
+          "url": "/promo/img/works/7001.jpg",
+          "alt": "Каскад в лестничный пролёт — работа SATORI"
+        },
+        {
+          "url": "/promo/img/works/7002.jpg",
+          "alt": "Каскад в лестничный пролёт — работа SATORI"
+        },
+        {
+          "url": "/promo/img/works/7003.jpg",
+          "alt": "Каскад в лестничный пролёт — работа SATORI"
+        },
+        {
+          "url": "/promo/img/works/7004.jpg",
+          "alt": "Каскад в лестничный пролёт — работа SATORI"
+        },
+        {
+          "url": "/promo/img/works/7005.jpg",
+          "alt": "Каскад в лестничный пролёт — работа SATORI"
+        }
+      ]
+    },
+    {
+      "id": "catalog-ring-chandelier",
+      "title": "Кольцевая люстра",
+      "descriptions": [
+        "Пять ярусов, монтаж на объекте"
+      ],
+      "images": [
+        {
+          "url": "/promo/img/works/7055.jpg",
+          "alt": "Кольцевая люстра — работа SATORI"
+        },
+        {
+          "url": "/promo/img/works/7051.jpg",
+          "alt": "Кольцевая люстра — работа SATORI"
+        },
+        {
+          "url": "/promo/img/works/7053.jpg",
+          "alt": "Кольцевая люстра — работа SATORI"
+        },
+        {
+          "url": "/promo/img/works/7054.jpg",
+          "alt": "Кольцевая люстра — работа SATORI"
+        },
+        {
+          "url": "/promo/img/works/7052.jpg",
+          "alt": "Кольцевая люстра — работа SATORI"
+        }
+      ]
+    },
+    {
+      "id": "satori-project-10",
+      "title": "Стекло и латунь",
+      "descriptions": [
+        "Подвесы с латунными листьями"
+      ],
+      "images": [
+        {
+          "url": "/promo/img/works/6044.jpg",
+          "alt": "Стекло и латунь — работа SATORI"
+        },
+        {
+          "url": "/promo/img/works/6045.jpg",
+          "alt": "Стекло и латунь — работа SATORI"
+        },
+        {
+          "url": "/promo/img/works/6046.jpg",
+          "alt": "Стекло и латунь — работа SATORI"
+        }
+      ]
+    },
+    {
+      "id": "satori-project-11",
+      "title": "Янтарное стекло",
+      "descriptions": [
+        "Многоярусная люстра"
+      ],
+      "images": [
+        {
+          "url": "/promo/img/works/6053.jpg",
+          "alt": "Янтарное стекло — работа SATORI"
+        },
+        {
+          "url": "/promo/img/works/6054.jpg",
+          "alt": "Янтарное стекло — работа SATORI"
+        },
+        {
+          "url": "/promo/img/works/6055.jpg",
+          "alt": "Янтарное стекло — работа SATORI"
+        }
+      ]
+    },
+    {
+      "id": "satori-project-12",
+      "title": "Световые панели",
+      "descriptions": [
+        "Каскад из каменных панелей"
+      ],
+      "images": [
+        {
+          "url": "/promo/img/works/7009.jpg",
+          "alt": "Световые панели — работа SATORI"
+        },
+        {
+          "url": "/promo/img/works/7010.jpg",
+          "alt": "Световые панели — работа SATORI"
+        },
+        {
+          "url": "/promo/img/works/7011.jpg",
+          "alt": "Световые панели — работа SATORI"
+        },
+        {
+          "url": "/promo/img/works/7012.jpg",
+          "alt": "Световые панели — работа SATORI"
+        }
+      ]
+    },
+    {
+      "id": "satori-project-13",
+      "title": "Подвес над столом",
+      "descriptions": [
+        "Длинный светильник, от каркаса до света"
+      ],
+      "images": [
+        {
+          "url": "/promo/img/works/7028.jpg",
+          "alt": "Подвес над столом — работа SATORI"
+        },
+        {
+          "url": "/promo/img/works/7030.jpg",
+          "alt": "Подвес над столом — работа SATORI"
+        },
+        {
+          "url": "/promo/img/works/7031.jpg",
+          "alt": "Подвес над столом — работа SATORI"
+        },
+        {
+          "url": "/promo/img/works/7027.jpg",
+          "alt": "Подвес над столом — работа SATORI"
+        },
+        {
+          "url": "/promo/img/works/7022.jpg",
+          "alt": "Подвес над столом — работа SATORI"
+        },
+        {
+          "url": "/promo/img/works/7029.jpg",
+          "alt": "Подвес над столом — работа SATORI"
+        },
+        {
+          "url": "/promo/img/works/7023.jpg",
+          "alt": "Подвес над столом — работа SATORI"
+        },
+        {
+          "url": "/promo/img/works/7024.jpg",
+          "alt": "Подвес над столом — работа SATORI"
+        },
+        {
+          "url": "/promo/img/works/7025.jpg",
+          "alt": "Подвес над столом — работа SATORI"
+        },
+        {
+          "url": "/promo/img/works/7026.jpg",
+          "alt": "Подвес над столом — работа SATORI"
+        }
+      ]
+    },
+    {
+      "id": "satori-project-14",
+      "title": "Хрустальные кольца",
+      "descriptions": [
+        "Сборка в цехе"
+      ],
+      "images": [
+        {
+          "url": "/promo/img/works/7034.jpg",
+          "alt": "Хрустальные кольца — работа SATORI"
+        },
+        {
+          "url": "/promo/img/works/7032.jpg",
+          "alt": "Хрустальные кольца — работа SATORI"
+        },
+        {
+          "url": "/promo/img/works/7033.jpg",
+          "alt": "Хрустальные кольца — работа SATORI"
+        },
+        {
+          "url": "/promo/img/works/7035.jpg",
+          "alt": "Хрустальные кольца — работа SATORI"
+        },
+        {
+          "url": "/promo/img/works/7036.jpg",
+          "alt": "Хрустальные кольца — работа SATORI"
+        },
+        {
+          "url": "/promo/img/works/7037.jpg",
+          "alt": "Хрустальные кольца — работа SATORI"
+        }
+      ]
+    },
+    {
+      "id": "satori-project-15",
+      "title": "Скульптурный светильник",
+      "descriptions": [
+        "Объёмная форма с подсветкой"
+      ],
+      "images": [
+        {
+          "url": "/promo/img/works/7045.jpg",
+          "alt": "Скульптурный светильник — работа SATORI"
+        },
+        {
+          "url": "/promo/img/works/7048.jpg",
+          "alt": "Скульптурный светильник — работа SATORI"
+        },
+        {
+          "url": "/promo/img/works/7049.jpg",
+          "alt": "Скульптурный светильник — работа SATORI"
+        },
+        {
+          "url": "/promo/img/works/7050.jpg",
+          "alt": "Скульптурный светильник — работа SATORI"
+        },
+        {
+          "url": "/promo/img/works/7046.jpg",
+          "alt": "Скульптурный светильник — работа SATORI"
+        },
+        {
+          "url": "/promo/img/works/7047.jpg",
+          "alt": "Скульптурный светильник — работа SATORI"
+        }
+      ]
+    },
+    {
+      "id": "satori-project-16",
+      "title": "Абажур из пластин",
+      "descriptions": [
+        "В цехе перед отправкой"
+      ],
+      "images": [
+        {
+          "url": "/promo/img/works/6202.jpg",
+          "alt": "Абажур из пластин — работа SATORI"
+        }
+      ]
+    },
+    {
+      "id": "satori-project-17",
+      "title": "Бра в классическом стиле",
+      "descriptions": [
+        "Настенное бра в классической эстетике. Размеры и варианты отделки подбираем для вашего интерьера."
+      ],
+      "images": [
+        {
+          "url": "/promo/img/works/7144.jpg",
+          "alt": "Бра в классическом стиле — работа SATORI"
+        },
+        {
+          "url": "/promo/img/works/7145.jpg",
+          "alt": "Бра в классическом стиле — работа SATORI"
+        }
+      ]
+    },
+    {
+      "id": "satori-project-18",
+      "title": "Напольный светильник из дерева",
+      "descriptions": [
+        "Напольная модель из дерева. Пропорции и оттенок отделки согласуем под ваш интерьер."
+      ],
+      "images": [
+        {
+          "url": "/promo/img/works/7146.jpg",
+          "alt": "Напольный светильник из дерева — работа SATORI"
+        },
+        {
+          "url": "/promo/img/works/7147.jpg",
+          "alt": "Напольный светильник из дерева — работа SATORI"
+        },
+        {
+          "url": "/promo/img/works/7148.jpg",
+          "alt": "Напольный светильник из дерева — работа SATORI"
+        },
+        {
+          "url": "/promo/img/works/7149.jpg",
+          "alt": "Напольный светильник из дерева — работа SATORI"
+        }
+      ]
+    },
+    {
+      "id": "catalog-hospitality",
+      "title": "Люстры для залов и ресторанов",
+      "descriptions": [
+        "Крупные объекты под проект"
+      ],
+      "images": [
+        {
+          "url": "/promo/img/works/6009.jpg",
+          "alt": "Люстры для залов и ресторанов — работа SATORI"
+        },
+        {
+          "url": "/promo/img/works/6010.jpg",
+          "alt": "Люстры для залов и ресторанов — работа SATORI"
+        },
+        {
+          "url": "/promo/img/works/6006.jpg",
+          "alt": "Люстры для залов и ресторанов — работа SATORI"
+        },
+        {
+          "url": "/promo/img/works/6007.jpg",
+          "alt": "Люстры для залов и ресторанов — работа SATORI"
+        },
+        {
+          "url": "/promo/img/works/6008.jpg",
+          "alt": "Люстры для залов и ресторанов — работа SATORI"
+        },
+        {
+          "url": "/promo/img/works/6011.jpg",
+          "alt": "Люстры для залов и ресторанов — работа SATORI"
+        },
+        {
+          "url": "/promo/img/works/6012.jpg",
+          "alt": "Люстры для залов и ресторанов — работа SATORI"
+        },
+        {
+          "url": "/promo/img/works/6013.jpg",
+          "alt": "Люстры для залов и ресторанов — работа SATORI"
+        },
+        {
+          "url": "/promo/img/works/7039.jpg",
+          "alt": "Люстры для залов и ресторанов — работа SATORI"
+        },
+        {
+          "url": "/promo/img/works/7044.jpg",
+          "alt": "Люстры для залов и ресторанов — работа SATORI"
+        },
+        {
+          "url": "/promo/img/works/7042.jpg",
+          "alt": "Люстры для залов и ресторанов — работа SATORI"
+        },
+        {
+          "url": "/promo/img/works/7043.jpg",
+          "alt": "Люстры для залов и ресторанов — работа SATORI"
+        },
+        {
+          "url": "/promo/img/works/7041.jpg",
+          "alt": "Люстры для залов и ресторанов — работа SATORI"
+        },
+        {
+          "url": "/promo/img/works/7040.jpg",
+          "alt": "Люстры для залов и ресторанов — работа SATORI"
+        }
+      ]
+    }
+  ]
+}
