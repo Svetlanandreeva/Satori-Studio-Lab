@@ -486,3 +486,20 @@ dialog.portfolio-viewer::backdrop {
   .portfolio-viewer-like { grid-column: 2; grid-row: 1; padding-inline: 15px; }
   .portfolio-viewer-thumbnails { grid-column: 1 / -1; grid-row: 2; width: 100%; }
 }
+
+/* Individually framed project covers – original photographs, not generated replacements. */
+/* The screenshots were intended as composition references. The website retains
+   original project photos; focal positions make the light fixtures prominent. */
+.studio-catalog #catalog-chandeliers .portfolio-project-cover--featured img {
+  object-fit: cover;
+  object-position: center 66%;
+}
+.studio-catalog #satori-project-2 .portfolio-project-cover--featured img {
+  object-fit: cover;
+  object-position: center 62%;
+}
+.studio-catalog #catalog-flowers .portfolio-project-cover--featured img {
+  object-fit: cover;
+  object-position: center 79%;
+}
+/* Full-size viewing and subsequent gallery images continue to use contain. */
