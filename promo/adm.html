@@ -54,7 +54,11 @@
       <section class="adm-editor" aria-label="Редактирование проекта">
         <div class="adm-editor-heading">
           <div><p class="adm-kicker">РЕДАКТОР</p><h2 id="adm-edit-heading">Выберите проект</h2></div>
-          <button type="button" class="adm-delete" id="adm-delete-project">Удалить проект</button>
+          <div class="adm-editor-tools">
+            <button type="button" class="adm-small-button" id="adm-move-up" title="Переместить проект выше">↑ Выше</button>
+            <button type="button" class="adm-small-button" id="adm-move-down" title="Переместить проект ниже">↓ Ниже</button>
+            <button type="button" class="adm-delete" id="adm-delete-project">Удалить проект</button>
+          </div>
         </div>
         <div class="adm-form-fields">
           <label for="adm-title">Название работы
