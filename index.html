@@ -3,6 +3,12 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <script>
+      // /adm is the Satori Studio editor; it is separate from /admin (shop).
+      if (location.pathname === '/adm' || location.pathname === '/adm/') {
+        location.replace('/promo/adm.html' + location.search + location.hash);
+      }
+    </script>
 
     <!-- Preload the hero background photo (server/data/hero.json → /api/hero).
          If someone changes the hero photo via the admin panel, update this
