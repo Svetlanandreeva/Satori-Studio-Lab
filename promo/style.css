@@ -607,3 +607,110 @@ h1, h2, h3, .hero h1 { font-weight: 600; letter-spacing: -.055em; line-height: 1
 .faq-questions > details:last-child {
   border-bottom: 0;
 }
+
+/* Satori's dark wordmark palette carries through the floating header. */
+.studio-home {
+  background: linear-gradient(#17130f var(--header-row-height), var(--paper) var(--header-row-height));
+}
+
+body > header {
+  padding: 6px clamp(8px, 2vw, 28px);
+  background: transparent;
+  backdrop-filter: none;
+  border-color: transparent;
+}
+
+body > header > .wrap {
+  position: relative;
+  justify-content: space-between;
+  height: calc(var(--header-row-height) - 12px);
+  padding-inline: clamp(10px, 2vw, 24px);
+  border: 1px solid #ffffff24;
+  border-radius: 100px;
+  background: #17130f;
+  color: #f7efe2;
+  box-shadow: 0 6px 22px #17130f24;
+}
+
+body > header .logo img {
+  filter: grayscale(1) brightness(.99) contrast(1.35);
+  mix-blend-mode: screen;
+}
+
+body > header > .wrap > nav {
+  position: relative;
+  isolation: isolate;
+  gap: 2px;
+  white-space: nowrap;
+}
+
+body > header > .wrap > nav a {
+  display: block;
+  padding: 8px clamp(8px, 1vw, 15px);
+  border-radius: 100px;
+}
+
+body > header nav a,
+body > header nav a:hover,
+body > header nav a[aria-current=page] {
+  color: #f7efe2;
+}
+
+body > header nav a[aria-current=page] {
+  color: #f1d4aa;
+  text-decoration: none;
+}
+
+body > header nav:not(.nav-follower) a:is(:hover, :focus-visible, [aria-current=page]) {
+  background: #e5bd7f24;
+}
+
+.nav-follower::before {
+  content: "";
+  position: absolute;
+  inset: 0 auto 0 0;
+  z-index: -1;
+  width: var(--nav-highlight-width, 0px);
+  transform: translateX(var(--nav-highlight-x, 0px));
+  border-radius: 100px;
+  background: #e5bd7f24;
+  box-shadow: inset 0 0 0 1px #e5bd7f35;
+  transition: transform 260ms ease, width 260ms ease;
+  pointer-events: none;
+}
+
+body > header .contact-button,
+.studio-home .hero-actions .btn {
+  background: #e5bd7f;
+  border-color: #e5bd7f;
+  color: #21180e;
+}
+
+body > header .contact-button:hover,
+.studio-home .hero-actions .btn:hover {
+  background: #f1d4aa;
+  border-color: #f1d4aa;
+}
+
+body > header :focus-visible,
+.studio-home .hero-actions :focus-visible {
+  outline-color: #f1d4aa;
+}
+
+@media (max-width: 900px) {
+  body > header .section-menu summary { border-color: #ffffff40; }
+  body > header .section-menu nav {
+    inset: calc(100% + 7px) 0 auto;
+    background: #17130f;
+    border: 1px solid #ffffff24;
+    border-radius: 20px;
+  }
+
+  body > header .section-menu nav a { padding-inline: 12px; border-radius: 9px; }
+  body > header .contact-button,
+  body > header .section-menu summary { min-height: 36px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .nav-follower::before { transition: none; }
+}

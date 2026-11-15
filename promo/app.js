@@ -1,4 +1,25 @@
 (function () {
+  var desktopNav = document.querySelector('body > header > .wrap > nav');
+  if (desktopNav && 'ResizeObserver' in window) {
+    var currentLink = desktopNav.querySelector('[aria-current="page"]');
+    function highlightLink(link) {
+      desktopNav.style.setProperty('--nav-highlight-x', (link ? link.offsetLeft : 0) + 'px');
+      desktopNav.style.setProperty('--nav-highlight-width', (link ? link.offsetWidth : 0) + 'px');
+    }
+    function restoreHighlight() {
+      highlightLink(desktopNav.querySelector('a:focus-visible') || currentLink);
+    }
+    desktopNav.classList.add('nav-follower');
+    desktopNav.addEventListener('pointerover', function (event) {
+      var link = event.target.closest('a');
+      if (link) highlightLink(link);
+    });
+    desktopNav.addEventListener('pointerleave', restoreHighlight);
+    desktopNav.addEventListener('focusin', restoreHighlight);
+    desktopNav.addEventListener('focusout', function () { requestAnimationFrame(restoreHighlight); });
+    new ResizeObserver(restoreHighlight).observe(desktopNav);
+  }
+
   var film = document.querySelector('.hero-film video');
   if (film && film.canPlayType('video/mp4') &&
       !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
