@@ -13,7 +13,7 @@ import { login, requireAdmin } from "./auth.js";
 import { sendVkMessage } from "./vk.js";
 import { listGallery, addGalleryPhoto, removeGalleryPhoto } from "./gallery.js";
 import { listPromoCodes, getPromoCode, createPromoCode, updatePromoCode, deletePromoCode, isPromoUsable, computeDiscount } from "./promocodes.js";
-import { createLead, listLeads, deleteLead, markAllLeadsRead, syncLeadToCrmV2 } from "./leads.js";
+import { createLead, listLeads, updateLead, deleteLead, markAllLeadsRead, syncLeadToCrmV2 } from "./leads.js";
 import { getHero, setHero } from "./hero.js";
 import { sendOfflineConversion } from "./metrika.js";
 import { createImageResizeRoute } from "./imageResize.js";
@@ -268,6 +268,47 @@ app.get("/api/admin/leads", requireAdmin, async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Ошибка сервера" });
+  }
+});
+
+// Быстрая обработка заявок в едином кабинете: статус и папка «Спам».
+// Проверка полей здесь обязательна: нельзя менять ID, контакты или CRM-данные
+// через этот маршрут. CRM-этапы управляются отдельно.
+const LEAD_WORKFLOW_STATUSES = new Set([
+  "Новая", "Связаться", "В работе", "Ожидаем ответ", "Завершена", "Отказ",
+]);
+app.patch("/api/admin/leads/:id", requireAdmin, async (req, res) => {
+  try {
+    const body = req.body;
+    if (!body || typeof body !== "object" || Array.isArray(body) ||
+        !Object.keys(body).length ||
+        Object.keys(body).some(key => !["status", "isSpam", "read"].includes(key))) {
+      return res.status(400).json({ error: "Недопустимые поля заявки" });
+    }
+    const patch = {};
+    if (Object.prototype.hasOwnProperty.call(body, "status")) {
+      if (typeof body.status !== "string" || !LEAD_WORKFLOW_STATUSES.has(body.status)) {
+        return res.status(400).json({ error: "Неизвестный статус заявки" });
+      }
+      patch.status = body.status;
+      patch.read = true;
+    }
+    if (Object.prototype.hasOwnProperty.call(body, "isSpam")) {
+      if (typeof body.isSpam !== "boolean") return res.status(400).json({ error: "Некорректная отметка спама" });
+      patch.isSpam = body.isSpam;
+      patch.read = true;
+    }
+    if (Object.prototype.hasOwnProperty.call(body, "read")) {
+      if (typeof body.read !== "boolean") return res.status(400).json({ error: "Некорректное состояние прочтения" });
+      patch.read = body.read;
+    }
+    const updated = await updateLead(req.params.id, patch);
+    if (!updated) return res.status(404).json({ error: "Заявка не найдена" });
+    res.set("Cache-Control", "no-store");
+    return res.json({ ...updated, status: updated.status || "Новая", isSpam: updated.isSpam === true });
+  } catch (error) {
+    console.error("Admin lead status update failed:", error);
+    res.status(500).json({ error: "Не удалось обновить заявку" });
   }
 });
 
