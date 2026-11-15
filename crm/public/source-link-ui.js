@@ -22,7 +22,8 @@ function decorateCards() {
       if (source) source.insertAdjacentElement("afterend", badge);
       else card.prepend(badge);
     }
-    badge.textContent = `№ ${number}`;
+    const label = `№ ${number}`;
+    if (badge.textContent !== label) badge.textContent = label;
   });
 }
 
