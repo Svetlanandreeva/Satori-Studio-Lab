@@ -114,11 +114,16 @@
 
   // «Хочу похожий»: на главной подставляем работу в форму, с каталога ведём на главную
   var form = document.getElementById('lead-form');
+  function openMore() {
+    var d = form && form.querySelector('.form-more');
+    if (d) d.open = true;
+  }
   function wantLike(name) {
     goal('like_click');
     if (!form) { location.href = '/?like=' + encodeURIComponent(name) + '#zayavka'; return; }
     var t = form.elements.idea, line = 'Хочу похожий светильник: ' + name + '.';
     if (t.value.indexOf(line) === -1) t.value = line + (t.value ? '\n' + t.value : '');
+    openMore();
     document.getElementById('zayavka').scrollIntoView({ behavior: 'smooth', block: 'start' });
     setTimeout(function () { try { form.elements.name.focus({ preventScroll: true }); } catch (e) {} }, 500);
   }
@@ -131,6 +136,7 @@
     if (form && !like && project === 'merch') form.elements.idea.value = 'Проект: премиальный мерч на заказ.\n';
     if (form && !like && project === 'series') form.elements.idea.value = 'Проект: серийное производство для отеля или офиса.\n';
     if (form && !like && project === 'delivery') form.elements.idea.value = city ? 'Нужен расчёт доставки. Город: ' + city + '.\n' : 'Нужен расчёт доставки.\n';
+    if (form && (like || project)) openMore();
   } catch (e) {}
 
   // Просмотр фото

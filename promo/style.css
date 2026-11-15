@@ -998,3 +998,14 @@ body > header .logo img[src$=".svg"] {
     outline-offset: 2px;
   }
 }
+/* Короткая форма: детали прячем под раскрывашку */
+.form-lead { margin: 0 0 14px; font-size: 15px; color: #6b655c; }
+.form-more { margin: 4px 0 8px; border-top: 1px solid rgba(0,0,0,.08); padding-top: 12px; }
+.form-more > summary {
+  cursor: pointer; list-style: none; font-size: 15px; color: var(--wine);
+  padding: 2px 0; user-select: none;
+}
+.form-more > summary::-webkit-details-marker { display: none; }
+.form-more > summary::before { content: "+ "; font-weight: 600; }
+.form-more[open] > summary::before { content: "− "; }
+.form-more > label { margin-top: 12px; }
