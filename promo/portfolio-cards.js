@@ -43,7 +43,7 @@
 
   const heading = make('div', 'portfolio-toolbar');
   const summary = make('div', 'portfolio-toolbar-copy');
-  summary.append(make('p', 'portfolio-toolbar-kicker', 'ИЗБРАННЫЕ РАБОТЫ SATORI'));
+  summary.append(make('p', 'portfolio-toolbar-kicker', 'ПРОЕКТЫ SATORI · ' + projects.length + ' РАБОТ'));
   summary.append(make('p', 'portfolio-toolbar-hint', 'Листайте проекты и открывайте фотографии в полном размере'));
   const actions = make('div', 'portfolio-toolbar-actions');
   const counter = make('span', 'portfolio-project-counter');
@@ -81,7 +81,7 @@
     image.loading = project.number < 3 ? 'eager' : 'lazy';
     image.decoding = 'async';
     const photoCount = make('span', 'portfolio-photo-count',
-      project.photos.length + ' ' + (project.photos.length === 1 ? 'фото' : 'фото'));
+      project.photos.length + ' фото');
     const prompt = make('span', 'portfolio-view-prompt', 'Посмотреть фотографии ↗');
     cover.append(image, photoCount, prompt);
     cover.addEventListener('click', () => openProject(project, 0));
