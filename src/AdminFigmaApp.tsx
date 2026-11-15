@@ -33,6 +33,7 @@ type Lead = {
   id: string; type: "custom" | "business"; createdAt: string; read?: boolean;
   name?: string; company?: string; phone?: string; email?: string; contact?: string;
   budget?: string; idea?: string; inquiryType?: string; volume?: string; comment?: string;
+  referenceName?: string; referenceDataUrl?: string;
 };
 
 type Promo = {
@@ -145,7 +146,7 @@ function ProductEditor({ initial, token, onCancel, onSaved, onDelete }: {
 }
 
 function Dashboard({ token, onLogout }: { token: string; onLogout: () => void }) {
-  const [tab,setTab]=useState<AdminTab>("orders"); const [mobileMenu,setMobileMenu]=useState(false);
+  const [tab,setTab]=useState<AdminTab>("leads"); const [mobileMenu,setMobileMenu]=useState(false);
   const [products,setProducts]=useState<Product[]>([]); const [orders,setOrders]=useState<Order[]>([]); const [leads,setLeads]=useState<Lead[]>([]);
   const [gallery,setGallery]=useState<GalleryItem[]>([]); const [hero,setHero]=useState<{type?:string|null;url?:string|null;slides?:HeroSlide[]}>({slides:[]}); const [promos,setPromos]=useState<Promo[]>([]);
   const [loading,setLoading]=useState(true); const [error,setError]=useState(""); const [editing,setEditing]=useState<Product|"new"|null>(null);
@@ -154,13 +155,13 @@ function Dashboard({ token, onLogout }: { token: string; onLogout: () => void })
   const auth={Authorization:`Bearer ${token}`,"Content-Type":"application/json"};
   const authOnly={Authorization:`Bearer ${token}`};
   function authFail(res:Response){ if(res.status===401){localStorage.removeItem(TOKEN_KEY);onLogout();return true;} return false; }
-  async function reload(){ setLoading(true); setError(""); try { const [pr,or,lr,gr,hr,cr]=await Promise.all([fetch("/api/products"),fetch("/api/admin/orders",{headers:auth}),fetch("/api/admin/leads",{headers:auth}),fetch("/api/gallery"),fetch("/api/hero"),fetch("/api/admin/promocodes",{headers:auth})]); if(authFail(or)||authFail(lr)||authFail(cr))return; const [p,o,l,g,h,c]=await Promise.all([pr.json(),or.json(),lr.json(),gr.json(),hr.json(),cr.json()]); setProducts(p);setOrders(o);setLeads(l);setGallery(g);setHero(h);setPromos(c);setSelectedOrder(x=>x||o[0]?.id||"");setSelectedLead(x=>x||l[0]?.id||""); } catch(e){setError(e instanceof Error?e.message:"Не удалось загрузить данные");} finally{setLoading(false);} }
+  async function reload(){ setLoading(true); setError(""); try { const [pr,or,lr,gr,hr,cr]=await Promise.all([fetch("/api/products"),fetch("/api/admin/orders",{headers:auth}),fetch("/api/admin/leads",{headers:auth}),fetch("/api/gallery"),fetch("/api/hero"),fetch("/api/admin/promocodes",{headers:auth})]); if(authFail(or)||authFail(lr)||authFail(cr))return; if(!lr.ok)throw new Error("Не удалось загрузить заявки"); const [p,o,l,g,h,c]=await Promise.all([pr.json(),or.json(),lr.json(),gr.json(),hr.json(),cr.json()]); setProducts(p);setOrders(o);setLeads(l);setGallery(g);setHero(h);setPromos(c);setSelectedOrder(x=>x||o[0]?.id||"");setSelectedLead(x=>x||l[0]?.id||""); } catch(e){setError(e instanceof Error?e.message:"Не удалось загрузить данные");} finally{setLoading(false);} }
   useEffect(()=>{void reload();},[]);
   async function upload(file:File){return uploadFile(file,token)}
   async function saveProduct(data:Partial<Product>, current:Product|"new"){const url=current==="new"?"/api/admin/products":`/api/admin/products/${current.id}`;const res=await fetch(url,{method:current==="new"?"POST":"PUT",headers:auth,body:JSON.stringify(data)});if(authFail(res))return;if(!res.ok)throw new Error("Не удалось сохранить товар");await reload();setEditing(null);}
   async function deleteProduct(p:Product){if(!confirm(`Удалить «${p.name}»?`))return;const res=await fetch(`/api/admin/products/${p.id}`,{method:"DELETE",headers:auth});if(authFail(res))return;await reload();setEditing(null);}
 
-  const nav:[AdminTab,string,any][]=[["orders","Заказы",ClipboardList],["leads","Заявки",Inbox],["products","Товары",PackageSearch],["home","Главная",Home],["promocodes","Промокоды",Tag]];
+  const nav:[AdminTab,string,any][]=[["leads","Заявки",Inbox],["orders","Заказы",ClipboardList],["products","Товары",PackageSearch],["home","Главная",Home],["promocodes","Промокоды",Tag]];
   const newOrders=orders.filter(o=>(o.fulfillmentStatus??"Новый")==="Новый").length;
   const unread=leads.filter(l=>!l.read).length;
   const countFor=(t:AdminTab)=>t==="orders"?orders.length:t==="leads"?unread:t==="products"?products.length:t==="promocodes"?promos.filter(p=>p.active).length:0;
@@ -194,9 +195,26 @@ function OrdersPage({orders,selectedId,setSelectedId,search,setSearch,token,onCh
 }
 
 function LeadsPage({leads,selectedId,setSelectedId,search,setSearch,token,onChanged}:{leads:Lead[];selectedId:string;setSelectedId:(x:string)=>void;search:string;setSearch:(x:string)=>void;token:string;onChanged:()=>void}){
-  const [filter,setFilter]=useState<"all"|"custom"|"business">("all"); const list=leads.filter(l=>(filter==="all"||l.type===filter)&&`${l.name||""} ${l.company||""} ${l.phone||""} ${l.contact||""}`.toLowerCase().includes(search.toLowerCase())); const selected=leads.find(l=>l.id===selectedId)||list[0];
+  const [filter,setFilter]=useState<"all"|"custom"|"business">("all"); const list=leads.filter(l=>(filter==="all"||l.type===filter)&&`${l.name||""} ${l.company||""} ${l.phone||""} ${l.contact||""}`.toLowerCase().includes(search.toLowerCase())); const selected=list.find(l=>l.id===selectedId)||list[0];
   async function readAll(){await fetch("/api/admin/leads/read-all",{method:"POST",headers:{Authorization:`Bearer ${token}`}});onChanged();} async function del(){if(!selected||!confirm("Удалить заявку?"))return;await fetch(`/api/admin/leads/${selected.id}`,{method:"DELETE",headers:{Authorization:`Bearer ${token}`}});setSelectedId("");onChanged();}
-  return <><div className="fa-page-head"><div><h1>Заявки</h1><p>Брифы «На заказ» и обращения для бизнеса.</p></div><button className="fa-outline-button" onClick={readAll}>Прочитать все</button></div><div className="fa-stats"><Stat label="НОВЫЕ" value={leads.filter(l=>!l.read).length} note="непрочитанных"/><Stat label="НА ЗАКАЗ" value={leads.filter(l=>l.type==="custom").length} note="частные проекты"/><Stat label="БИЗНЕСУ" value={leads.filter(l=>l.type==="business").length} note="партнёрские запросы"/><Stat label="ЗА НЕДЕЛЮ" value={leads.filter(l=>Date.now()-new Date(l.createdAt).getTime()<604800000).length} note="всего обращений"/></div><div className="fa-toolbar"><label><Search size={15}/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Имя, контакт или компания"/></label><div className="fa-chips"><button className={filter==="all"?"active":""} onClick={()=>setFilter("all")}>Все</button><button className={filter==="custom"?"active":""} onClick={()=>setFilter("custom")}>На заказ</button><button className={filter==="business"?"active":""} onClick={()=>setFilter("business")}>Бизнесу</button></div></div><div className="fa-leads-split"><section className="fa-card fa-inbox"><div className="fa-inbox-head"><span>ВХОДЯЩИЕ</span><b>{leads.filter(l=>!l.read).length} новых</b></div>{list.map(l=><button key={l.id} className={`${selected?.id===l.id?"selected":""} ${!l.read?"unread":""}`} onClick={()=>setSelectedId(l.id)}><i></i><div><b>{l.type==="business"?l.company||l.name:l.name}</b><p>{l.type==="business"?(l.comment||l.inquiryType):(l.idea||"")}</p></div><div><Badge tone={l.type==="business"?"sand":"neutral"}>{l.type==="business"?"Бизнесу":"На заказ"}</Badge><small>{fmtDate(l.createdAt)}</small></div></button>)}</section>{selected&&<aside className="fa-card fa-detail"><div className="fa-section-label">ЗАЯВКА / {selected.type==="business"?"БИЗНЕСУ":"НА ЗАКАЗ"}</div><h2>{selected.type==="business"?selected.company||selected.name:selected.name}</h2><p>{fmtDate(selected.createdAt)}</p><hr/><div className="fa-section-label">КОНТАКТ</div><h3>{[selected.phone,selected.email,selected.contact].filter(Boolean).join(" · ")||"—"}</h3>{selected.budget&&<><div className="fa-section-label">БЮДЖЕТ</div><h3>{selected.budget}</h3></>}<div className="fa-section-label">ИДЕЯ</div><div className="fa-idea">{selected.type==="business"?[selected.inquiryType,selected.volume,selected.comment].filter(Boolean).join(" · "):selected.idea||"—"}</div><div className="fa-actions"><button className="fa-primary" onClick={()=>navigator.clipboard?.writeText([selected.phone,selected.email,selected.contact].filter(Boolean).join(" "))}><Copy size={13}/> Скопировать контакт</button><button className="fa-outline-button" onClick={del}>Удалить</button></div></aside>}</div></>;
+  return <><div className="fa-page-head"><div><h1>Заявки</h1><p>Брифы «На заказ» и обращения для бизнеса.</p></div><button className="fa-outline-button" onClick={readAll}>Прочитать все</button></div><div className="fa-stats"><Stat label="НОВЫЕ" value={leads.filter(l=>!l.read).length} note="непрочитанных"/><Stat label="НА ЗАКАЗ" value={leads.filter(l=>l.type==="custom").length} note="частные проекты"/><Stat label="БИЗНЕСУ" value={leads.filter(l=>l.type==="business").length} note="партнёрские запросы"/><Stat label="ЗА НЕДЕЛЮ" value={leads.filter(l=>Date.now()-new Date(l.createdAt).getTime()<604800000).length} note="всего обращений"/></div><div className="fa-toolbar"><label><Search size={15}/><input value={search} onChange={e=>setSearch(e.target.value)} placeholder="Имя, контакт или компания"/></label><div className="fa-chips"><button className={filter==="all"?"active":""} onClick={()=>setFilter("all")}>Все</button><button className={filter==="custom"?"active":""} onClick={()=>setFilter("custom")}>На заказ</button><button className={filter==="business"?"active":""} onClick={()=>setFilter("business")}>Бизнесу</button></div></div><div className="fa-leads-split"><section className="fa-card fa-inbox"><div className="fa-inbox-head"><span>ВХОДЯЩИЕ</span><b>{leads.filter(l=>!l.read).length} новых</b></div>{list.map(l=><button key={l.id} className={`${selected?.id===l.id?"selected":""} ${!l.read?"unread":""}`} onClick={()=>setSelectedId(l.id)}><i></i><div><b>{l.type==="business"?l.company||l.name:l.name}</b><p>{l.type==="business"?(l.comment||l.inquiryType):(l.idea||"")}</p></div><div><Badge tone={l.type==="business"?"sand":"neutral"}>{l.type==="business"?"Бизнесу":"На заказ"}</Badge><small>{fmtDate(l.createdAt)}</small></div></button>)}</section>{selected&&<aside className="fa-card fa-detail"><div className="fa-section-label">ЗАЯВКА / {selected.type==="business"?"БИЗНЕСУ":"НА ЗАКАЗ"}</div><h2>{selected.type==="business"?selected.company||selected.name:selected.name}</h2><p>{fmtDate(selected.createdAt)}</p><hr/><div className="fa-section-label">КОНТАКТ</div><h3>{[selected.phone,selected.email,selected.contact].filter(Boolean).join(" · ")||"—"}</h3>{selected.budget&&<><div className="fa-section-label">БЮДЖЕТ</div><h3>{selected.budget}</h3></>}<div className="fa-section-label">ИДЕЯ</div><div className="fa-idea">{selected.type==="business"?[selected.inquiryType,selected.volume,selected.comment].filter(Boolean).join(" · "):selected.idea||"—"}</div><LeadReference lead={selected}/><div className="fa-actions"><button className="fa-primary" onClick={()=>navigator.clipboard?.writeText([selected.phone,selected.email,selected.contact].filter(Boolean).join(" "))}><Copy size={13}/> Скопировать контакт</button><button className="fa-outline-button" onClick={del}>Удалить</button></div></aside>}</div></>;
+}
+
+function LeadReference({ lead }: { lead: Lead }) {
+  const image = lead.referenceDataUrl;
+  if (typeof image !== "string" || !/^data:image\/(?:jpeg|png|webp|gif);base64,[A-Za-z0-9+/]+={0,2}$/i.test(image)) {
+    return null;
+  }
+
+  return (
+    <div className="fa-lead-reference">
+      <div className="fa-section-label">ФОТО К ЗАЯВКЕ</div>
+      <a href={image} download={lead.referenceName || "reference.jpg"}>
+        <img key={lead.id} src={image} alt={lead.referenceName || "Фото к заявке"} />
+        <span>Скачать фото</span>
+      </a>
+    </div>
+  );
 }
 
 function ProductsPage({products,search,setSearch,category,setCategory,onEdit}:{products:Product[];search:string;setSearch:(x:string)=>void;category:string;setCategory:(x:string)=>void;onEdit:(p:Product|"new")=>void}){

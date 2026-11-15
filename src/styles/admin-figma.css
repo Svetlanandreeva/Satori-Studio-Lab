@@ -5,3 +5,25 @@
 @media(max-width:1100px){.fa-split{grid-template-columns:1fr}.fa-leads-split{grid-template-columns:1fr}.fa-detail{max-width:none}.fa-product-editor{grid-template-columns:1fr}.fa-media-card{display:grid;grid-template-columns:1fr 1fr}.fa-main-upload{grid-column:1/-1}.fa-home-grid,.fa-promo-layout{grid-template-columns:1fr}.fa-stats{grid-template-columns:repeat(2,1fr)}}
 @media(max-width:760px){.admin-figma{background:#f7f2ec}.fa-shell{display:block}.fa-sidebar{transform:translateX(-105%);transition:transform .25s;width:min(310px,86vw);box-shadow:20px 0 60px rgba(0,0,0,.2)}.fa-sidebar.is-open{transform:translateX(0)}.fa-work{padding-bottom:78px}.fa-top{display:none}.fa-mobile-head{height:72px;background:#f7f2ec;display:grid;grid-template-columns:48px 1fr 52px;align-items:center;border-bottom:1px solid #e7ddd2;padding:0 8px;position:sticky;top:0;z-index:50}.fa-mobile-head button{border:0;background:transparent;width:42px;height:42px;display:flex;align-items:center;justify-content:center}.fa-mobile-head b{font-size:14px}.fa-mobile-head i{width:28px;height:28px;border-radius:50%;background:#efe6dc;font-style:normal;display:flex;align-items:center;justify-content:center;justify-self:end}.fa-work main{padding:18px 14px 28px;max-width:none}.fa-page-head{margin-bottom:18px}.fa-page-head h1{font-family:'Playfair Display',serif;font-size:40px;font-weight:400;line-height:1.2}.fa-page-head p{font-size:12px}.fa-page-head>.fa-primary{position:fixed;right:14px;bottom:92px;z-index:45;width:52px;height:52px;padding:0;border-radius:50%;font-size:0;box-shadow:0 8px 25px rgba(0,0,0,.16)}.fa-page-head>.fa-primary svg{width:20px;height:20px}.fa-stats,.fa-promo-stats{display:flex;overflow-x:auto;gap:10px;margin:0 -14px 18px;padding:0 14px;scrollbar-width:none}.fa-stat{min-width:145px;min-height:92px;padding:13px}.fa-stat b{font-size:24px}.fa-toolbar{flex-direction:column;align-items:stretch;gap:10px}.fa-toolbar>label{min-width:0;width:100%}.fa-chips{overflow-x:auto;flex-wrap:nowrap;scrollbar-width:none}.fa-split,.fa-leads-split{display:block}.fa-table-card{border-radius:16px}.fa-table-wrap table{min-width:740px}.fa-detail{margin-top:14px;border-radius:16px;padding:18px}.fa-bottom-nav{height:78px;display:grid;grid-template-columns:repeat(4,1fr);position:fixed;left:0;right:0;bottom:0;background:#fffcf8;border-top:1px solid #ddd1c5;z-index:60}.fa-bottom-nav button{border:0;background:transparent;color:#a79a8d;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;font-size:10px}.fa-bottom-nav button.active{color:#17130f;font-weight:600}.fa-inbox{border-radius:16px;padding:9px}.fa-inbox>button{grid-template-columns:7px 1fr 80px;min-height:82px;padding:12px 6px}.fa-inbox>button p{max-width:210px}.fa-product-editor{display:block}.fa-form-card,.fa-media-card{padding:14px;border-radius:16px}.fa-form-grid{grid-template-columns:1fr}.fa-span-2{grid-column:auto}.fa-media-card{display:flex;margin-top:14px}.fa-desktop-save{display:none}.fa-mobile-save{display:flex;width:100%;margin-top:14px}.fa-editor-page .fa-page-head h1{font-size:32px}.fa-inline-toggles{flex-direction:column;gap:12px}.fa-home-grid{display:block}.fa-hero-admin,.fa-gallery-admin{padding:14px;border-radius:16px}.fa-gallery-admin{margin-top:14px}.fa-card-title h2,.fa-gallery-admin h2{font-size:20px}.fa-hero-preview{height:300px}.fa-hero-strip{grid-template-columns:1fr 1fr}.fa-gallery-grid>div{height:150px}.fa-extra-host{margin-top:14px}.fa-promo-link{display:flex;width:100%;height:54px;border:0;border-radius:16px;background:#eadac8;margin-top:14px;padding:0 14px;align-items:center;justify-content:space-between}.fa-promo-link span{font-size:12px}.fa-promo-layout{display:block}.fa-promo-list{margin-bottom:14px}.fa-promo-form{padding:14px;border-radius:16px}.fa-code-row{grid-template-columns:1fr}.fa-promo-form .fa-form-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.fa-promo-form .fa-span-2{grid-column:1/-1}.fa-promo-form label{margin-top:10px}.admin-figma .satori-cover-admin-panel{padding:14px;border-radius:16px}.admin-figma .satori-cover-admin-grid{grid-template-columns:1fr!important}.fa-user{display:none}}
 @media(max-width:420px){.fa-work main{padding-left:14px;padding-right:14px}.fa-page-head h1{font-size:38px}.fa-promo-form .fa-form-grid{grid-template-columns:1fr}.fa-promo-form .fa-span-2{grid-column:auto}.fa-hero-preview{height:280px}}
+
+.fa-lead-reference {
+  margin-block: 16px;
+}
+
+.fa-lead-reference a {
+  display: grid;
+  justify-items: start;
+  gap: 8px;
+  margin-top: 8px;
+  color: var(--ink);
+  overflow-wrap: anywhere;
+}
+
+.fa-lead-reference img {
+  display: block;
+  max-width: 100%;
+  max-height: 300px;
+  object-fit: contain;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+}

@@ -199,7 +199,7 @@
       return send({
         name: name, phone: contact, contact: contact,
         idea: [idea, refName ? 'Референс прикреплён: ' + refName + '.' : ''].filter(Boolean).join('\n\n'),
-        referenceName: refName, referenceDataUrl: dataUrl, source: 'promo',
+        referenceName: refName, referenceDataUrl: dataUrl, source: form.dataset.source || 'promo',
         personalDataConsent: { accepted: true, version: '2026-11-15', acceptedAt: new Date().toISOString() }
       });
     }).then(function () {

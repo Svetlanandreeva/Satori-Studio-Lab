@@ -8,16 +8,15 @@
 <link rel="canonical" href="https://satorilabural.ru/promo/contacts.html">
 <link rel="stylesheet" href="/promo/style.css?v=26">
 <link rel="stylesheet" href="/promo/privacy.css">
-<link rel="stylesheet" href="/promo/contact-visual.css">
+<link rel="stylesheet" href="/promo/contact-visual.css?v=2">
 <script src="/promo/privacy.js" defer></script>
-<script src="/promo/app.js?v=13" defer></script>
-<script src="/promo/contact-visual.js" defer></script>
+<script src="/promo/app.js?v=14" defer></script>
 </head>
 <body class="contacts-page">
 <header><div class="wrap">
     <a class="logo" href="/" aria-label="SATORI"><img src="/promo/img/satori-wordmark.svg" alt="Satori" width="844" height="220"></a>
     <nav aria-label="Разделы сайта"><a href="/promo/business.html">Бизнесу</a><a href="/promo/designers.html">Дизайнерам</a><a href="/promo/studio.html">О студии</a><a href="/promo/process.html">Как мы работаем</a><a href="/raboty">Наши работы</a></nav>
-    <a class="btn contact-button" href="/#zayavka">Оставить заявку <svg class="arrow-icon" aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 12 12 4M5 4h7v7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></a>
+    <a class="btn contact-button" href="#zayavka">Оставить заявку <svg class="arrow-icon" aria-hidden="true" width="16" height="16" viewBox="0 0 16 16" fill="none"><path d="M4 12 12 4M5 4h7v7" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></a>
     <details class="section-menu"><summary>Меню</summary><nav aria-label="Разделы сайта"><a href="/promo/business.html">Бизнесу</a><a href="/promo/designers.html">Дизайнерам</a><a href="/promo/studio.html">О студии</a><a href="/promo/process.html">Как мы работаем</a><a href="/raboty">Наши работы</a></nav></details>
   </div></header>
 <main class="wrap contact-main">
@@ -27,12 +26,34 @@
     <p class="contact-residency">Резидент «Сколково»</p>
   </div>
   <address class="contact-channels">
-    <a href="tel:+79221226063" data-goal="phone_click" data-image="6197.jpg"><span>Телефон</span><strong>+7 922 122-60-63</strong></a>
-    <a href="https://t.me/Satori_Lab_Ural" data-goal="telegram_click" data-image="6753.jpg"><span>Telegram</span><strong>@Satori_Lab_Ural</strong></a>
-    <a href="mailto:studiosatori@yandex.com" data-image="6025.jpg"><span>Почта</span><strong>studiosatori@yandex.com</strong></a>
-    <a href="https://vk.ru/satory_lab" data-image="7055.jpg"><span>ВКонтакте</span><strong>Сообщество Satori</strong></a>
+    <a href="tel:+79221226063" data-goal="phone_click"><span>Телефон</span><strong>+7 922 122-60-63</strong></a>
+    <a href="https://t.me/Satori_Lab_Ural" data-goal="telegram_click"><span>Telegram</span><strong>@Satori_Lab_Ural</strong></a>
+    <a href="mailto:studiosatori@yandex.com"><span>Почта</span><strong>studiosatori@yandex.com</strong></a>
+    <a href="https://vk.ru/satory_lab"><span>ВКонтакте</span><strong>Сообщество Satori</strong></a>
   </address>
-  <div class="contact-preview" aria-hidden="true" hidden><img alt="" width="260" height="190"></div>
+  <section class="order contact-order" id="zayavka" aria-labelledby="contact-order-title">
+    <h2 id="contact-order-title">Расскажите о проекте</h2>
+        <form id="lead-form" data-source="promo-contacts" novalidate>
+          <label>Как вас зовут
+            <input type="text" name="name" autocomplete="name" required>
+          </label>
+          <label>Телефон или мессенджер
+            <input type="tel" name="contact" autocomplete="tel" placeholder="+7… или @ник" required>
+          </label>
+          <label>Что нужно сделать <small>— тип светильника, размеры, количество</small>
+            <textarea name="idea" placeholder="Например: люстра над столом, диаметр около 80 см, 1 штука, нужна к 20 декабря"></textarea>
+          </label>
+          <label>Фото или эскиз <small>— по желанию, например JPG, PNG или WebP до 8 МБ</small>
+            <input type="file" name="reference" accept="image/*">
+          </label>
+          <div class="form-consent">
+            <label for="lead-consent"><input id="lead-consent" type="checkbox" name="personalDataConsent" required> Даю согласие на обработку персональных данных для ответа на заявку.</label>
+            <a href="/promo/consent.html" target="_blank" rel="noopener">Текст согласия</a> · <a href="/promo/privacy.html" target="_blank" rel="noopener">Политика обработки данных</a>
+          </div>
+          <button class="btn" type="submit">Отправить заявку</button>
+          <p class="status" role="status" aria-live="polite"></p>
+        </form>
+  </section>
 </main>
 <footer id="kontakty">
   <div class="wrap footer-grid">

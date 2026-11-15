@@ -24,7 +24,6 @@ import { startStorefrontCleanup } from "./storefrontCleanup";
 import { startAdminOrderDrawer } from "./adminOrderDrawer";
 import { startAdminOrderCounters } from "./adminOrderCounters";
 import { startAdminCrmSummary } from "./adminCrmSummary";
-import { startAdminLeadReference } from "./adminLeadReference";
 import { startCoverSync } from "./coverSync";
 import { startMadeToOrderPresentation } from "./madeToOrderPresentation";
 import { startSeoEnhancements } from "./seoEnhancements";
@@ -54,7 +53,6 @@ if (isAdmin) {
   startAdminOrderDrawer();
   startAdminOrderCounters();
   startAdminCrmSummary();
-  startAdminLeadReference();
 }
 
 if (!isAdmin) {
