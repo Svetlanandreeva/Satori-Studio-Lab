@@ -1,0 +1,45 @@
+name: Deploy Satori portfolio admin backend
+
+on:
+  workflow_dispatch:
+
+concurrency:
+  group: portfolio-backend-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Check backend JavaScript
+        run: |
+          node --check server/index.js
+          node --check server/portfolio.js
+          node --check server/auth.js
+
+      - name: Connect to Satori server
+        uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.DEPLOY_SSH_KEY }}
+
+      - name: Trust server SSH host
+        run: ssh-keyscan -H 194.226.97.103 >> ~/.ssh/known_hosts
+
+      - name: Deploy backend without changing stored data or uploaded photos
+        run: |
+          rsync -az \
+            --exclude 'data/' \
+            --exclude 'uploads/' \
+            --exclude '.env' \
+            server/ root@194.226.97.103:/var/www/satori/backend/
+
+      - name: Restart and check portfolio API
+        run: |
+          ssh root@194.226.97.103 'set -eu; systemctl restart satori-backend; systemctl is-active --quiet satori-backend; curl --fail --silent --show-error --retry 8 --retry-connrefused --retry-delay 2 --max-time 10 http://127.0.0.1:3001/api/products >/dev/null; curl --fail --silent --show-error --retry 8 --retry-delay 2 --max-time 10 http://127.0.0.1:3001/api/portfolio >/dev/null; echo "Portfolio backend: OK"'
