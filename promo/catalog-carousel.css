@@ -1,0 +1,99 @@
+/* Каталог работ: горизонтальная галерея для каждого проекта.
+   Пока JS не загрузился, сохраняется существующая сетка изображений. */
+.studio-catalog .group .works.catalog-carousel-track {
+  display: flex;
+  width: 100%;
+  gap: 14px;
+  overflow-x: auto;
+  overflow-y: hidden;
+  scroll-snap-type: x mandatory;
+  scroll-padding-inline: 1px;
+  overscroll-behavior-inline: contain;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: none;
+}
+.studio-catalog .group .works.catalog-carousel-track::-webkit-scrollbar {
+  display: none;
+}
+.studio-catalog .group .works.catalog-carousel-track figure {
+  flex: 0 0 clamp(240px, calc((100% - 28px) / 2.4), 455px);
+  min-width: 0;
+  margin: 0;
+  scroll-snap-align: start;
+  border-radius: 16px;
+  background: var(--paper2);
+}
+.studio-catalog .group .works.catalog-carousel-track img {
+  display: block;
+  width: 100%;
+  height: clamp(310px, 33vw, 430px);
+  aspect-ratio: auto;
+  object-fit: cover;
+}
+.studio-catalog .catalog-carousel-controls {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 14px;
+  margin-top: 12px;
+}
+.studio-catalog .catalog-carousel-controls[hidden] {
+  display: none;
+}
+.studio-catalog .catalog-carousel-count {
+  margin-right: 3px;
+  color: var(--muted);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: .08em;
+}
+.studio-catalog .catalog-carousel-arrow {
+  display: inline-grid;
+  place-items: center;
+  flex: 0 0 auto;
+  width: 43px;
+  height: 43px;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: var(--paper);
+  color: var(--ink);
+  font: inherit;
+  font-size: 23px;
+  line-height: 1;
+  cursor: pointer;
+  transition: background .18s, border-color .18s, color .18s;
+}
+.studio-catalog .catalog-carousel-arrow:hover:not(:disabled) {
+  background: var(--ink);
+  border-color: var(--ink);
+  color: var(--cream);
+}
+.studio-catalog .catalog-carousel-arrow:focus-visible,
+.studio-catalog .catalog-carousel-track:focus-visible {
+  outline: 2px solid var(--wine, #70263e);
+  outline-offset: 3px;
+}
+.studio-catalog .catalog-carousel-arrow:disabled {
+  cursor: default;
+  opacity: .32;
+}
+@media (max-width: 760px) {
+  .studio-catalog .group .works.catalog-carousel-track {
+    gap: 10px;
+    scroll-padding-inline: 0;
+  }
+  .studio-catalog .group .works.catalog-carousel-track figure {
+    flex-basis: 82%;
+  }
+  .studio-catalog .group .works.catalog-carousel-track img {
+    height: clamp(285px, 85vw, 440px);
+  }
+  .studio-catalog .catalog-carousel-controls {
+    justify-content: space-between;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .studio-catalog .catalog-carousel-track {
+    scroll-behavior: auto;
+  }
+}
