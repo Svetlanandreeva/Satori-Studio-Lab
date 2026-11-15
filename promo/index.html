@@ -10,7 +10,7 @@
 <meta property="og:title" content="Светильники на заказ по вашему эскизу — люстры, бра, торшеры | SATORI">
 <meta property="og:description" content="Студия SATORI делает светильники на заказ: люстры, бра, торшеры и настольные лампы. Придумаем с нуля или сделаем по эскизу. 3D-макет до производства, от 15 000 ₽, от 7 дней, доставка по России.">
 <meta property="og:image" content="https://satorilabural.ru/promo/img/hero-satori.webp">
-<link rel="stylesheet" href="/promo/brand-intro.css">
+<link rel="stylesheet" href="/promo/brand-intro.css?v=2">
 <script>
   (() => {
     if (location.hash || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
@@ -23,7 +23,10 @@
     const started = performance.now();
     const finish = () => {
       root.classList.add('brand-intro-done');
-      setTimeout(() => root.classList.remove('brand-intro-active', 'brand-intro-done'), 240);
+      setTimeout(() => {
+        root.classList.remove('brand-intro-active', 'brand-intro-done');
+        document.dispatchEvent(new Event('satori:intro-done'));
+      }, 680);
     };
 
     root.classList.add('brand-intro-active');
@@ -329,6 +332,6 @@
   <div class="wrap"><nav class="legal-links" aria-label="Работа и партнёрство"><a href="/promo/careers.html">Работа в Satori</a><a href="/promo/franchise.html">Франшиза</a></nav><nav class="legal-links" aria-label="Документы сайта"><a href="/promo/privacy.html">Политика обработки данных</a><a href="/promo/consent.html">Согласие на обработку данных</a><a href="/promo/cookies.html">Правила cookie</a></nav><button type="button" class="cookie-settings" data-cookie-settings hidden>Настроить cookie</button></div>
 </footer>
 <div class="lb" id="lb" role="dialog" aria-label="Просмотр фото"><button class="x" type="button" aria-label="Закрыть">×</button><img alt=""><button class="btn light" type="button" data-like-lb>Хочу похожий — рассчитать</button></div>
-<script src="/promo/app.js?v=13" defer></script>
+<script src="/promo/app.js?v=15" defer></script>
 </body>
 </html>

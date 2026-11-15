@@ -7,6 +7,7 @@
   pointer-events: none;
   background: #17130f;
   color: #f7efe2;
+  transition: opacity 620ms cubic-bezier(.3, 0, .2, 1);
 }
 
 .brand-intro-active .brand-intro { display: grid; }
@@ -15,6 +16,7 @@
   width: clamp(190px, 41vw, 430px);
   height: auto;
   overflow: visible;
+  transition: opacity 440ms ease, transform 620ms ease;
 }
 
 .brand-intro path {
@@ -30,7 +32,11 @@
 
 .brand-intro-done .brand-intro {
   opacity: 0;
-  transition: opacity 220ms ease-out;
+}
+
+.brand-intro-done .brand-intro svg {
+  opacity: 0;
+  transform: translateY(-4px);
 }
 
 @keyframes satori-write {

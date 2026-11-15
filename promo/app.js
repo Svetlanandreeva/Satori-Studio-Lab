@@ -47,7 +47,12 @@
   var film = document.querySelector('.hero-film video');
   if (film && film.canPlayType('video/mp4') &&
       !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
-    film.play().catch(function () {});
+    function playHeroFilm() { film.play().catch(function () {}); }
+    if (document.documentElement.classList.contains('brand-intro-active')) {
+      document.addEventListener('satori:intro-done', playHeroFilm, { once: true });
+    } else {
+      playHeroFilm();
+    }
   }
 
   if ('IntersectionObserver' in window && !window.matchMedia('(prefers-reduced-motion: reduce)').matches) {
