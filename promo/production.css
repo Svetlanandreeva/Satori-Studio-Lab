@@ -91,6 +91,7 @@
   border-radius: 20px;
   background: var(--paper2);
 }
+.delivery-card form { padding: 0; border: 0; background: transparent; }
 .delivery-card label { display: block; margin-bottom: 7px; font-weight: 650; }
 .delivery-card input {
   width: 100%;
