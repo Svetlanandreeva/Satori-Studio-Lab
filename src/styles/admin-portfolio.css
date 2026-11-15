@@ -1,0 +1,60 @@
+/* Portfolio editor is a section of the existing SATORI admin (not a second admin app). */
+.admin-figma .fa-portfolio { --portfolio-burgundy:#74253f; }
+.admin-figma .fa-portfolio-head {align-items:center;flex-wrap:wrap;}
+.admin-figma .fa-portfolio-eyebrow {color:var(--portfolio-burgundy);letter-spacing:.14em;font-size:10px;font-weight:700;margin-bottom:7px;}
+.admin-figma .fa-portfolio-head-actions {display:flex;gap:9px;align-items:center;flex-wrap:wrap;}
+.admin-figma .fa-portfolio-head .fa-primary {background:var(--portfolio-burgundy);border-color:var(--portfolio-burgundy);}
+.admin-figma .fa-portfolio-head .fa-primary:hover {background:#562037;}
+.admin-figma .fa-portfolio button:disabled {opacity:.43;cursor:not-allowed;}
+.admin-figma .fa-portfolio-notice,
+.admin-figma .fa-portfolio-success {padding:12px 16px;border-radius:12px;margin:0 0 16px;font-size:13px;}
+.admin-figma .fa-portfolio-notice {border:1px solid #dfbdc7;background:#f8edef;color:var(--portfolio-burgundy);}
+.admin-figma .fa-portfolio-success {border:1px solid #adcbb7;background:#eff7f0;color:#255c3a;}
+.admin-figma .fa-portfolio-message {margin-bottom:14px;}
+.admin-figma .fa-portfolio-loading {padding:30px;}
+.admin-figma .fa-portfolio-layout {display:grid;grid-template-columns:minmax(215px,290px) minmax(0,1fr);align-items:start;gap:17px;}
+.admin-figma .fa-portfolio-sidebar {position:sticky;top:15px;overflow:hidden;padding:0;max-height:calc(100vh - 100px);display:flex;flex-direction:column;}
+.admin-figma .fa-portfolio-side-head {display:flex;justify-content:space-between;align-items:center;gap:10px;padding:15px;border-bottom:1px solid var(--line);}
+.admin-figma .fa-portfolio-side-head strong {font-size:15px;}
+.admin-figma .fa-portfolio-side-head span {color:var(--muted);font-size:12px;}
+.admin-figma .fa-portfolio-project-list {overflow:auto;padding:8px;display:grid;gap:5px;}
+.admin-figma .fa-portfolio-project {border:1px solid transparent;background:transparent;border-radius:12px;padding:7px;width:100%;text-align:left;display:flex;gap:11px;align-items:center;color:var(--ink);}
+.admin-figma .fa-portfolio-project:hover {background:#eee6e1;}
+.admin-figma .fa-portfolio-project.is-active {background:#f7ecef;border-color:#d9b7c2;}
+.admin-figma .fa-portfolio-project img,.admin-figma .fa-portfolio-no-image {display:grid;place-items:center;flex:0 0 51px;width:51px;height:58px;object-fit:cover;border-radius:8px;background:#ddd5d0;}
+.admin-figma .fa-portfolio-project>span:last-child {display:grid;gap:5px;min-width:0;overflow-wrap:anywhere;}
+.admin-figma .fa-portfolio-project b {font-size:12px;line-height:1.32;}
+.admin-figma .fa-portfolio-project small {font-size:10px;color:var(--muted);}
+.admin-figma .fa-portfolio-editor {padding:clamp(17px,3vw,29px);min-width:0;}
+.admin-figma .fa-portfolio-editor-head {display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;padding-bottom:17px;margin-bottom:21px;border-bottom:1px solid var(--line);}
+.admin-figma .fa-portfolio-editor-head small {color:var(--portfolio-burgundy);font-size:10px;letter-spacing:.12em;}
+.admin-figma .fa-portfolio-editor-head h2 {margin:5px 0 0;font-size:clamp(22px,2.5vw,31px);letter-spacing:-.04em;}
+.admin-figma .fa-portfolio-actions {display:flex;align-items:center;gap:7px;flex-wrap:wrap;}
+.admin-figma .fa-portfolio-delete {color:#a12d46;border-color:#dfbac3;}
+.admin-figma .fa-portfolio-field {display:grid;gap:8px;margin-bottom:19px;font-weight:600;font-size:13px;}
+.admin-figma .fa-portfolio-field>input,.admin-figma .fa-portfolio-field>textarea,.admin-figma .fa-portfolio-link-row input {width:100%;min-width:0;border:1px solid var(--line);border-radius:10px;background:var(--paper2);color:var(--ink);padding:12px 13px;outline-offset:2px;}
+.admin-figma .fa-portfolio-field>textarea {min-height:102px;resize:vertical;line-height:1.55;}
+.admin-figma .fa-portfolio-field>small {font-weight:400;color:var(--muted);}
+.admin-figma .fa-portfolio-field :focus-visible,.admin-figma .fa-portfolio-link-row input:focus-visible {outline:2px solid #c18b9e;}
+.admin-figma .fa-portfolio-photo-head {display:flex;justify-content:space-between;align-items:center;gap:14px;flex-wrap:wrap;border-top:1px solid var(--line);padding-top:22px;margin:26px 0 16px;}
+.admin-figma .fa-portfolio-photo-head h3 {font-size:20px;margin:0 0 5px;}
+.admin-figma .fa-portfolio-photo-head p {margin:0;color:var(--muted);font-size:12px;}
+.admin-figma .fa-portfolio-upload {cursor:pointer;}
+.admin-figma .fa-portfolio-upload input {display:none;}
+.admin-figma .fa-portfolio-images {display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));gap:10px;}
+.admin-figma .fa-portfolio-image {min-width:0;background:var(--paper2);border:1px solid var(--line);border-radius:12px;padding:8px;}
+.admin-figma .fa-portfolio-image a {display:block;background:#e6dfdb;border-radius:8px;overflow:hidden;}
+.admin-figma .fa-portfolio-image img {width:100%;height:134px;display:block;object-fit:contain;}
+.admin-figma .fa-portfolio-image small {display:block;color:var(--muted);font-size:10px;padding:9px 2px 7px;}
+.admin-figma .fa-portfolio-image-actions {display:grid;grid-template-columns:repeat(3,1fr);gap:5px;}
+.admin-figma .fa-portfolio-image-actions button {display:grid;place-items:center;min-height:30px;border:1px solid var(--line);background:var(--paper);border-radius:7px;color:var(--ink);}
+.admin-figma .fa-portfolio-image-actions button:hover {border-color:var(--portfolio-burgundy);color:var(--portfolio-burgundy);}
+.admin-figma .fa-portfolio-image-empty {margin:0;color:var(--muted);font-size:13px;}
+.admin-figma .fa-portfolio-link-row {display:flex;gap:8px;margin-top:15px;align-items:center;}
+.admin-figma .fa-portfolio-link-row input {flex:1;}
+.admin-figma .fa-portfolio-bottom-actions {border-top:1px solid var(--line);padding-top:20px;margin-top:24px;display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;}
+.admin-figma .fa-portfolio-bottom-actions span {color:var(--muted);font-size:12px;}
+.admin-figma .fa-portfolio-bottom-actions .fa-primary {background:var(--portfolio-burgundy);border-color:var(--portfolio-burgundy);}
+@media(max-width:970px){.admin-figma .fa-portfolio-layout{grid-template-columns:240px minmax(0,1fr)}.admin-figma .fa-portfolio-editor{padding:18px}}
+@media(max-width:770px){.admin-figma .fa-portfolio-layout{grid-template-columns:1fr}.admin-figma .fa-portfolio-sidebar{position:static;max-height:280px}.admin-figma .fa-portfolio-head-actions{width:100%}.admin-figma .fa-portfolio-head-actions .fa-primary{flex:1}.admin-figma .fa-portfolio-link-row{flex-wrap:wrap}.admin-figma .fa-portfolio-link-row input{flex-basis:100%}}
+@media(max-width:420px){.admin-figma .fa-portfolio-head-actions{gap:6px}.admin-figma .fa-portfolio-head-actions .fa-outline-button{padding-inline:10px;font-size:12px}}
