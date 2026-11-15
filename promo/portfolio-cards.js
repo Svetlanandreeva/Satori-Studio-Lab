@@ -72,8 +72,8 @@
     const card = make('article', 'portfolio-project-card');
     card.id = project.anchor;
     const media = make('div', 'portfolio-project-media');
-    media.style.setProperty('--portfolio-cover-url', 'url("' + project.photos[0].src + '")');
     const cover = make('button', 'portfolio-project-cover');
+    let activePhoto = 0;
     cover.type = 'button';
     cover.setAttribute('aria-label', 'Открыть фотографии: ' + project.title);
     const image = make('img');
@@ -81,11 +81,31 @@
     image.alt = project.photos[0].alt;
     image.loading = project.number < 3 ? 'eager' : 'lazy';
     image.decoding = 'async';
-    const photoCount = make('span', 'portfolio-photo-count',
-      project.photos.length + ' фото');
-    cover.append(image, photoCount);
-    cover.addEventListener('click', () => openProject(project, 0));
-    media.append(cover);
+    const photoCount = make('span', 'portfolio-photo-count');
+    cover.append(image);
+    cover.addEventListener('click', () => openProject(project, activePhoto));
+    media.append(cover, photoCount);
+    function setPhoto(index) {
+      activePhoto = (index + project.photos.length) % project.photos.length;
+      const photo = project.photos[activePhoto];
+      image.src = photo.src;
+      image.alt = photo.alt + ' — ракурс ' + (activePhoto + 1);
+      photoCount.textContent = (activePhoto + 1) + ' / ' + project.photos.length;
+    }
+    if (project.photos.length > 1) {
+      const controls = make('div', 'portfolio-photo-navigation');
+      const back = make('button', 'portfolio-photo-arrow', '‹');
+      back.type = 'button';
+      back.setAttribute('aria-label', 'Предыдущее фото проекта: ' + project.title);
+      const forward = make('button', 'portfolio-photo-arrow', '›');
+      forward.type = 'button';
+      forward.setAttribute('aria-label', 'Следующее фото проекта: ' + project.title);
+      back.addEventListener('click', () => setPhoto(activePhoto - 1));
+      forward.addEventListener('click', () => setPhoto(activePhoto + 1));
+      controls.append(back, forward);
+      media.append(controls);
+    }
+    setPhoto(0);
 
     const copy = make('div', 'portfolio-project-copy');
     const number = make('p', 'portfolio-project-index',
@@ -100,7 +120,7 @@
     const galleryLink = make('button', 'portfolio-gallery-link',
       'Смотреть фото (' + project.photos.length + ')');
     galleryLink.type = 'button';
-    galleryLink.addEventListener('click', () => openProject(project, 0));
+    galleryLink.addEventListener('click', () => openProject(project, activePhoto));
     const like = make('a', 'portfolio-project-like', 'Хочу похожий');
     like.href = '/?like=' + encodeURIComponent(project.title) + '#zayavka';
     like.addEventListener('click', function (event) {
