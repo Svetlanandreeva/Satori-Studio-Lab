@@ -17,6 +17,7 @@ import { createLead, listLeads, deleteLead, markAllLeadsRead, syncLeadToCrmV2 } 
 import { getHero, setHero } from "./hero.js";
 import { sendOfflineConversion } from "./metrika.js";
 import { createImageResizeRoute } from "./imageResize.js";
+import { listPortfolio, savePortfolio } from "./portfolio.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 loadEnv({ path: path.join(__dirname, "..", ".env"), quiet: true });
@@ -409,6 +410,33 @@ app.delete("/api/admin/promocodes/:code", requireAdmin, async (req, res) => {
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Ошибка сервера" });
+  }
+});
+
+// ── Портфолио промо-сайта: публичный просмотр, редактирование по паролю ──
+app.get("/api/portfolio", async (req, res) => {
+  try {
+    res.set("Cache-Control", "no-store");
+    res.json(await listPortfolio());
+  } catch (error) {
+    console.error("Portfolio read failed:", error);
+    res.status(500).json({ error: "Не удалось загрузить портфолио" });
+  }
+});
+
+app.put("/api/admin/portfolio", requireAdmin, async (req, res) => {
+  try {
+    res.set("Cache-Control", "no-store");
+    res.json(await savePortfolio(req.body));
+  } catch (error) {
+    if (error.status === 409) {
+      return res.status(409).json({ error: error.message });
+    }
+    if (/^(Некорректн|Укажите|Слишком|Для проекта)/.test(error.message)) {
+      return res.status(400).json({ error: error.message });
+    }
+    console.error("Portfolio save failed:", error);
+    res.status(500).json({ error: "Не удалось сохранить портфолио" });
   }
 });
 
