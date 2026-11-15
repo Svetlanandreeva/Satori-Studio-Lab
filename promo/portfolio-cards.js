@@ -135,7 +135,31 @@
     image.decoding = 'async';
     const photoCount = make('span', 'portfolio-photo-count');
     cover.append(image);
-    cover.addEventListener('click', () => openProject(project, activePhoto));
+    let coverSwipe = null;
+    let ignoreCoverClick = false;
+    cover.addEventListener('touchstart', event => {
+      if (event.touches.length === 1) {
+        coverSwipe = { x: event.touches[0].clientX, y: event.touches[0].clientY };
+      }
+    }, { passive: true });
+    cover.addEventListener('touchend', event => {
+      if (!coverSwipe || !event.changedTouches.length || project.photos.length < 2) return;
+      const dx = event.changedTouches[0].clientX - coverSwipe.x;
+      const dy = event.changedTouches[0].clientY - coverSwipe.y;
+      coverSwipe = null;
+      if (Math.abs(dx) > 45 && Math.abs(dx) > Math.abs(dy) * 1.2) {
+        ignoreCoverClick = true;
+        setPhoto(activePhoto + (dx < 0 ? 1 : -1));
+      }
+    }, { passive: true });
+    cover.addEventListener('click', event => {
+      if (ignoreCoverClick) {
+        event.preventDefault();
+        ignoreCoverClick = false;
+        return;
+      }
+      openProject(project, activePhoto);
+    });
     media.append(cover, photoCount);
     function setPhoto(index) {
       activePhoto = (index + project.photos.length) % project.photos.length;
