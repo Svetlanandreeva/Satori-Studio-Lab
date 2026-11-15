@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import type { ChangeEvent, FormEvent } from "react";
+import PortfolioAdminPage from "./PortfolioAdminPage";
 import {
   ArrowLeft, ChevronDown, Copy, ExternalLink, Home, Inbox, LogOut, Menu,
   PackageSearch, Pencil, Plus, Save, Search, Tag, Trash2, Upload, X,
@@ -10,7 +11,7 @@ const TOKEN_KEY = "satori_admin_token";
 const CATEGORIES = ["Декор", "Лампы", "Украшения"];
 const FULFILLMENT_STATUSES = ["Новый", "В работе", "Собран", "Отправлен", "Выполнен", "Отменён"];
 
-type AdminTab = "orders" | "leads" | "products" | "home" | "promocodes";
+type AdminTab = "orders" | "leads" | "portfolio" | "products" | "home" | "promocodes";
 type HeroSlide = { type: "image" | "video"; url: string };
 type GalleryItem = { id: string; url: string };
 
@@ -161,7 +162,7 @@ function Dashboard({ token, onLogout }: { token: string; onLogout: () => void })
   async function saveProduct(data:Partial<Product>, current:Product|"new"){const url=current==="new"?"/api/admin/products":`/api/admin/products/${current.id}`;const res=await fetch(url,{method:current==="new"?"POST":"PUT",headers:auth,body:JSON.stringify(data)});if(authFail(res))return;if(!res.ok)throw new Error("Не удалось сохранить товар");await reload();setEditing(null);}
   async function deleteProduct(p:Product){if(!confirm(`Удалить «${p.name}»?`))return;const res=await fetch(`/api/admin/products/${p.id}`,{method:"DELETE",headers:auth});if(authFail(res))return;await reload();setEditing(null);}
 
-  const nav:[AdminTab,string,any][]=[["leads","Заявки",Inbox],["orders","Заказы",ClipboardList],["products","Товары",PackageSearch],["home","Главная",Home],["promocodes","Промокоды",Tag]];
+  const nav:[AdminTab,string,any][]=[["leads","Заявки",Inbox],["orders","Заказы",ClipboardList],["portfolio","Редактирование сайта",Pencil],["products","Товары",PackageSearch],["home","Главная",Home],["promocodes","Промокоды",Tag]];
   const newOrders=orders.filter(o=>(o.fulfillmentStatus??"Новый")==="Новый").length;
   const unread=leads.filter(l=>!l.read).length;
   const countFor=(t:AdminTab)=>t==="orders"?orders.length:t==="leads"?unread:t==="products"?products.length:t==="promocodes"?promos.filter(p=>p.active).length:0;
@@ -172,6 +173,7 @@ function Dashboard({ token, onLogout }: { token: string; onLogout: () => void })
   return <div className="admin-figma"><Shell tab={tab} nav={nav} countFor={countFor} go={go} onLogout={onLogout} mobileMenu={mobileMenu} setMobileMenu={setMobileMenu}>
     {loading?<div className="fa-loading">Загрузка…</div>:<>{error&&<div className="fa-error">{error}</div>}
       {tab==="orders"&&<OrdersPage orders={orders} selectedId={selectedOrder} setSelectedId={setSelectedOrder} search={orderSearch} setSearch={setOrderSearch} token={token} onChanged={reload}/>} 
+      {tab==="portfolio"&&<PortfolioAdminPage token={token}/>} 
       {tab==="leads"&&<LeadsPage leads={leads} selectedId={selectedLead} setSelectedId={setSelectedLead} search={leadSearch} setSearch={setLeadSearch} token={token} onChanged={reload}/>} 
       {tab==="products"&&<ProductsPage products={products} search={productSearch} setSearch={setProductSearch} category={productCategory} setCategory={setProductCategory} onEdit={setEditing}/>} 
       {tab==="home"&&<HomePage hero={hero} gallery={gallery} token={token} onChanged={reload} onPromos={()=>go("promocodes")}/>} 
