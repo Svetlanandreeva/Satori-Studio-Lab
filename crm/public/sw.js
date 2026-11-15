@@ -1,5 +1,5 @@
-const CACHE = "satori-crm-v20";
-const STATIC = ["/", "/styles.css", "/pwa.css", "/integrations.css", "/parser-history.css", "/ai-manager.css", "/brief.css", "/source-link.css", "/satori-theme.css?v=1", "/boot-guard.js?v=freeze-fix-1", "/post-auth-loader.js?v=freeze-fix-1", "/app.js?v=freeze-fix-1", "/pwa.js?v=freeze-fix-1", "/integrations-ui.js", "/parser-history-ui.js", "/ai-manager-ui.js", "/brief-ui.js", "/source-link-ui.js", "/manifest.webmanifest", "/brand/favicon.svg"];
+const CACHE = "satori-crm-v21";
+const STATIC = ["/", "/styles.css", "/pwa.css", "/integrations.css", "/parser-history.css", "/ai-manager.css", "/brief.css", "/source-link.css", "/satori-theme.css?v=1", "/boot-guard.js?v=freeze-fix-1", "/post-auth-loader.js?v=freeze-fix-2", "/app.js?v=freeze-fix-1", "/pwa.js?v=freeze-fix-1", "/integrations-ui.js", "/parser-history-ui.js", "/ai-manager-ui.js", "/brief-ui.js?v=freeze-fix-2", "/source-link-ui.js?v=freeze-fix-2", "/manifest.webmanifest", "/brand/favicon.svg"];
 
 self.addEventListener("install", (event) => {
   event.waitUntil(caches.open(CACHE).then((cache) => cache.addAll(STATIC)));
