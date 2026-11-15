@@ -11,17 +11,10 @@
 <meta property="og:description" content="Студия SATORI делает светильники на заказ: люстры, бра, торшеры и настольные лампы. Придумаем с нуля или сделаем по эскизу. 3D-макет до производства, от 15 000 ₽, от 7 дней, доставка по России.">
 <meta property="og:image" content="https://satorilabural.ru/promo/img/hero-satori.webp">
 <link rel="stylesheet" href="/promo/style.css?v=17">
-<script>
-window.dataLayer = window.dataLayer || [];
-(function(m,e,t,r,i,k,a){m[i]=m[i]||function(){(m[i].a=m[i].a||[]).push(arguments)};m[i].l=1*new Date();
-for (var j=0;j<document.scripts.length;j++){if(document.scripts[j].src===r){return;}}
-k=e.createElement(t),a=e.getElementsByTagName(t)[0],k.async=1,k.src=r,a.parentNode.insertBefore(k,a)})
-(window,document,'script','https://mc.yandex.ru/metrika/tag.js?id=110458266','ym');
-ym(110458266,'init',{webvisor:true,clickmap:true,referrer:document.referrer,url:location.href,accurateTrackBounce:true,trackLinks:true});
-</script>
+<link rel="stylesheet" href="/promo/privacy.css">
+<script src="/promo/privacy.js" defer></script>
 </head>
 <body class="studio-home">
-<noscript><div><img src="https://mc.yandex.ru/watch/110458266" style="position:absolute;left:-9999px" alt=""></div></noscript>
 <header><div class="wrap">
     <a class="logo" href="/" aria-label="SATORI"><img src="/promo/img/satori-wordmark.jpg" alt="Satori" width="1063" height="404"></a>
     <nav aria-label="Разделы сайта"><a href="/promo/business.html">Бизнесу</a><a href="/promo/designers.html">Дизайнерам</a><a href="/promo/studio.html">О студии</a><a href="/promo/process.html">Как мы работаем</a><a href="/raboty">Наши работы</a></nav>
@@ -183,9 +176,12 @@ ym(110458266,'init',{webvisor:true,clickmap:true,referrer:document.referrer,url:
           <label>Фото или эскиз <small>— по желанию</small>
             <input type="file" name="reference" accept="image/*">
           </label>
+          <div class="form-consent">
+            <label for="lead-consent"><input id="lead-consent" type="checkbox" name="personalDataConsent" required> Даю согласие на обработку персональных данных для ответа на заявку.</label>
+            <a href="/promo/consent.html" target="_blank" rel="noopener">Текст согласия</a> · <a href="/promo/privacy.html" target="_blank" rel="noopener">Политика обработки данных</a>
+          </div>
           <button class="btn" type="submit">Получить расчёт</button>
           <p class="status" role="status" aria-live="polite"></p>
-          <p class="privacy">Отправляя форму, вы соглашаетесь с обработкой данных для ответа на заявку.</p>
         </form>
       </div>
     </div>
@@ -203,8 +199,9 @@ ym(110458266,'init',{webvisor:true,clickmap:true,referrer:document.referrer,url:
       <a href="https://vk.ru/satory_lab" target="_blank" rel="noopener"><svg width="19" height="19" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M3 7c1 6 4 10 9 10h1v-4c2 0 4 2 5 4h3c-1-2-3-4-5-5 2-1 3-3 4-5h-3c-1 2-2 4-4 4V7h-3v6c-2-1-3-3-4-6z"/></svg><span>ВКонтакте</span></a>
     </address>
   </div>
+  <div class="wrap"><nav class="legal-links" aria-label="Документы сайта"><a href="/promo/privacy.html">Политика обработки данных</a><a href="/promo/consent.html">Согласие на обработку данных</a><a href="/promo/cookies.html">Правила cookie</a></nav><button type="button" class="cookie-settings" data-cookie-settings hidden>Настроить cookie</button></div>
 </footer>
 <div class="lb" id="lb" role="dialog" aria-label="Просмотр фото"><button class="x" type="button" aria-label="Закрыть">×</button><img alt=""><button class="btn light" type="button" data-like-lb>Хочу похожий — рассчитать</button></div>
-<script src="/promo/app.js?v=6" defer></script>
+<script src="/promo/app.js?v=8" defer></script>
 </body>
 </html>
