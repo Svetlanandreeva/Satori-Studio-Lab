@@ -212,3 +212,36 @@ body { color: var(--ink); }
   body > .ai-fab,
   body > .parser-fab { font-size: 10px; letter-spacing: -.03em; padding-inline: 3px; }
 }
+
+/* One-click lead triage: spam is separated from the production pipeline. */
+.crm-spam-list {
+  display: grid;
+  gap: 12px;
+  max-width: 960px;
+}
+.crm-spam-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  min-width: 0;
+  padding: 19px 21px;
+  border: 1px solid var(--line);
+  border-radius: 17px;
+  background: var(--paper);
+  box-shadow: 0 4px 18px rgba(32, 23, 27, .035);
+}
+.crm-spam-info { min-width: 0; flex: 1 1 auto; }
+.crm-spam-info .source { font-size: 10px; letter-spacing: .12em; color: var(--accent); font-weight: 700; }
+.crm-spam-info h3 { margin: 6px 0; font-size: 18px; color: var(--ink); overflow-wrap: anywhere; }
+.crm-spam-info p { max-width: 66ch; margin: 0 0 8px; color: var(--muted); line-height: 1.45; font-size: 13px; overflow-wrap: anywhere; }
+.crm-spam-info small { color: #897d7d; }
+.crm-spam-actions { display: flex; gap: 9px; flex-wrap: wrap; flex: 0 0 auto; }
+.crm-spam-actions button { padding: 10px 14px; border-radius: 12px; font-size: 12px; font-weight: 650; white-space: nowrap; cursor: pointer; }
+.crm-spam-delete { border-color: #d7b3bf !important; color: #902b48 !important; }
+.crm-spam-delete:hover { background: #fae8ef !important; }
+@media (max-width: 800px) {
+  .crm-spam-item { flex-direction: column; align-items: stretch; padding: 17px 16px; gap: 14px; }
+  .crm-spam-actions { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); }
+  .crm-spam-actions button { white-space: normal; }
+}
