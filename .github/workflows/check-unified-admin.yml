@@ -1,0 +1,30 @@
+name: Validate unified Satori admin
+
+on:
+  push:
+    paths:
+      - "src/PortfolioAdminPage.tsx"
+      - "src/AdminFigmaApp.tsx"
+      - "src/main.tsx"
+      - "src/styles/admin-portfolio.css"
+      - "vite.config.ts"
+      - ".github/workflows/check-unified-admin.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - name: Install dependencies
+        run: npm ci
+      - name: Build frontend (without deploying)
+        run: npm run build
