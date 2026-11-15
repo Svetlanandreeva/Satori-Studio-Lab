@@ -81,7 +81,7 @@ details:last-child{border-bottom:1px solid var(--line)}
 summary{cursor:pointer;font-weight:600;list-style:none;display:flex;justify-content:space-between;gap:16px}
 summary::-webkit-details-marker{display:none}
 summary::after{content:"+";color:var(--red);font-size:22px;line-height:1}
-details[open] summary::after{content:"–"}
+details[open] > summary::after{content:"–"}
 details p{margin-top:10px;color:#3d352f;max-width:46em}
 
 .order{background:var(--paper2)}
@@ -581,4 +581,29 @@ h1, h2, h3, .hero h1 { font-weight: 600; letter-spacing: -.055em; line-height: 1
   border: 1px solid var(--line);
   border-radius: 50%;
   background: var(--paper);
+}
+
+
+#raboty .wave-case {
+  margin-top: clamp(20px, 3vw, 36px);
+}
+
+#faq {
+  padding-block: clamp(20px, 3.5vw, 44px);
+  scroll-margin-top: calc(var(--header-row-height) + 1px);
+}
+
+.faq-disclosure {
+  padding: 0;
+}
+
+.faq-disclosure > summary {
+  align-items: center;
+  padding-block: 16px;
+  font-size: clamp(20px, 2.4vw, 28px);
+  letter-spacing: -.035em;
+}
+
+.faq-questions > details:last-child {
+  border-bottom: 0;
 }
