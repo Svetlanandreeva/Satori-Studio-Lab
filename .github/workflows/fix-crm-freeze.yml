@@ -1,0 +1,78 @@
+name: Fix CRM browser freeze (static hotfix)
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: satori-crm-static-hotfix
+  cancel-in-progress: false
+
+env:
+  DEPLOY_HOST: ${{ vars.SATORI_DEPLOY_HOST || '194.226.97.103' }}
+  DEPLOY_PORT: ${{ vars.SATORI_DEPLOY_PORT || '22' }}
+
+jobs:
+  fix-crm:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Verify frozen-UI regression is fixed
+        run: |
+          node --check crm/public/brief-ui.js
+          node --check crm/public/source-link-ui.js
+          node --check crm/public/post-auth-loader.js
+          node --check crm/public/sw.js
+          node --test crm/tests/dom-feedback.test.cjs
+
+      - uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.DEPLOY_SSH_KEY }}
+
+      - name: Check SSH before attempting any writes
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p ~/.ssh
+          chmod 700 ~/.ssh
+          for n in 1 2 3; do
+            if ssh-keyscan -T 7 -H -p "$DEPLOY_PORT" "$DEPLOY_HOST" > "$RUNNER_TEMP/crm-known-host" 2>/dev/null &&
+               test -s "$RUNNER_TEMP/crm-known-host"; then
+              cat "$RUNNER_TEMP/crm-known-host" >> ~/.ssh/known_hosts
+              chmod 600 ~/.ssh/known_hosts
+              exit 0
+            fi
+            if [ "$n" -lt 3 ]; then sleep 4; fi
+          done
+          echo "::error::SSH to $DEPLOY_HOST:$DEPLOY_PORT is unavailable. No production files have been changed. Check VPS / SSH access first."
+          exit 1
+
+      - name: Confirm production legacy CRM directory exists
+        run: |
+          ssh -p "$DEPLOY_PORT" -o StrictHostKeyChecking=yes "root@$DEPLOY_HOST" \
+            'test -d /var/www/satori/crm/public && echo "Legacy CRM directory found"'
+
+      - name: Deploy ONLY browser freeze fix (no database or server restart)
+        run: |
+          rsync -az \
+            -e "ssh -p $DEPLOY_PORT -o StrictHostKeyChecking=yes" \
+            crm/public/source-link-ui.js \
+            crm/public/brief-ui.js \
+            crm/public/post-auth-loader.js \
+            crm/public/index.html \
+            crm/public/sw.js \
+            crm/public/pwa.js \
+            "root@$DEPLOY_HOST:/var/www/satori/crm/public/"
+
+      - name: Validate files on server without restarting CRM
+        run: |
+          ssh -p "$DEPLOY_PORT" -o StrictHostKeyChecking=yes "root@$DEPLOY_HOST" \
+            'set -eu; node --check /var/www/satori/crm/public/source-link-ui.js; node --check /var/www/satori/crm/public/brief-ui.js; grep -q "freeze-fix-2" /var/www/satori/crm/public/index.html; echo "CRM freeze hotfix deployed. No database or application restart performed."'
