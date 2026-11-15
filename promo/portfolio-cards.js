@@ -102,7 +102,7 @@
   counter.setAttribute('aria-live', 'polite');
 
   function arrow(direction, label, className) {
-    const button = make('button', 'portfolio-arrow ' + className, direction === -1 ? '←' : '→');
+    const button = make('button', 'portfolio-arrow ' + className, direction === -1 ? 'Назад' : 'Далее');
     button.type = 'button';
     button.setAttribute('aria-label', label);
     button.setAttribute('aria-controls', 'portfolio-project-track');
@@ -166,19 +166,6 @@
       image.src = photo.src;
       image.alt = photo.alt + ' — ракурс ' + (activePhoto + 1);
       photoCount.textContent = (activePhoto + 1) + ' / ' + project.photos.length;
-    }
-    if (project.photos.length > 1) {
-      const controls = make('div', 'portfolio-photo-navigation');
-      const back = make('button', 'portfolio-photo-arrow', '‹');
-      back.type = 'button';
-      back.setAttribute('aria-label', 'Предыдущее фото проекта: ' + project.title);
-      const forward = make('button', 'portfolio-photo-arrow', '›');
-      forward.type = 'button';
-      forward.setAttribute('aria-label', 'Следующее фото проекта: ' + project.title);
-      back.addEventListener('click', () => setPhoto(activePhoto - 1));
-      forward.addEventListener('click', () => setPhoto(activePhoto + 1));
-      controls.append(back, forward);
-      media.append(controls);
     }
     setPhoto(0);
 
