@@ -8,7 +8,7 @@ import { config as loadEnv } from "dotenv";
 import webpush from "web-push";
 import { login, requireAdmin } from "../server/auth.js";
 import { listOrders, updateOrder } from "../server/orders.js";
-import { listLeads, updateLead, deleteLead } from "../server/leads.js";
+import { listLeads, updateLead, deleteLeadIfSpam } from "../server/leads.js";
 import { createIntegrationsRouter, startIntegrationWatcher } from "./integrations-router.js";
 import { createParserHistoryRouter } from "./parser-history.js";
 import { createAiSalesManager } from "./ai-sales-manager.js";
@@ -435,11 +435,9 @@ app.delete("/api/deals/:id", requireAdmin, async (req, res) => {
   if (dealId.startsWith("web:")) return res.status(403).json({ error: "Заказы магазина здесь удалять нельзя" });
   if (dealId.startsWith("lead:")) {
     const leadId = dealId.slice(5);
-    const lead = (await listLeads()).find((item) => item.id === leadId);
-    if (!lead) return res.status(404).json({ error: "Заявка уже удалена" });
-    if (!lead.isSpam) return res.status(409).json({ error: "Сначала перенесите заявку в «Спам», затем подтвердите удаление" });
-    const removed = await deleteLead(leadId);
-    if (!removed) return res.status(404).json({ error: "Заявка уже удалена" });
+    const removal = await deleteLeadIfSpam(leadId);
+    if (removal === "missing") return res.status(404).json({ error: "Заявка уже удалена" });
+    if (removal === "not-spam") return res.status(409).json({ error: "Сначала перенесите заявку в «Спам», затем подтвердите удаление" });
     await mutate((data) => {
       delete data.leadStages[leadId];
       delete data.leadBriefs[leadId];
