@@ -13,7 +13,7 @@ import { login, requireAdmin } from "./auth.js";
 import { sendVkMessage } from "./vk.js";
 import { listGallery, addGalleryPhoto, removeGalleryPhoto } from "./gallery.js";
 import { listPromoCodes, getPromoCode, createPromoCode, updatePromoCode, deletePromoCode, isPromoUsable, computeDiscount } from "./promocodes.js";
-import { createLead, listLeads, updateLead, deleteLead, markAllLeadsRead, syncLeadToCrmV2 } from "./leads.js";
+import { createLead, listLeads, updateLead, deleteLeadIfSpam, markAllLeadsRead, syncLeadToCrmV2 } from "./leads.js";
 import { getHero, setHero } from "./hero.js";
 import { sendOfflineConversion } from "./metrika.js";
 import { createImageResizeRoute } from "./imageResize.js";
@@ -314,7 +314,9 @@ app.patch("/api/admin/leads/:id", requireAdmin, async (req, res) => {
 
 app.delete("/api/admin/leads/:id", requireAdmin, async (req, res) => {
   try {
-    await deleteLead(req.params.id);
+    const result = await deleteLeadIfSpam(req.params.id);
+    if (result === "missing") return res.status(404).json({ error: "Заявка уже удалена" });
+    if (result === "not-spam") return res.status(409).json({ error: "Сначала перенесите заявку в «Спам»" });
     res.json({ ok: true });
   } catch (err) {
     console.error(err);

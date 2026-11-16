@@ -153,7 +153,7 @@ async function loadRows(page: "orders" | "leads") {
 
 async function refresh(force = false) {
   const { main, page } = getPage();
-  if (!main || !page) {
+  if (!main || page !== "orders") {
     document.querySelectorAll(".fa-crm-summary-mode").forEach((el) => el.classList.remove("fa-crm-summary-mode"));
     document.getElementById("fa-crm-site-summary")?.remove();
     currentPage = "";
@@ -162,7 +162,7 @@ async function refresh(force = false) {
 
   main.classList.add("fa-crm-summary-mode");
   const subtitle = main.querySelector<HTMLElement>(".fa-page-head p");
-  const subtitleText = "Работа по заявкам ведётся в Satori CRM. На сайте остаётся только служебная сводка.";
+  const subtitleText = "Сводка по заказам сайта и их этапам в CRM.";
   if (subtitle && subtitle.textContent !== subtitleText) subtitle.textContent = subtitleText;
   const container = ensureContainer(main);
 

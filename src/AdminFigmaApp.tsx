@@ -238,7 +238,7 @@ function LeadsPage({leads,selectedId,setSelectedId,search,setSearch,token,onChan
     finally{setBusyId("");}
   }
   async function removeLead(lead:Lead){
-    if(busyId)return;
+    if(busyId||!lead.isSpam)return;
     if(!window.confirm(`Удалить заявку «${lead.company||lead.name||"Без имени"}» навсегда? Восстановить её после удаления нельзя.`))return;
     setBusyId(lead.id);
     setActionError("");
@@ -246,7 +246,10 @@ function LeadsPage({leads,selectedId,setSelectedId,search,setSearch,token,onChan
       const res=await fetch(`/api/admin/leads/${encodeURIComponent(lead.id)}`,{
         method:"DELETE",headers:{Authorization:`Bearer ${token}`},
       });
-      if(!res.ok)throw new Error("Не удалось удалить заявку");
+      if(!res.ok){
+        const result=await res.json().catch(()=>null);
+        throw new Error(result?.error||"Не удалось удалить заявку");
+      }
       onDeleted(lead.id);
       if(selectedId===lead.id)setSelectedId("");
     }catch(err){setActionError(err instanceof Error?err.message:"Ошибка удаления");}
@@ -331,9 +334,9 @@ function LeadsPage({leads,selectedId,setSelectedId,search,setSearch,token,onChan
           <button className="fa-primary" onClick={()=>navigator.clipboard?.writeText([selected.phone,selected.email,selected.contact].filter(Boolean).join(" "))}><Copy size={13}/> Скопировать контакт</button>
           <button className="fa-outline-button" disabled={Boolean(busyId)}
             onClick={()=>void patchLead(selected,{isSpam:!selected.isSpam})}>{selected.isSpam?"Вернуть из спама":"В спам"}</button>
-          <button className="fa-outline-button fa-lead-danger" disabled={Boolean(busyId)} onClick={()=>void removeLead(selected)}>
+          {selected.isSpam&&<button className="fa-outline-button fa-lead-danger" disabled={Boolean(busyId)} onClick={()=>void removeLead(selected)}>
             <Trash2 size={13}/> Удалить навсегда
-          </button>
+          </button>}
         </div>
         {selected.isSpam&&<p className="fa-lead-note">Перемещение в спам обратимо. Удаление навсегда необратимо и не удаляет отдельную сделку в CRM.</p>}
       </aside>}
