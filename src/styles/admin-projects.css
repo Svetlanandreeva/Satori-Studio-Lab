@@ -1,0 +1,82 @@
+.admin-figma {
+  --bg: #e8e9ec;
+  --paper: #fbfbfc;
+  --paper2: #f2f3f5;
+  --ink: #141518;
+  --muted: #555961;
+  --soft: #676b74;
+  --line: #d7dade;
+  --accent: #515761;
+  --side: #f6f7f9;
+}
+.admin-figma .fa-shell {
+  background: radial-gradient(ellipse at 72% 0%, #fafafb 0%, transparent 60%), var(--bg);
+}
+.admin-figma .fa-sidebar, .admin-figma .fa-top {
+  background: #fbfcfddf;
+  backdrop-filter: blur(12px);
+}
+.admin-figma .fa-sidebar { border-right: 1px solid #fff; overflow-y: auto; }
+.admin-figma .fa-brand, .admin-figma .fa-user div b { color: var(--ink); }
+.admin-figma .fa-kicker, .admin-figma .fa-side-extra span, .admin-figma .fa-side-extra a,
+.admin-figma .fa-user div span, .admin-figma .fa-user button, .admin-figma .fa-sidebar nav button { color: var(--muted); }
+.admin-figma .fa-side-extra, .admin-figma .fa-user { border-color: var(--line); }
+.admin-figma .fa-sidebar nav button.active { background: #16171a; color: #fff; }
+.admin-figma .fa-sidebar nav button.active::before { display: none; }
+.admin-figma .fa-sidebar nav button:not(.active):hover { background: #ebedf0; }
+.admin-figma .fa-sidebar nav button b, .admin-figma .fa-user i { background: #e6e8ec; color: var(--ink); }
+.admin-figma .fa-page-head h1 { font-family: inherit; }
+.admin-figma .fa-login-card { background: var(--paper); border-color: var(--line); }
+.admin-figma .fa-login-card input { background: var(--paper2); border: 1px solid var(--line); }
+
+.fa-project-heading { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 24px; }
+.fa-project-heading h1 { margin: 0; font-size: clamp(28px, 4vw, 43px); line-height: 1.15; letter-spacing: -.055em; font-weight: 650; }
+.fa-project-heading p { margin: 6px 0 0; color: var(--muted); }
+.fa-project-layout { display: grid; grid-template-columns: minmax(180px, 255px) minmax(0, 1fr); gap: 16px; align-items: start; }
+.fa-project-list, .fa-project-form, .fa-project-empty { border: 1px solid #fff; border-radius: 23px; background: var(--paper); padding: 18px; box-shadow: 0 12px 34px #202a3810; min-width: 0; }
+.fa-project-empty, .fa-project-list p, .fa-project-form p { color: var(--muted); }
+.fa-project-list { display: grid; gap: 8px; }
+.fa-project-list button { background: var(--paper2); border: 1px solid transparent; border-radius: 13px; text-align: left; padding: 12px; display: grid; gap: 4px; color: var(--ink); overflow-wrap: anywhere; }
+.fa-project-list button[aria-pressed="true"] { background: #22242a; color: #fff; }
+.fa-project-list button span { opacity: .8; font-size: 12px; }
+.fa-project-list button b { margin-top: 4px; font-variant-numeric: tabular-nums; }
+.fa-project-form { padding: clamp(15px, 3vw, 26px); }
+.fa-project-form fieldset { display: grid; gap: 14px; min-width: 0; border: 0; padding: 0; margin: 0; }
+.fa-project-form h2 { font-size: 19px; font-weight: 650; margin: 0; }
+.fa-project-form p { margin: 0; overflow-wrap: anywhere; }
+.fa-project-form label { display: grid; gap: 5px; min-width: 0; font-size: 12px; color: var(--muted); }
+.fa-project-form input, .fa-project-form select {
+  min-width: 0; width: 100%; height: 42px; border: 1px solid var(--line); border-radius: 11px; padding: 0 10px;
+  color: var(--ink); background: var(--paper2); font-size: 14px;
+}
+.fa-project-fields { display: grid; grid-template-columns: minmax(0, 1.6fr) minmax(0, 1fr); gap: 10px; }
+.fa-project-expenses { display: grid; gap: 12px; padding-top: 14px; border-top: 1px solid var(--line); }
+.fa-project-expense { display: grid; grid-template-columns: minmax(0, 1.4fr) minmax(0, 1fr) minmax(0, .7fr) 42px; align-items: end; gap: 8px; }
+.fa-project-expense button, .fa-project-add {
+  min-height: 42px; border: 1px solid var(--line); border-radius: 11px; background: var(--paper); color: var(--ink);
+  display: inline-flex; align-items: center; justify-content: center; gap: 6px;
+}
+.fa-project-add { justify-self: start; padding: 0 12px; }
+.fa-project-totals { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 13px; border-radius: 17px; background: linear-gradient(130deg, #17181b, #363a43); color: #fff; padding: 16px; }
+.fa-project-totals div { display: grid; gap: 7px; }
+.fa-project-totals span { color: #e1e3e9; font-size: 12px; }
+.fa-project-totals strong { font-size: clamp(15px, 2vw, 25px); font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.fa-project-save { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.fa-projects button:disabled { opacity: .6; cursor: default; }
+@media (max-width: 900px) {
+  .fa-project-layout { grid-template-columns: 1fr; }
+  .fa-project-list { max-height: 230px; overflow-y: auto; }
+}
+@media (max-width: 760px) {
+  .admin-figma .fa-mobile-head, .admin-figma .fa-bottom-nav { background: var(--paper); border-color: var(--line); }
+  .admin-figma .fa-mobile-head i { background: var(--paper2); }
+  .admin-figma .fa-bottom-nav button { color: var(--muted); }
+  .admin-figma .fa-bottom-nav button.active { color: var(--ink); }
+}
+@media (max-width: 520px) {
+  .fa-project-heading { align-items: flex-start; flex-direction: column; }
+  .fa-project-fields { grid-template-columns: 1fr; }
+  .fa-project-expense { grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) 42px; background: var(--paper2); border-radius: 13px; padding: 10px; }
+  .fa-project-expense label:first-child { grid-column: 1 / -1; }
+  .fa-project-expense input, .fa-project-expense select { background: var(--paper); }
+}
