@@ -10,6 +10,7 @@ import { createPayment, getPayment } from "./yookassa.js";
 import { createOrder, getOrder, updateOrder, listOrders, findOrderByCode } from "./orders.js";
 import { listProducts, createProduct, updateProduct, deleteProduct } from "./products.js";
 import { login, requireAdmin } from "./auth.js";
+import { projectsRouter } from "./projects.js";
 import { sendVkMessage } from "./vk.js";
 import { listGallery, addGalleryPhoto, removeGalleryPhoto } from "./gallery.js";
 import { listPromoCodes, getPromoCode, createPromoCode, updatePromoCode, deletePromoCode, isPromoUsable, computeDiscount } from "./promocodes.js";
@@ -42,6 +43,7 @@ const upload = multer({
 const app = express();
 app.use(cors());
 app.use(express.json());
+app.use("/api/admin/projects", requireAdmin, projectsRouter);
 app.get("/uploads/:file", createImageResizeRoute(UPLOADS_DIR));
 app.use("/uploads", express.static(UPLOADS_DIR, { maxAge: "1y", immutable: true }));
 
