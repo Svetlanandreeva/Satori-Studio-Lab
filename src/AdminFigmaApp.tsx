@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from "react";
 import type { ChangeEvent, FormEvent } from "react";
 import PortfolioAdminPage from "./PortfolioAdminPage";
 import AdminProjects from "./AdminProjects";
-import "./styles/admin-projects.css";
 import {
   ArrowLeft, ChevronDown, Copy, ExternalLink, Home, Inbox, LogOut, Menu,
   PackageSearch, Pencil, Plus, Save, Search, Tag, Trash2, Upload, X,
