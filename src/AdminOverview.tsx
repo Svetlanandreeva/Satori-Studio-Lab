@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { ArrowUpRight, CalendarDays, ClipboardList, FileText, FolderOpen, Inbox, Wallet } from "lucide-react";
 import { dateLabel, money, projectStatuses } from "./AdminProjectsPage";
+import AdminAdvertising from "./AdminAdvertising";
 import type { Project } from "./AdminProjectsPage";
 import "./styles/admin-overview.css";
 
@@ -123,6 +124,7 @@ export default function AdminOverview({ token, unread, newOrders, go, openProjec
         <strong>{newOrders}</strong>
       </button>
     </div>
+    <AdminAdvertising token={token} />
     {error && <div className="fa-error overview-error" role="alert">{error}<button type="button" className="fa-outline-button" onClick={() => retry((number) => number + 1)}>Повторить</button></div>}
     {!projects && !error && <p className="overview-empty" role="status">Загрузка проектов…</p>}
     {projects && <div className="overview-grid">

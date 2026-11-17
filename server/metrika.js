@@ -1,4 +1,4 @@
-const COUNTER_ID = 110458266;
+export const COUNTER_ID = 110458266;
 const API_BASE = "https://api-metrika.yandex.net/management/v1/counter";
 
 // ── Server-side offline-conversion fallback ─────────────────────────────────
