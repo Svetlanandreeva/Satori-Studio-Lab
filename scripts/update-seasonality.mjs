@@ -5,6 +5,8 @@ import { readFileSync, writeFileSync } from "node:fs";
 import { seasonalIndex } from "./seasonality-lib.mjs";
 
 const FILE = new URL("../crm/public/seasonality-data.json", import.meta.url);
+// копия для дашборда админки на satorilabural.ru
+const SITE_FILE = new URL("../public/seasonality-data.json", import.meta.url);
 const TOKEN = process.env.WORDSTAT_TOKEN;
 const API = "https://api.wordstat.yandex.net/v1/dynamics";
 
@@ -53,4 +55,5 @@ for (const series of data.series) {
 data.updated = now.toISOString().slice(0, 10);
 data.period = [data.series[0].months[0], data.series[0].months.at(-1)];
 writeFileSync(FILE, JSON.stringify(data, null, 1) + "\n");
+writeFileSync(SITE_FILE, JSON.stringify(data, null, 1) + "\n");
 console.log(`Готово: ${fromDate} — ${toDate}`);

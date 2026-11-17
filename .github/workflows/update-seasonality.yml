@@ -30,11 +30,11 @@ jobs:
         run: node scripts/update-seasonality.mjs
       - name: Commit if data changed
         run: |
-          if git diff --quiet -- crm/public/seasonality-data.json; then
+          if git diff --quiet -- crm/public/seasonality-data.json public/seasonality-data.json; then
             echo "Данные не изменились"; exit 0
           fi
           git config user.name "satori-bot"
           git config user.email "satori-bot@users.noreply.github.com"
-          git add crm/public/seasonality-data.json
+          git add crm/public/seasonality-data.json public/seasonality-data.json
           git commit -m "Update CRM seasonality from Wordstat"
           git push
