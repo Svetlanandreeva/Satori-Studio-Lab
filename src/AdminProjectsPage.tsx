@@ -11,7 +11,7 @@ const rubles = new Intl.NumberFormat("ru-RU", {
   minimumFractionDigits: 0,
 });
 
-const projectStatuses = {
+export const projectStatuses = {
   "": "Без статуса",
   planned: "Запланирован",
   "in-progress": "В работе",
@@ -43,8 +43,8 @@ type ProjectFields = {
   expenses: Entry[];
   payments: Entry[];
 };
-type DocumentFile = { id: string; name: string; size: number };
-type Project = ProjectFields & { id: string; revision: number; documents: DocumentFile[] };
+type DocumentFile = { id: string; name: string; size: number; createdAt?: string };
+export type Project = ProjectFields & { id: string; revision: number; documents: DocumentFile[] };
 type DraftEntry = Omit<Entry, "amount"> & { amount: string; key: string };
 type Draft = Omit<ProjectFields, "status" | "notes" | "steps" | "contacts" | "budget" | "price" | "expenses" | "payments"> & {
   status: ProjectStatus;
@@ -96,11 +96,11 @@ function sum(entries: DraftEntry[]) {
   return entries.reduce((total, entry) => total + kopecks(entry.amount), 0);
 }
 
-function money(amount: number) {
+export function money(amount: number) {
   return Number.isSafeInteger(amount) ? rubles.format(amount / 100) : "—";
 }
 
-function dateLabel(value: string) {
+export function dateLabel(value: string) {
   return value ? value.split("-").reverse().join(".") : "—";
 }
 
@@ -201,10 +201,11 @@ function Entries({ kind, entries, onChange }: {
   </section>;
 }
 
-export default function AdminProjectsPage({ token, leads, onDirtyChange }: {
+export default function AdminProjectsPage({ token, leads, onDirtyChange, initialProjectId }: {
   token: string;
   leads: ContactLead[];
   onDirtyChange: (dirty: boolean) => void;
+  initialProjectId?: string;
 }) {
   const [projects, setProjects] = useState<Project[]>([]);
   const [selected, setSelected] = useState<Project | null>(null);
@@ -237,14 +238,21 @@ export default function AdminProjectsPage({ token, leads, onDirtyChange }: {
     request("", { signal: controller.signal }).then(async (response) => {
       const items = await response.json();
       if (!Array.isArray(items)) throw new Error("Не удалось загрузить список проектов.");
-      if (!controller.signal.aborted) setProjects(items);
+      if (controller.signal.aborted) return;
+      setProjects(items);
+      if (initialProjectId) {
+        const project = items.find((item: Project) => item.id === initialProjectId);
+        if (!project) throw new Error("Проект не найден.");
+        setSelected(project);
+        setDraft(toDraft(project));
+      }
     }).catch((reason: Error) => {
       if (!controller.signal.aborted) setError(reason.message);
     }).finally(() => {
       if (!controller.signal.aborted) setBusy(false);
     });
     return () => controller.abort();
-  }, [token, reload]);
+  }, [token, reload, initialProjectId]);
 
   function markDirty(value: boolean) {
     setDirty(value);

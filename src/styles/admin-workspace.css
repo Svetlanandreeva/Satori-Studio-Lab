@@ -248,3 +248,26 @@
     transition: none;
   }
 }
+
+.admin-figma .fa-side-extra .fa-extra-edit {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-inline: -10px;
+  border: 0;
+  border-radius: 16px;
+  padding: 10px;
+  background: transparent;
+  color: var(--ink);
+  text-align: left;
+  font-size: 13px;
+}
+
+.admin-figma .fa-side-extra .fa-extra-edit:hover {
+  background: var(--paper2);
+}
+
+.admin-figma .fa-side-extra .fa-extra-edit[aria-current="true"] {
+  background: var(--ink);
+  color: white;
+}

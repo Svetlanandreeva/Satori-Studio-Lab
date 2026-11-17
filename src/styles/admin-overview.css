@@ -1,0 +1,318 @@
+.admin-overview {
+  --overview-border: #dde0e7;
+  --overview-muted: #555b67;
+  --overview-dark: #191b22;
+  color: #181a20;
+}
+
+.overview-shortcuts,
+.overview-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.overview-shortcuts {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  margin-bottom: 12px;
+}
+
+.overview-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.overview-card {
+  min-width: 0;
+  border: 1px solid var(--overview-border);
+  border-radius: 22px;
+  padding: clamp(14px, 2vw, 23px);
+  background: linear-gradient(145deg, #fff, #f8f9fc);
+  box-shadow: 0 6px 20px rgb(20 25 39 / 5%);
+}
+
+.overview-counter {
+  display: grid;
+  align-content: start;
+  justify-items: start;
+  text-align: left;
+  gap: 8px;
+  color: inherit;
+}
+
+.overview-counter:hover,
+.overview-timeline-row:hover,
+.overview-documents button:hover {
+  background: #eceef3;
+}
+
+.overview-counter > span,
+.overview-card h2,
+.overview-text-button {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.overview-counter > span {
+  flex-wrap: wrap;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.overview-counter strong,
+.overview-finance-total b {
+  line-height: 1.1;
+  font-size: clamp(23px, 3vw, 39px);
+  letter-spacing: -.06em;
+  overflow-wrap: anywhere;
+}
+
+.overview-counter small,
+.overview-muted,
+.overview-empty {
+  color: var(--overview-muted);
+}
+
+.overview-card-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 14px;
+}
+
+.overview-card h2 {
+  font-size: 17px;
+  font-weight: 650;
+  letter-spacing: -.025em;
+  margin: 0;
+}
+
+.overview-schedule,
+.overview-progress {
+  grid-column: span 2;
+}
+
+.overview-range {
+  display: flex;
+  gap: 2px;
+  border: 1px solid var(--overview-border);
+  border-radius: 99px;
+  padding: 3px;
+}
+
+.overview-range button,
+.overview-text-button {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  border-radius: 99px;
+  padding: 6px 9px;
+  font-size: 12px;
+}
+
+.overview-range button[aria-pressed="true"] {
+  background: var(--overview-dark);
+  color: white;
+}
+
+.overview-timeline-row,
+.overview-ticks {
+  --timeline-label: clamp(90px, 13vw, 150px);
+}
+
+.overview-timeline-row {
+  width: 100%;
+  display: grid;
+  grid-template-columns: var(--timeline-label) minmax(0, 1fr);
+  gap: 8px;
+  align-items: center;
+  border: 0;
+  border-top: 1px solid var(--overview-border);
+  padding: 7px 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+}
+
+.overview-timeline-row strong,
+.overview-timeline-row small,
+.overview-documents b,
+.overview-documents small {
+  display: block;
+  overflow-wrap: anywhere;
+}
+
+.overview-timeline-row small,
+.overview-documents small {
+  margin-top: 2px;
+  color: var(--overview-muted);
+  font-size: 11px;
+}
+
+.overview-ticks {
+  position: relative;
+  height: 18px;
+  margin-left: calc(var(--timeline-label) + 8px);
+  color: var(--overview-muted);
+  font-size: 10px;
+}
+
+.overview-ticks span {
+  position: absolute;
+  transform: translateX(-50%);
+}
+
+.overview-ticks span:first-child { transform: none; }
+.overview-ticks span:last-child { transform: translateX(-100%); }
+
+.overview-track {
+  position: relative;
+  height: 18px;
+  border-radius: 99px;
+  background: repeating-linear-gradient(90deg, #e9ebf1 0 1px, #f4f5f8 1px 14%);
+}
+
+.overview-track > span {
+  position: absolute;
+  inset-block: 2px;
+  min-width: 4px;
+  border-radius: 99px;
+  background: #30343f;
+}
+
+.overview-finance-total {
+  display: grid;
+  gap: 7px;
+  margin: 17px 0;
+}
+
+.overview-finance-total span,
+.overview-finance dt {
+  color: var(--overview-muted);
+  font-size: 12px;
+}
+
+.overview-finance dl {
+  margin: 0;
+  display: grid;
+  gap: 8px;
+}
+
+.overview-finance dl div {
+  border-top: 1px solid var(--overview-border);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 4px 9px;
+  padding-top: 8px;
+}
+
+.overview-finance dd {
+  margin: 0;
+  font-weight: 650;
+  overflow-wrap: anywhere;
+}
+
+.overview-documents ul {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  gap: 6px;
+}
+
+.overview-documents button {
+  width: 100%;
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  border: 1px solid var(--overview-border);
+  border-radius: 14px;
+  padding: 8px 10px;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  font-size: 12px;
+}
+
+.overview-progress {
+  color: white;
+  border-color: transparent;
+  background: radial-gradient(ellipse at 100% 70%, #313544, transparent 65%), var(--overview-dark);
+}
+
+.overview-progress-list {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 135px), 1fr));
+  gap: 8px;
+}
+
+.overview-progress-item {
+  color: inherit;
+  background: rgb(255 255 255 / 6%);
+  border: 1px solid rgb(255 255 255 / 15%);
+  border-radius: 15px;
+  min-width: 0;
+  padding: 11px;
+  text-align: left;
+  display: grid;
+  align-content: start;
+  gap: 5px;
+}
+
+.overview-progress-item:hover,
+.overview-text-button:hover {
+  background: rgb(255 255 255 / 15%);
+}
+
+.overview-progress-item strong {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  gap: 4px;
+  overflow-wrap: anywhere;
+}
+
+.overview-progress-item strong svg { flex-shrink: 0; }
+
+.overview-progress-item small,
+.overview-progress-item span,
+.overview-progress .overview-empty {
+  color: #e2e4eb;
+  font-size: 12px;
+}
+
+.overview-progress-item progress {
+  width: 100%;
+  height: 7px;
+  accent-color: #e6e8ef;
+}
+
+.overview-empty,
+.overview-muted {
+  margin: 10px 0 0;
+  font-size: 13px;
+}
+
+.overview-error button { margin-left: 10px; }
+
+@media (max-width: 1050px) {
+  .overview-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .overview-finance { grid-row: 2; }
+  .overview-documents { grid-row: 2; }
+}
+
+@media (max-width: 540px) {
+  .overview-grid { grid-template-columns: minmax(0, 1fr); }
+  .overview-schedule,
+  .overview-progress,
+  .overview-finance,
+  .overview-documents { grid-column: auto; grid-row: auto; }
+  .overview-shortcuts { gap: 6px; }
+  .overview-counter { padding: 10px; border-radius: 14px; }
+  .overview-counter > span { font-size: 11px; gap: 4px; }
+  .overview-counter > span svg:last-child { display: none; }
+}
