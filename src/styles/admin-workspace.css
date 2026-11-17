@@ -1,0 +1,250 @@
+.admin-figma {
+  --satori-admin-workspace: 1;
+  --bg: #eeeff2;
+  --paper: #fff;
+  --paper2: #f7f7f9;
+  --ink: #191a1e;
+  --muted: #535762;
+  --soft: #626671;
+  --line: #e1e2e7;
+  --accent: #3d4050;
+  --side: #fff;
+  --admin-shadow: 0 4px 18px rgb(26 29 40 / 5%);
+}
+
+.admin-figma .fa-sidebar {
+  background: var(--side);
+  color: var(--muted);
+  border: 1px solid var(--line);
+  border-radius: 24px;
+  box-shadow: var(--admin-shadow);
+}
+
+.admin-figma .fa-sidebar .fa-brand {
+  color: var(--ink);
+  letter-spacing: -.05em;
+}
+
+.admin-figma :is(.fa-kicker, .fa-side-extra span, .fa-user div span) {
+  color: var(--soft);
+}
+
+.admin-figma .fa-sidebar nav {
+  margin-top: 36px;
+}
+
+.admin-figma .fa-sidebar nav button {
+  color: var(--ink);
+  border-radius: 22px;
+}
+
+.admin-figma .fa-sidebar nav button:hover {
+  background: var(--paper2);
+}
+
+.admin-figma .fa-sidebar nav button.active {
+  background: var(--ink);
+  color: white;
+}
+
+.admin-figma .fa-sidebar nav button.active::before {
+  content: none;
+}
+
+.admin-figma .fa-sidebar nav button b,
+.admin-figma .fa-user i,
+.admin-figma .fa-mobile-head i {
+  background: #e9eaf0;
+  color: var(--ink);
+}
+
+.admin-figma .fa-sidebar nav button.active b {
+  background: white;
+  color: var(--ink);
+}
+
+.admin-figma :is(.fa-side-extra, .fa-user) {
+  border-color: var(--line);
+}
+
+.admin-figma :is(.fa-side-extra a, .fa-user button) {
+  color: var(--muted);
+}
+
+.admin-figma .fa-user div b {
+  color: var(--ink);
+}
+
+.admin-figma .fa-top {
+  height: 65px;
+  margin: 12px 12px 0;
+  padding: 0 24px;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 22px;
+}
+
+.admin-figma .fa-top a {
+  padding: 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: 18px;
+  color: var(--ink);
+}
+
+.admin-figma .fa-page-head h1 {
+  font-family: inherit;
+  font-size: clamp(32px, 4vw, 48px);
+  font-weight: 650;
+  letter-spacing: -.055em;
+}
+
+.admin-figma :is(.fa-card, .fa-stat, .fa-login-card) {
+  background: var(--paper);
+  box-shadow: var(--admin-shadow);
+}
+
+.admin-figma .fa-stat {
+  border-radius: 20px;
+}
+
+.admin-figma .fa-stat:first-child,
+.admin-figma .fa-crm-summary-head {
+  background: #22232a;
+  border-color: transparent;
+  color: white;
+}
+
+.admin-figma .fa-stat:first-child :is(span, small),
+.admin-figma .fa-crm-summary-head span {
+  color: #d2d4df;
+  opacity: 1;
+}
+
+.admin-figma .fa-crm-site-summary {
+  border: 0;
+  border-radius: 24px;
+  background: transparent;
+  box-shadow: none;
+}
+
+.admin-figma .fa-crm-summary-head {
+  min-height: 134px;
+  padding: 20px 26px;
+  border: 0;
+  border-radius: 24px;
+  box-shadow: var(--admin-shadow);
+}
+
+.admin-figma .fa-crm-summary-head b {
+  font-size: clamp(26px, 3vw, 40px);
+  line-height: 1.15;
+  letter-spacing: -.045em;
+}
+
+.admin-figma .fa-crm-open-all {
+  justify-content: center;
+  background: white;
+  border-color: white;
+  color: var(--ink);
+  white-space: nowrap;
+}
+
+.admin-figma .fa-crm-open-all:hover {
+  background: #e9eaf0;
+  border-color: #e9eaf0;
+}
+
+.admin-figma .fa-crm-summary-table-wrap {
+  margin-top: 14px;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 22px;
+  box-shadow: var(--admin-shadow);
+}
+
+.admin-figma .fa-crm-summary-table th {
+  border-color: var(--line);
+  color: var(--soft);
+  opacity: 1;
+}
+
+.admin-figma .fa-crm-empty {
+  padding: 32px 20px !important;
+  color: var(--muted);
+  opacity: 1;
+}
+
+.admin-figma :is(a, button):focus-visible {
+  outline: 2px solid #626682;
+  outline-offset: 3px;
+}
+
+@media (min-width: 761px) {
+  .admin-figma .fa-sidebar {
+    inset: 12px auto 12px 12px;
+    width: 232px;
+    overflow-y: auto;
+  }
+
+  .admin-figma .fa-work main {
+    padding-top: clamp(26px, 4vw, 50px);
+  }
+}
+
+@media (max-width: 760px) {
+  .admin-figma .fa-sidebar {
+    inset: 8px auto 8px 8px;
+    overflow-y: auto;
+  }
+
+  .admin-figma .fa-sidebar:not(.is-open) {
+    visibility: hidden;
+  }
+
+  .admin-figma .fa-mobile-head {
+    height: 56px;
+    top: 6px;
+    margin: 6px 8px 0;
+    border: 1px solid var(--line);
+    border-radius: 20px;
+    background: var(--paper);
+    box-shadow: var(--admin-shadow);
+  }
+
+  .admin-figma .fa-bottom-nav {
+    left: 8px;
+    right: 8px;
+    bottom: max(6px, env(safe-area-inset-bottom));
+    height: 60px;
+    padding: 4px;
+    border: 1px solid var(--line);
+    border-radius: 20px;
+    background: var(--paper);
+    box-shadow: var(--admin-shadow);
+  }
+
+  .admin-figma .fa-bottom-nav button {
+    color: var(--muted);
+    border-radius: 15px;
+  }
+
+  .admin-figma .fa-bottom-nav button.active {
+    color: white;
+    background: var(--ink);
+  }
+
+  .admin-figma .fa-crm-summary-head {
+    min-height: 104px;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 12px;
+    padding: 16px;
+    border-radius: 20px;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .admin-figma .fa-sidebar {
+    transition: none;
+  }
+}

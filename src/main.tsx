@@ -14,6 +14,7 @@ import "./styles/admin-crm-summary.css";
 import "./styles/page-transitions.css";
 import "./styles/na-zakaz.css";
 import "./styles/na-zakaz-sales.css";
+import "./styles/admin-workspace.css";
 import { startFeaturedSwitcher } from "./featuredSwitcher";
 import { startStorefrontEnhancements } from "./storefrontEnhancements";
 import { startBrandCopyEnhancements } from "./brandCopyEnhancements";

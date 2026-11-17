@@ -1,0 +1,51 @@
+name: Deploy Satori admin design
+
+on:
+  push:
+    branches: [main]
+    paths: [src/styles/admin-workspace.css]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: production-deploy
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      DEPLOY_HOST: ${{ vars.SATORI_DEPLOY_HOST || '194.226.97.103' }}
+      DEPLOY_PORT: ${{ vars.SATORI_DEPLOY_PORT || '22' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - run: npm run build
+      - uses: webfactory/ssh-agent@v0.9.0
+        with:
+          ssh-private-key: ${{ secrets.DEPLOY_SSH_KEY }}
+      - name: Connect to the Satori server
+        run: |
+          mkdir -p -m 700 ~/.ssh
+          ssh-keyscan -T 10 -H -p "$DEPLOY_PORT" "$DEPLOY_HOST" >> ~/.ssh/known_hosts
+      - name: Publish frontend assets and entry page
+        run: |
+          ssh_options="ssh -p $DEPLOY_PORT -o BatchMode=yes -o ConnectTimeout=10 -o StrictHostKeyChecking=yes"
+          target="root@$DEPLOY_HOST:/var/www/satori/frontend"
+          rsync -az -e "$ssh_options" dist/assets/ "$target/assets/"
+          rsync -az -e "$ssh_options" dist/index.html "$target/index.html"
+      - name: Verify the live admin serves the new design
+        run: |
+          css_path=$(grep -oE '/assets/[^"]+\.css' dist/index.html | head -n 1)
+          test -n "$css_path"
+          curl -fsSL --retry 3 --max-time 20 "https://satorilabural.ru/admin?revision=$GITHUB_SHA" -o "$RUNNER_TEMP/admin.html"
+          grep -qF "$css_path" "$RUNNER_TEMP/admin.html"
+          curl -fsSL --retry 3 --max-time 20 "https://satorilabural.ru$css_path" -o "$RUNNER_TEMP/admin.css"
+          grep -qF -- '--satori-admin-workspace' "$RUNNER_TEMP/admin.css"
