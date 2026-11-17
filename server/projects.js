@@ -50,15 +50,39 @@ function entries(rows, kind) {
   }));
 }
 
-function projectFields(body) {
+function savedContacts(project) {
+  return project?.contacts ?? (project?.contact ? [{ name: "", details: project.contact }] : []);
+}
+
+function projectContacts(body, existing) {
+  if (body.contacts === undefined) {
+    const details = field(body.contact, 200, "Контакт");
+    const contacts = savedContacts(existing);
+    if (details === (existing?.contact ?? "")) return contacts;
+    const [first, ...others] = contacts;
+    const updated = { name: first?.name ?? "", details };
+    return [updated, ...others].filter((item) => item.name || item.details);
+  }
+  if (!Array.isArray(body.contacts) || body.contacts.length > 30) {
+    throw new ProjectError(400, "В одном проекте доступно до 30 контактов.");
+  }
+  return body.contacts.map((item) => ({
+    name: field(item?.name, 200, "Имя контакта"),
+    details: field(item?.details, 200, "Телефон, почта или мессенджер"),
+  })).filter((item) => item.name || item.details);
+}
+
+function projectFields(body, existing) {
   const startDate = date(body?.startDate);
   const dueDate = date(body?.dueDate);
   if (startDate && dueDate && dueDate < startDate) {
     throw new ProjectError(400, "Срок проекта должен быть не раньше даты начала.");
   }
+  const contacts = projectContacts(body, existing);
   return {
     name: field(body.name, 200, "Название проекта", true),
-    contact: field(body.contact, 200, "Контакт"),
+    contact: contacts[0]?.details || contacts[0]?.name || "",
+    contacts,
     leadId: field(body.leadId, 100, "Заявка"),
     startDate,
     dueDate,
@@ -138,7 +162,7 @@ export function createProjectsRouter(dataDir) {
   });
 
   router.get("/", route(async (_req, res) => {
-    res.json(await readProjects());
+    res.json((await readProjects()).map((project) => ({ ...project, contacts: savedContacts(project) })));
   }));
 
   router.post("/", route(async (req, res) => {
@@ -152,13 +176,12 @@ export function createProjectsRouter(dataDir) {
   }));
 
   router.put("/:id", route(async (req, res) => {
-    const fields = projectFields(req.body);
     const project = await change(async (projects) => {
       const item = getProject(projects, req.params.id);
-      if (item.revision !== req.body.revision) {
+      if (item.revision !== req.body?.revision) {
         throw new ProjectError(409, "Проект изменился в другой вкладке. Обновите страницу перед повторным сохранением.");
       }
-      Object.assign(item, fields, { revision: item.revision + 1 });
+      Object.assign(item, projectFields(req.body, item), { revision: item.revision + 1 });
       await saveProjects(projects);
       return item;
     });

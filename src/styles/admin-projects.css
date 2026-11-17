@@ -54,8 +54,8 @@
   font-size: 12px;
 }
 
-.project-list-item[aria-pressed="true"],
-.project-list-item[aria-pressed="true"] span {
+.project-list-item[aria-current="true"],
+.project-list-item[aria-current="true"] span {
   background: var(--ink);
   color: white;
   border-color: var(--ink);
@@ -119,6 +119,7 @@
 }
 
 .project-entry,
+.project-contact,
 .project-document {
   display: grid;
   grid-template-columns: minmax(105px, 2fr) minmax(125px, 1fr) minmax(75px, 1fr) auto;
@@ -127,6 +128,10 @@
   border-top: 1px solid var(--line);
   margin-top: 12px;
   padding-top: 12px;
+}
+
+.project-contact {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1.4fr) auto;
 }
 
 .project-document {
@@ -172,16 +177,6 @@
   justify-content: flex-end;
 }
 
-.project-empty {
-  min-height: 170px;
-  display: grid;
-  justify-items: center;
-  align-content: center;
-  gap: 8px;
-  text-align: center;
-  color: var(--muted);
-}
-
 .projects-workspace .fa-error button {
   margin-left: 10px;
 }
@@ -210,6 +205,14 @@
   }
 
   .project-entry > label:first-child {
+    grid-column: 1 / -1;
+  }
+
+  .project-contact {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .project-contact > label:first-child {
     grid-column: 1 / -1;
   }
 
