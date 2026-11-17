@@ -232,3 +232,35 @@
   font-size: 1.32em;
   line-height: 1.12;
 }
+/* Burgundy accents for the Ural suppliers section */
+.studio-section .sourcing-panel.sourcing-spotlight {
+  position: relative;
+  border: 1px solid rgba(112, 38, 62, .23);
+  border-left: 4px solid var(--wine, #70263e);
+  background:
+    radial-gradient(ellipse at 94% 4%, rgba(153, 67, 95, .12), transparent 56%),
+    linear-gradient(124deg, #f7efec 0%, #f4ebe8 57%, #f1e6e3 100%);
+  box-shadow: 0 12px 36px rgba(60, 28, 39, .045);
+}
+.studio-section .sourcing-spotlight h2 {
+  color: #262020;
+}
+.studio-section .sourcing-title-accent {
+  color: var(--wine, #70263e);
+}
+.studio-section .sourcing-spotlight p {
+  color: #625b58;
+}
+.studio-section .sourcing-spotlight p strong {
+  color: var(--wine, #70263e);
+  font-weight: 750;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .studio-section .sourcing-spotlight.studio-light-on strong {
+    animation-name: sourcing-burgundy-emphasis;
+  }
+  @keyframes sourcing-burgundy-emphasis {
+    0%, 100% { background-color: transparent; box-shadow: 0 0 0 transparent; }
+    36% { background-color: rgba(112, 38, 62, .13); box-shadow: 0 0 15px rgba(112, 38, 62, .18); }
+  }
+}
