@@ -3,7 +3,7 @@ name: Deploy Satori admin design
 on:
   push:
     branches: [main]
-    paths: [src/styles/admin-workspace.css]
+    paths: [src/**, index.html, vite.config.ts, package.json, package-lock.json]
   workflow_dispatch:
 
 permissions:
@@ -16,10 +16,7 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
-    timeout-minutes: 12
-    env:
-      DEPLOY_HOST: ${{ vars.SATORI_DEPLOY_HOST || '194.226.97.103' }}
-      DEPLOY_PORT: ${{ vars.SATORI_DEPLOY_PORT || '22' }}
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
@@ -28,24 +25,17 @@ jobs:
           cache: npm
       - run: npm ci
       - run: npm run build
-      - uses: webfactory/ssh-agent@v0.9.0
-        with:
-          ssh-private-key: ${{ secrets.DEPLOY_SSH_KEY }}
-      - name: Connect to the Satori server
-        run: |
-          mkdir -p -m 700 ~/.ssh
-          ssh-keyscan -T 10 -H -p "$DEPLOY_PORT" "$DEPLOY_HOST" >> ~/.ssh/known_hosts
-      - name: Publish frontend assets and entry page
-        run: |
-          ssh_options="ssh -p $DEPLOY_PORT -o BatchMode=yes -o ConnectTimeout=10 -o StrictHostKeyChecking=yes"
-          target="root@$DEPLOY_HOST:/var/www/satori/frontend"
-          rsync -az -e "$ssh_options" dist/assets/ "$target/assets/"
-          rsync -az -e "$ssh_options" dist/index.html "$target/index.html"
-      - name: Verify the live admin serves the new design
+      # Сервер 91.229.11.198 сам забирает main каждые 2 минуты и собирает админку
+      # (scripts/server/satori-full-sync.sh). Здесь только ждём, пока новая версия появится на сайте.
+      - name: Wait until the live admin serves this build
         run: |
           css_path=$(grep -oE '/assets/[^"]+\.css' dist/index.html | head -n 1)
           test -n "$css_path"
-          curl -fsSL --retry 3 --max-time 20 "https://satorilabural.ru/admin?revision=$GITHUB_SHA" -o "$RUNNER_TEMP/admin.html"
-          grep -qF "$css_path" "$RUNNER_TEMP/admin.html"
-          curl -fsSL --retry 3 --max-time 20 "https://satorilabural.ru$css_path" -o "$RUNNER_TEMP/admin.css"
-          grep -qF -- '--satori-admin-workspace' "$RUNNER_TEMP/admin.css"
+          for i in $(seq 1 40); do
+            if curl -fsSL --max-time 20 "https://satorilabural.ru/admin?revision=$GITHUB_SHA" | grep -qF "$css_path"; then
+              echo "Live admin serves $css_path"; exit 0
+            fi
+            sleep 30
+          done
+          echo "::error::За 20 минут новая админка не появилась на сайте. Журнал сборки на сервере: /tmp/satori-frontend-build.log"
+          exit 1
