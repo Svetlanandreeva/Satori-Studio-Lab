@@ -12,6 +12,7 @@ async function loadExtensions() {
       import("/ai-manager-ui.js?v=postauth1"),
       import("/brief-ui.js?v=freeze-fix-2"),
       import("/source-link-ui.js?v=freeze-fix-2"),
+      import("/seasonality-ui.js?v=season-1"),
     ]);
   } catch (error) {
     console.error("CRM extensions failed to load:", error);
