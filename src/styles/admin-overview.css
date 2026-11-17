@@ -355,6 +355,19 @@
   overflow-wrap: anywhere;
 }
 
+.overview-ad-metrics small {
+  display: block;
+  margin-top: 5px;
+  color: var(--overview-muted);
+  font-size: 11px;
+}
+
+@media (min-width: 1050px) {
+  .overview-ad-metrics {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
 .overview-ad-help,
 .overview-ad-connect {
   display: flex;
