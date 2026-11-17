@@ -1,4 +1,4 @@
-name: Fix CRM browser freeze (static hotfix)
+name: Deploy CRM interface
 
 on:
   workflow_dispatch:
@@ -25,13 +25,15 @@ jobs:
         with:
           node-version: 20
 
-      - name: Verify frozen-UI regression is fixed
+      - name: Check CRM browser files
         run: |
           node --check crm/public/brief-ui.js
           node --check crm/public/source-link-ui.js
           node --check crm/public/post-auth-loader.js
           node --check crm/public/sw.js
-          node --test crm/tests/dom-feedback.test.cjs
+          node --check crm/public/app.js
+          node --check crm/public/pwa.js
+          node --test crm/tests/*.test.cjs
 
       - uses: webfactory/ssh-agent@v0.9.0
         with:
@@ -60,19 +62,22 @@ jobs:
           ssh -p "$DEPLOY_PORT" -o StrictHostKeyChecking=yes "root@$DEPLOY_HOST" \
             'test -d /var/www/satori/crm/public && echo "Legacy CRM directory found"'
 
-      - name: Deploy ONLY browser freeze fix (no database or server restart)
+      - name: Deploy CRM browser assets and then the entry page
         run: |
           rsync -az \
             -e "ssh -p $DEPLOY_PORT -o StrictHostKeyChecking=yes" \
             crm/public/source-link-ui.js \
             crm/public/brief-ui.js \
             crm/public/post-auth-loader.js \
-            crm/public/index.html \
+            crm/public/app.js \
+            crm/public/satori-theme.css \
             crm/public/sw.js \
             crm/public/pwa.js \
             "root@$DEPLOY_HOST:/var/www/satori/crm/public/"
+          rsync -az -e "ssh -p $DEPLOY_PORT -o StrictHostKeyChecking=yes" \
+            crm/public/index.html "root@$DEPLOY_HOST:/var/www/satori/crm/public/"
 
       - name: Validate files on server without restarting CRM
         run: |
           ssh -p "$DEPLOY_PORT" -o StrictHostKeyChecking=yes "root@$DEPLOY_HOST" \
-            'set -eu; node --check /var/www/satori/crm/public/source-link-ui.js; node --check /var/www/satori/crm/public/brief-ui.js; grep -q "freeze-fix-2" /var/www/satori/crm/public/index.html; echo "CRM freeze hotfix deployed. No database or application restart performed."'
+            'set -eu; node --check /var/www/satori/crm/public/source-link-ui.js; node --check /var/www/satori/crm/public/brief-ui.js; node --check /var/www/satori/crm/public/app.js; echo "CRM interface deployed."'

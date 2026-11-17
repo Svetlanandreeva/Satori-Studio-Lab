@@ -71,5 +71,5 @@ test("Fresh extension version is loaded after the freeze fix", () => {
   assert.match(html, /post-auth-loader\.js\?v=freeze-fix-2/);
   assert.match(loader, /source-link-ui\.js\?v=freeze-fix-2/);
   assert.match(loader, /brief-ui\.js\?v=freeze-fix-2/);
-  assert.match(worker, /satori-crm-v22/);
+  assert.match(worker, /satori-crm-v23/);
 });

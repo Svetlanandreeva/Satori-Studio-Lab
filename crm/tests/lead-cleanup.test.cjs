@@ -2,6 +2,7 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 const test = require("node:test");
+const vm = require("node:vm");
 
 const base = path.resolve(__dirname, "../..");
 const serverFile = fs.readFileSync(path.join(base, "crm/server.js"), "utf8");
@@ -54,5 +55,19 @@ test("UI has a Spam tab with restore and permanent-delete actions", () => {
   assert.match(uiFile, /function removeSpamLead\(deal\)/);
   assert.match(uiFile, /"В спам"/);
   assert.match(uiFile, /Удалить навсегда/);
-  assert.match(uiFile, /!d\.isSpam&&d\.stage===stage/);
+  const root = {
+    innerHTML: "",
+    querySelectorAll() { return []; },
+    querySelector() { return { addEventListener() {} }; },
+  };
+  vm.runInNewContext(uiFile + `
+    data = { stages: ["Новая"], contacts: [], tasks: [], stats: {}, deals: [
+      { id: "lead:active", title: "Действующая заявка", stage: "Новая" },
+      { id: "lead:spam", title: "Спам-заявка", stage: "Новая", isSpam: true },
+    ] };
+    pipelineView();
+  `, { document: { querySelector: () => root }, localStorage: { getItem: () => "" } });
+  assert.match(root.innerHTML, /data-deal-id="lead:active"/);
+  assert.doesNotMatch(root.innerHTML, /data-deal-id="lead:spam"/);
+  assert.match(root.innerHTML, /<meter min="0" max="1" value="1"/);
 });

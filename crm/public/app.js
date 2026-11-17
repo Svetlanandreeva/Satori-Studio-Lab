@@ -40,13 +40,13 @@ function stats(){
   return {active:active.length,pipeline,paid,due};
 }
 
-function navButton(id,label,count=""){return `<button data-tab="${id}" class="${tab===id?"active":""}"><span>${label}</span>${count!==""?`<span class="count">${count}</span>`:""}</button>`}
+function navButton(id,label,count=""){return `<button type="button" data-tab="${id}" class="${tab===id?"active":""}"${tab===id?' aria-current="page"':""}><span>${label}</span>${count!==""?`<span class="count">${count}</span>`:""}</button>`}
 
 function shell(content,title,subtitle){
   const s=stats();
-  root.innerHTML=`<div class="shell"><aside class="sidebar"><div class="brand">SATORI</div><div class="eyebrow">LAB / CRM</div><nav class="nav">${navButton("pipeline","Воронка",s.active)}${navButton("clients","Клиенты",data.contacts.length)}${navButton("tasks","Задачи",s.due)}${navButton("spam","Спам",data.deals.filter(d=>d.isSpam).length)}</nav><div class="sidebar-foot"><button id="logout">Выйти</button></div></aside><main class="main"><header class="topbar"><div><h1>${esc(title)}</h1><p>${esc(subtitle)}</p></div><div class="actions">${tab==="pipeline"?'<button class="secondary" data-action="new-task">+ Задача</button><button class="primary" data-action="new-deal">+ Новый заказ</button>':tab==="clients"?'<button class="primary" data-action="new-client">+ Новый клиент</button>':tab==="tasks"?'<button class="primary" data-action="new-task">+ Новая задача</button>':""}</div></header>${content}</main><nav class="mobile-bar">${navButton("pipeline","Воронка")}${navButton("clients","Клиенты")}${navButton("tasks","Задачи")}${navButton("spam","Спам")}</nav></div>`;
+  root.innerHTML=`<div class="shell"><aside class="sidebar"><div class="brand">SATORI</div><div class="eyebrow">LAB / CRM</div><nav class="nav">${navButton("pipeline","Воронка",s.active)}${navButton("clients","Клиенты",data.contacts.length)}${navButton("tasks","Задачи",s.due)}${navButton("spam","Спам",data.deals.filter(d=>d.isSpam).length)}</nav><div class="sidebar-foot"><button type="button" data-logout>Выйти</button></div></aside><main class="main"><header class="topbar"><div><h1>${esc(title)}</h1><p>${esc(subtitle)}</p></div><button type="button" class="mobile-logout secondary" data-logout>Выйти</button><div class="actions">${tab==="pipeline"?'<button class="secondary" data-action="new-task">+ Задача</button><button class="primary" data-action="new-deal">+ Новый заказ</button>':tab==="clients"?'<button class="primary" data-action="new-client">+ Новый клиент</button>':tab==="tasks"?'<button class="primary" data-action="new-task">+ Новая задача</button>':""}</div></header>${content}</main><nav class="mobile-bar">${navButton("pipeline","Воронка")}${navButton("clients","Клиенты")}${navButton("tasks","Задачи")}${navButton("spam","Спам")}</nav></div>`;
   root.querySelectorAll("[data-tab]").forEach(btn=>btn.addEventListener("click",()=>{tab=btn.dataset.tab;search="";render();}));
-  root.querySelector("#logout")?.addEventListener("click",logout);
+  root.querySelectorAll("[data-logout]").forEach(button=>button.addEventListener("click",logout));
   root.querySelectorAll("[data-action]").forEach(btn=>btn.addEventListener("click",()=>openModal(btn.dataset.action)));
 }
 
@@ -59,8 +59,29 @@ function dealCard(d){
 }
 
 function pipelineView(){
-  const columns=data.stages.map(stage=>{const deals=data.deals.filter(d=>!d.isSpam&&d.stage===stage);return `<section class="column" data-stage="${esc(stage)}"><div class="column-head"><b>${esc(stage)}</b><span>${deals.length}</span></div>${deals.map(dealCard).join("")}</section>`}).join("");
-  shell(`${statCards()}<div class="kanban">${columns}</div>`,`Проекты`,`Весь путь Satori — от первого запроса до доставки`);
+  const stages = new Map(data.stages.map(stage => [stage, []]));
+  for (const deal of data.deals) {
+    if (!deal.isSpam) stages.get(deal.stage)?.push(deal);
+  }
+  const columns = Array.from(stages, ([stage, deals]) =>
+    `<section class="column" data-stage="${esc(stage)}"><div class="column-head"><b>${esc(stage)}</b><span>${deals.length}</span></div>${deals.map(dealCard).join("")}</section>`
+  ).join("");
+  const mostDeals = Math.max(1, ...Array.from(stages.values(), deals => deals.length));
+  const stageRows = Array.from(stages, ([stage, deals]) =>
+    `<li><span>${esc(stage)}</span><meter min="0" max="${mostDeals}" value="${deals.length}" aria-hidden="true"></meter><b>${deals.length}</b></li>`
+  ).join("");
+  shell(
+    `<section class="project-overview" aria-label="Сводка проектов">
+      <div class="overview-stages"><h2>Проекты по этапам</h2><ul>${stageRows}</ul></div>
+      ${statCards()}
+    </section>
+    <section aria-labelledby="pipeline-title">
+      <h2 class="pipeline-title" id="pipeline-title">Воронка</h2>
+      <div class="kanban" tabindex="0" aria-labelledby="pipeline-title">${columns}</div>
+    </section>`,
+    "Проекты",
+    "Весь путь Satori — от первого запроса до доставки"
+  );
   root.querySelectorAll(".deal").forEach(card=>{
     card.addEventListener("dragstart",()=>card.classList.add("dragging"));
     card.addEventListener("dragend",()=>card.classList.remove("dragging"));

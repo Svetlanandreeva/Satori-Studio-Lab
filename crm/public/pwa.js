@@ -20,7 +20,7 @@ function toast(text){
 }
 async function registration(){
   if(!("serviceWorker" in navigator)) return null;
-  await navigator.serviceWorker.register("/sw.js?v=22");
+  await navigator.serviceWorker.register("/sw.js?v=23");
   return navigator.serviceWorker.ready;
 }
 function base64Key(value){
