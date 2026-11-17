@@ -11,11 +11,29 @@ const rubles = new Intl.NumberFormat("ru-RU", {
   minimumFractionDigits: 0,
 });
 
+const projectStatuses = {
+  "": "Без статуса",
+  planned: "Запланирован",
+  "in-progress": "В работе",
+  "on-hold": "Приостановлен",
+  done: "Завершён",
+  canceled: "Отменён",
+};
+const stepStatuses = { pending: "Не начат", "in-progress": "В работе", done: "Готов" };
+const commonSteps = ["Корпус", "Стекло", "Покраска"];
+
+type ProjectStatus = keyof typeof projectStatuses;
+type StepStatus = keyof typeof stepStatuses;
+type Step = { name: string; status: StepStatus; notes: string };
+type DraftStep = Step & { key: string };
 type Entry = { label: string; date: string; amount: number };
 type Contact = { name: string; details: string };
 type DraftContact = Contact & { key: string };
 type ProjectFields = {
   name: string;
+  status?: ProjectStatus;
+  notes?: string;
+  steps?: Step[];
   contacts: Contact[];
   leadId: string;
   startDate: string;
@@ -28,7 +46,10 @@ type ProjectFields = {
 type DocumentFile = { id: string; name: string; size: number };
 type Project = ProjectFields & { id: string; revision: number; documents: DocumentFile[] };
 type DraftEntry = Omit<Entry, "amount"> & { amount: string; key: string };
-type Draft = Omit<ProjectFields, "contacts" | "budget" | "price" | "expenses" | "payments"> & {
+type Draft = Omit<ProjectFields, "status" | "notes" | "steps" | "contacts" | "budget" | "price" | "expenses" | "payments"> & {
+  status: ProjectStatus;
+  notes: string;
+  steps: DraftStep[];
   contacts: DraftContact[];
   budget: string;
   price: string;
@@ -49,6 +70,9 @@ function toDraft(project?: Project): Draft {
   }));
   return {
     name: project?.name ?? "",
+    status: project ? project.status ?? "" : "planned",
+    notes: project?.notes ?? "",
+    steps: (project?.steps ?? []).map((step) => ({ ...step, key: crypto.randomUUID() })),
     contacts: (project?.contacts ?? []).map(draftContact),
     leadId: project?.leadId ?? "",
     startDate: project?.startDate ?? "",
@@ -82,6 +106,55 @@ function dateLabel(value: string) {
 
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return <label className="project-field"><span>{label}</span>{children}</label>;
+}
+
+function WorkSteps({ steps, onChange }: { steps: DraftStep[]; onChange: (steps: DraftStep[]) => void }) {
+  const done = steps.filter((step) => step.status === "done").length;
+  const remaining = steps.length - done;
+  const presets = commonSteps.filter((name) => !steps.some((step) => step.name.trim().toLowerCase() === name.toLowerCase()));
+
+  function add(name = "") {
+    onChange([...steps, { key: crypto.randomUUID(), name, status: "pending", notes: "" }]);
+  }
+
+  function update(key: string, patch: Partial<Step>) {
+    onChange(steps.map((item) => item.key === key ? { ...item, ...patch } : item));
+  }
+
+  return <section className="fa-card project-card">
+    <div className="project-card-head">
+      <div>
+        <h2>Этапы работы</h2>
+        {steps.length > 0 && <p className="project-muted">Готово: {done} из {steps.length} · Осталось: {remaining}</p>}
+      </div>
+      <button className="fa-outline-button" type="button" disabled={steps.length >= 50} onClick={() => add()}>
+        <Plus size={16} /> Добавить этап
+      </button>
+    </div>
+    {presets.length > 0 && steps.length < 50 && <div className="project-step-presets" role="group" aria-label="Быстрое добавление этапа">
+      {presets.map((name) => <button className="fa-outline-button" type="button" key={name} onClick={() => add(name)}>
+        <Plus size={14} /> {name}
+      </button>)}
+    </div>}
+    {steps.map((step, index) => <div className="project-step" key={step.key}>
+      <Field label="Название этапа">
+        <input required maxLength={200} value={step.name} placeholder="Например, упаковка"
+          onChange={(event) => update(step.key, { name: event.target.value })} />
+      </Field>
+      <Field label="Статус этапа">
+        <select value={step.status} onChange={(event) => update(step.key, { status: event.target.value as StepStatus })}>
+          {Object.entries(stepStatuses).map(([value, label]) => <option value={value} key={value}>{label}</option>)}
+        </select>
+      </Field>
+      <button className="fa-outline-button project-icon" type="button" aria-label={`Удалить этап ${step.name || index + 1}`}
+        onClick={() => onChange(steps.filter((item) => item.key !== step.key))}><Trash2 size={16} /></button>
+      <div className="project-wide-field">
+        <Field label="Комментарий к этапу">
+          <textarea rows={2} maxLength={1000} value={step.notes} onChange={(event) => update(step.key, { notes: event.target.value })} />
+        </Field>
+      </div>
+    </div>)}
+  </section>;
 }
 
 function Entries({ kind, entries, onChange }: {
@@ -250,6 +323,7 @@ export default function AdminProjectsPage({ token, leads, onDirtyChange }: {
       ...draft,
       contacts: draft.contacts.map(({ name, details }) => ({ name: name.trim(), details: details.trim() }))
         .filter(({ name, details }) => name || details),
+      steps: draft.steps.map(({ name, status, notes }) => ({ name, status, notes })),
       budget: draft.budget.trim() ? kopecks(draft.budget) : null,
       price: draft.price.trim() ? kopecks(draft.price) : null,
       expenses: serializeRows(draft.expenses),
@@ -346,9 +420,15 @@ export default function AdminProjectsPage({ token, leads, onDirtyChange }: {
         {projects.map((project) => {
           const [first, ...otherContacts] = project.contacts ?? [];
           const contact = first?.name || first?.details;
+          const steps = project.steps ?? [];
+          const done = steps.filter((step) => step.status === "done").length;
           return <button className="project-list-item" key={project.id} type="button" disabled={busy}
             aria-current={selected?.id === project.id || undefined} onClick={() => open(project)}>
             <strong>{project.name}</strong>
+            <span className="project-list-work">
+              <small className="project-status" data-status={project.status || "unset"}>{projectStatuses[project.status ?? ""]}</small>
+              {steps.length > 0 && <small>Этапы: {done}/{steps.length}</small>}
+            </span>
             <span>{contact ? `${contact}${otherContacts.length ? ` +${otherContacts.length}` : ""}`
               : project.dueDate ? `До ${dateLabel(project.dueDate)}` : "Открыть проект"}</span>
           </button>;
@@ -366,6 +446,11 @@ export default function AdminProjectsPage({ token, leads, onDirtyChange }: {
             <div className="project-card-head"><h2>{selected ? "Карточка проекта" : "Новый проект"}</h2></div>
             <div className="project-form-grid">
               <Field label="Название проекта"><input required maxLength={200} value={draft.name} onChange={(event) => edit({ name: event.target.value })} /></Field>
+              <Field label="Статус проекта">
+                <select value={draft.status} onChange={(event) => edit({ status: event.target.value as ProjectStatus })}>
+                  {Object.entries(projectStatuses).map(([value, label]) => <option value={value} key={value}>{label}</option>)}
+                </select>
+              </Field>
               <Field label="Заявка с сайта">
                 <select value={draft.leadId} onChange={(event) => linkLead(event.target.value, draft.contacts)}>
                   <option value="">Без привязки</option>
@@ -379,8 +464,15 @@ export default function AdminProjectsPage({ token, leads, onDirtyChange }: {
               <Field label="Срок сдачи"><input type="date" min={draft.startDate || undefined} value={draft.dueDate} onChange={(event) => edit({ dueDate: event.target.value })} /></Field>
               <Field label="Бюджет расходов, ₽"><input inputMode="decimal" maxLength={18} value={draft.budget} onChange={(event) => edit({ budget: event.target.value })} /></Field>
               <Field label="Сумма по договору, ₽"><input inputMode="decimal" maxLength={18} value={draft.price} onChange={(event) => edit({ price: event.target.value })} /></Field>
+              <div className="project-wide-field">
+                <Field label="Комментарий к проекту">
+                  <textarea rows={3} maxLength={4000} value={draft.notes} placeholder="Подробности заказа и договорённости"
+                    onChange={(event) => edit({ notes: event.target.value })} />
+                </Field>
+              </div>
             </div>
           </section>
+          <WorkSteps steps={draft.steps} onChange={(steps) => edit({ steps })} />
           <section className="fa-card project-card">
             <div className="project-card-head">
               <h2>Контакты</h2>

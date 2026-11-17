@@ -8,6 +8,8 @@ import { requireAdmin } from "./auth.js";
 const maxFileSize = 10 * 1024 * 1024;
 const fileTypes = /\.(pdf|docx?|xlsx?|csv|txt|jpe?g|png|webp|heic|dwg|dxf|step|stp)$/i;
 const uuid = /^[0-9a-f-]{36}$/;
+const projectStatuses = ["", "planned", "in-progress", "on-hold", "done", "canceled"];
+const stepStatuses = ["pending", "in-progress", "done"];
 
 class ProjectError extends Error {
   constructor(status, message) {
@@ -72,6 +74,28 @@ function projectContacts(body, existing) {
   })).filter((item) => item.name || item.details);
 }
 
+function workDetails(body, existing) {
+  const status = body.status === undefined ? existing?.status ?? "" : body.status;
+  if (!projectStatuses.includes(status)) throw new ProjectError(400, "Выберите статус проекта.");
+
+  const steps = body.steps === undefined ? existing?.steps ?? [] : body.steps;
+  if (!Array.isArray(steps) || steps.length > 50) {
+    throw new ProjectError(400, "В одном проекте доступно до 50 этапов.");
+  }
+  return {
+    status,
+    notes: field(body.notes === undefined ? existing?.notes ?? "" : body.notes, 4000, "Комментарий к проекту"),
+    steps: steps.map((step) => {
+      if (!stepStatuses.includes(step?.status)) throw new ProjectError(400, "Выберите статус этапа.");
+      return {
+        name: field(step.name, 200, "Название этапа", true),
+        status: step.status,
+        notes: field(step.notes, 1000, "Комментарий к этапу"),
+      };
+    }),
+  };
+}
+
 function projectFields(body, existing) {
   const startDate = date(body?.startDate);
   const dueDate = date(body?.dueDate);
@@ -83,6 +107,7 @@ function projectFields(body, existing) {
     name: field(body.name, 200, "Название проекта", true),
     contact: contacts[0]?.details || contacts[0]?.name || "",
     contacts,
+    ...workDetails(body, existing),
     leadId: field(body.leadId, 100, "Заявка"),
     startDate,
     dueDate,
