@@ -33,8 +33,8 @@ export default function ProjectShipment({ token, date, waybill, savedWaybill, on
   date: string;
   waybill: string;
   savedWaybill: string;
-  onDate: (date: string) => void;
-  onWaybill: (waybill: string) => void;
+  onDate?: (date: string) => void;
+  onWaybill?: (waybill: string) => void;
 }) {
   const [result, setResult] = useState<{ number: string; tracking: Tracking } | null>(null);
   const [lookup, setLookup] = useState({ number: savedWaybill, attempt: 0 });
@@ -46,6 +46,7 @@ export default function ProjectShipment({ token, date, waybill, savedWaybill, on
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
   const number = normalizeWaybill(waybill);
+  const editable = Boolean(onDate && onWaybill);
   const status = result?.number === number ? result.tracking : null;
   const pending = loading && lookup.number === number;
 
@@ -102,18 +103,21 @@ export default function ProjectShipment({ token, date, waybill, savedWaybill, on
 
   return <section className="fa-card project-card">
     <div className="project-card-head"><h2 className="project-shipment-title"><Truck size={18} /> Отгрузка</h2></div>
-    <div className="project-form-grid">
+    {editable ? <div className="project-form-grid">
       <label className="project-field"><span>Дата отгрузки</span>
-        <input type="date" value={date} onChange={(event) => onDate(event.target.value)} />
+        <input type="date" value={date} onChange={(event) => onDate?.(event.target.value)} />
       </label>
       <label className="project-field"><span>Номер накладной Деловых Линий</span>
         <input value={waybill} maxLength={64} onChange={(event) => {
-          onWaybill(event.target.value);
+          onWaybill?.(event.target.value);
           setCopied(false);
           setError("");
         }} />
       </label>
-    </div>
+    </div> : <dl className="project-summary-details">
+      <div><dt>Дата отгрузки</dt><dd>{date ? date.split("-").reverse().join(".") : "—"}</dd></div>
+      <div><dt>Накладная Деловых Линий</dt><dd>{number || "—"}</dd></div>
+    </dl>}
     {number && <>
       <div className="project-shipment-actions">
         <button type="button" className="fa-outline-button" disabled={pending || connecting} onClick={() => {
@@ -129,11 +133,13 @@ export default function ProjectShipment({ token, date, waybill, savedWaybill, on
       {!pending && status?.status === "ok" && <p className="project-shipment-status" role="status">
         <strong>{status.label}</strong><span>{statusDate(status.date)}</span>
       </p>}
-      {!pending && status && status.status !== "ok" && <p className="project-muted" role="status">{messages[status.status]}</p>}
-      {(status?.status === "setup" || status?.status === "access") && <button type="button" className="fa-outline-button project-tracking-setup" aria-expanded={settings} onClick={() => setSettings((value) => !value)}>
+      {!pending && status && status.status !== "ok" && <p className="project-muted" role="status">
+        {!editable && status.status === "setup" ? "Автоматический статус можно подключить при редактировании проекта." : messages[status.status]}
+      </p>}
+      {editable && (status?.status === "setup" || status?.status === "access") && <button type="button" className="fa-outline-button project-tracking-setup" aria-expanded={settings} onClick={() => setSettings((value) => !value)}>
         {settings ? "Закрыть настройки" : "Подключить Деловые Линии"}
       </button>}
-      {settings && <div className="project-shipment-actions">
+      {editable && settings && <div className="project-shipment-actions">
         <label className="project-field"><span>API-ключ Деловых Линий</span>
           <input type="password" value={key} maxLength={36} autoComplete="off" onChange={(event) => setKey(event.target.value)}
             onKeyDown={(event) => { if (event.key === "Enter") event.preventDefault(); }} />

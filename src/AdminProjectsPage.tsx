@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import type { FormEvent, ReactNode } from "react";
-import { ArrowLeft, Download, Plus, Trash2, Upload } from "lucide-react";
+import { ArrowLeft, Download, Pencil, Plus, Trash2, Upload } from "lucide-react";
 import "./styles/admin-projects.css";
 import ProjectShipment, { normalizeWaybill } from "./ProjectShipment";
 
@@ -115,6 +115,90 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
   return <label className="project-field"><span>{label}</span>{children}</label>;
 }
 
+function ProjectMetrics({ spent, received, budget, price }: {
+  spent: number; received: number; budget: number | null; price: number | null;
+}) {
+  const budgetLeft = budget === null ? null : budget - spent;
+  const paymentLeft = price === null ? null : Math.max(0, price - received);
+  const overpaid = price === null ? 0 : received - price;
+  return <div className="project-metrics">
+    <div className="fa-stat"><span>Потрачено · себестоимость</span><b>{money(spent)}</b></div>
+    <div className="fa-stat"><span>Остаток бюджета</span><b>{budgetLeft === null ? "—" : money(budgetLeft)}</b>
+      {budgetLeft !== null && budgetLeft < 0 && <small>Превышен бюджет</small>}
+    </div>
+    <div className="fa-stat"><span>Получено от клиента</span><b>{money(received)}</b></div>
+    <div className="fa-stat"><span>Осталось получить</span><b>{paymentLeft === null ? "—" : money(paymentLeft)}</b>
+      {overpaid > 0 && <small>Переплата {money(overpaid)}</small>}
+    </div>
+  </div>;
+}
+
+function EntryHistory({ title, entries }: { title: string; entries: Entry[] }) {
+  return <details className="fa-card project-card project-history">
+    <summary>{title} <small>{entries.length}</small></summary>
+    {entries.length ? <ul className="project-summary-rows">
+      {entries.map((entry, index) => <li key={index}>
+        <div><strong>{entry.label || "Оплата"}</strong>{entry.date && <small>{dateLabel(entry.date)}</small>}</div>
+        <b>{money(entry.amount)}</b>
+      </li>)}
+    </ul> : <p className="project-muted">Записей пока нет.</p>}
+  </details>;
+}
+
+function ProjectSummary({ project, token, busy, download }: {
+  project: Project; token: string; busy: boolean; download: (file: DocumentFile) => void;
+}) {
+  const steps = project.steps ?? [];
+  const contacts = project.contacts ?? [];
+  const done = steps.filter((step) => step.status === "done").length;
+  return <div className="project-summary">
+    <ProjectMetrics budget={project.budget} price={project.price}
+      spent={project.expenses.reduce((total, item) => total + item.amount, 0)}
+      received={project.payments.reduce((total, item) => total + item.amount, 0)} />
+    <div className="project-summary-grid">
+      <section className="fa-card project-card">
+        <div className="project-card-head">
+          <h2>О проекте</h2>
+          <span className="project-status" data-status={project.status || "unset"}>{projectStatuses[project.status ?? ""]}</span>
+        </div>
+        <dl className="project-summary-details">
+          <div><dt>Дата начала</dt><dd>{dateLabel(project.startDate)}</dd></div>
+          <div><dt>Срок сдачи</dt><dd>{dateLabel(project.dueDate)}</dd></div>
+          <div><dt>Бюджет расходов</dt><dd>{project.budget == null ? "—" : money(project.budget)}</dd></div>
+          <div><dt>Сумма по договору</dt><dd>{project.price == null ? "—" : money(project.price)}</dd></div>
+        </dl>
+        {project.notes && <p className="project-summary-notes">{project.notes}</p>}
+      </section>
+      <ProjectShipment key={project.id} token={token} date={project.shipmentDate ?? ""}
+        waybill={project.waybill ?? ""} savedWaybill={project.waybill ?? ""} />
+      <section className="fa-card project-card">
+        <div className="project-card-head"><h2>Этапы работы</h2>{steps.length > 0 && <small>Готово {done} из {steps.length}</small>}</div>
+        {steps.length ? <ul className="project-summary-rows">{steps.map((step, index) => <li key={index}>
+          <div><strong>{step.name}</strong>{step.notes && <small>{step.notes}</small>}</div>
+          <span className="project-status" data-status={step.status}>{stepStatuses[step.status]}</span>
+        </li>)}</ul> : <p className="project-muted">Этапы ещё не добавлены.</p>}
+      </section>
+      <section className="fa-card project-card">
+        <h2>Контакты</h2>
+        {contacts.length ? <ul className="project-summary-rows">{contacts.map((contact, index) => <li key={index}>
+          <div>{contact.name && <strong>{contact.name}</strong>}{contact.details && <span>{contact.details}</span>}</div>
+        </li>)}</ul> : <p className="project-muted">Контакты ещё не добавлены.</p>}
+      </section>
+      <EntryHistory title="Покупки и расходы" entries={project.expenses} />
+      <EntryHistory title="Оплаты от клиента" entries={project.payments} />
+      <section className="fa-card project-card project-wide-field">
+        <h2>Документы</h2>
+        {project.documents.length ? <ul className="project-summary-rows">{project.documents.map((file) => <li key={file.id}>
+          <div><strong>{file.name}</strong><small>{Math.ceil(file.size / 1024)} КБ</small></div>
+          <button className="fa-outline-button project-icon" type="button" disabled={busy} aria-label={`Скачать ${file.name}`} onClick={() => download(file)}>
+            <Download size={16} />
+          </button>
+        </li>)}</ul> : <p className="project-muted">Документы ещё не загружены.</p>}
+      </section>
+    </div>
+  </div>;
+}
+
 function WorkSteps({ steps, onChange }: { steps: DraftStep[]; onChange: (steps: DraftStep[]) => void }) {
   const done = steps.filter((step) => step.status === "done").length;
   const remaining = steps.length - done;
@@ -222,7 +306,14 @@ export default function AdminProjectsPage({ token, leads, onDirtyChange, initial
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
   const [reload, setReload] = useState(0);
-  const listHeading = useRef<HTMLHeadingElement>(null);
+  const heading = useRef<HTMLHeadingElement>(null);
+  const view = draft ? "edit" : selected ? "summary" : "list";
+  const projectId = selected?.id;
+
+  useEffect(() => {
+    window.scrollTo(0, 0);
+    heading.current?.focus({ preventScroll: true });
+  }, [view, projectId]);
 
   async function request(path: string, options: RequestInit = {}) {
     const headers = new Headers(options.headers);
@@ -251,7 +342,6 @@ export default function AdminProjectsPage({ token, leads, onDirtyChange, initial
         const project = items.find((item: Project) => item.id === initialProjectId);
         if (!project) throw new Error("Проект не найден.");
         setSelected(project);
-        setDraft(toDraft(project));
       }
     }).catch((reason: Error) => {
       if (!controller.signal.aborted) setError(reason.message);
@@ -276,9 +366,7 @@ export default function AdminProjectsPage({ token, leads, onDirtyChange, initial
     return () => window.removeEventListener("beforeunload", beforeUnload);
   }, [dirty]);
 
-  function open(project?: Project) {
-    if (dirty && !window.confirm("Открыть другой проект без сохранения изменений?")) return;
-    setSelected(project ?? null);
+  function startEditing(project?: Project) {
     setDraft(toDraft(project));
     markDirty(false);
     setError("");
@@ -289,8 +377,6 @@ export default function AdminProjectsPage({ token, leads, onDirtyChange, initial
     setSelected(null);
     setDraft(null);
     markDirty(false);
-    window.scrollTo(0, 0);
-    listHeading.current?.focus({ preventScroll: true });
   }
 
   function edit(patch: Partial<Draft>) {
@@ -405,33 +491,37 @@ export default function AdminProjectsPage({ token, leads, onDirtyChange, initial
     edit({ leadId, contacts });
   }
 
-  const spent = draft ? sum(draft.expenses) : 0;
-  const received = draft ? sum(draft.payments) : 0;
-  const budgetLeft = draft ? kopecks(draft.budget) - spent : 0;
-  const paymentLeft = draft ? Math.max(0, kopecks(draft.price) - received) : 0;
-  const overpaid = draft ? received - kopecks(draft.price) : 0;
-
   return <div className="projects-workspace">
     <div className="fa-page-head">
-      <div><h1>Проекты</h1><p>Бюджет, покупки, оплаты и документы по каждому заказу.</p></div>
-      {draft ? <button className="fa-outline-button" type="button" disabled={busy} onClick={() => {
-        if (dirty && !window.confirm("Вернуться к списку без сохранения изменений?")) return;
+      <div>
+        <h1 ref={heading} tabIndex={-1}>{draft ? selected ? "Редактирование проекта" : "Новый проект" : selected?.name ?? "Проекты"}</h1>
+        {draft && selected && <p>{selected.name}</p>}
+      </div>
+      {view === "list" ? <button className="fa-outline-button" type="button" disabled={busy} onClick={() => startEditing()}>
+        <Plus size={16} /> Новый проект
+      </button> : <div className="project-view-actions">
+        <button className="fa-outline-button" type="button" disabled={busy} onClick={() => {
+        if (dirty && !window.confirm("Выйти из редактирования без сохранения изменений?")) return;
         setError("");
         setNotice("");
-        showList();
-      }}>
-        <ArrowLeft size={16} /> К списку
-      </button> : <button className="fa-outline-button" type="button" disabled={busy} onClick={() => open()}>
-        <Plus size={16} /> Новый проект
-      </button>}
+        if (draft && selected) {
+          setDraft(null);
+          markDirty(false);
+        } else showList();
+        }}>
+          <ArrowLeft size={16} /> {draft && selected ? "К сводке" : "К списку"}
+        </button>
+        {selected && !draft && <button className="fa-primary" type="button" disabled={busy} onClick={() => startEditing(selected)}>
+          <Pencil size={16} /> Редактировать
+        </button>}
+      </div>}
     </div>
     {error && <div className="fa-error" role="alert">{error}
-      {!draft && <button className="fa-outline-button" type="button" disabled={busy} onClick={() => setReload((id) => id + 1)}>Повторить</button>}
+      {view === "list" && <button className="fa-outline-button" type="button" disabled={busy} onClick={() => setReload((id) => id + 1)}>Повторить</button>}
     </div>}
     {notice && <p className="project-notice" role="status">{notice}</p>}
-    <div className={draft ? "projects-layout" : undefined}>
-      <section className="fa-card project-card projects-list" aria-label="Список проектов">
-        <h2 ref={listHeading} tabIndex={-1}>Все проекты</h2>
+    {view === "list" && <section className="fa-card project-card projects-list" aria-label="Список проектов">
+        <h2>Все проекты</h2>
         {projects.length === 0 && <p className="project-muted">{busy ? "Загрузка…" : "Проектов пока нет."}</p>}
         {projects.map((project) => {
           const [first, ...otherContacts] = project.contacts ?? [];
@@ -439,7 +529,11 @@ export default function AdminProjectsPage({ token, leads, onDirtyChange, initial
           const steps = project.steps ?? [];
           const done = steps.filter((step) => step.status === "done").length;
           return <button className="project-list-item" key={project.id} type="button" disabled={busy}
-            aria-current={selected?.id === project.id || undefined} onClick={() => open(project)}>
+            onClick={() => {
+              setSelected(project);
+              setError("");
+              setNotice("");
+            }}>
             <strong>{project.name}</strong>
             <span className="project-list-work">
               <small className="project-status" data-status={project.status || "unset"}>{projectStatuses[project.status ?? ""]}</small>
@@ -450,17 +544,14 @@ export default function AdminProjectsPage({ token, leads, onDirtyChange, initial
             {project.shipmentDate && <span>Отгрузка: {dateLabel(project.shipmentDate)}</span>}
           </button>;
         })}
-      </section>
+      </section>}
+      {selected && !draft && <ProjectSummary project={selected} token={token} busy={busy} download={(file) => void downloadDocument(selected, file)} />}
       {draft && <form className="project-editor" onSubmit={save}>
-        <div className="project-metrics">
-          <div className="fa-stat"><span>Потрачено · себестоимость</span><b>{money(spent)}</b></div>
-          <div className="fa-stat"><span>Остаток бюджета</span><b>{draft.budget ? money(budgetLeft) : "—"}</b>{budgetLeft < 0 && draft.budget && <small>Превышен бюджет</small>}</div>
-          <div className="fa-stat"><span>Получено от клиента</span><b>{money(received)}</b></div>
-          <div className="fa-stat"><span>Осталось получить</span><b>{draft.price ? money(paymentLeft) : "—"}</b>{overpaid > 0 && draft.price && <small>Переплата {money(overpaid)}</small>}</div>
-        </div>
+        <ProjectMetrics spent={sum(draft.expenses)} received={sum(draft.payments)}
+          budget={draft.budget.trim() ? kopecks(draft.budget) : null} price={draft.price.trim() ? kopecks(draft.price) : null} />
         <fieldset className="project-fields" disabled={busy}>
           <section className="fa-card project-card">
-            <div className="project-card-head"><h2>{selected ? "Карточка проекта" : "Новый проект"}</h2></div>
+            <div className="project-card-head"><h2>Данные проекта</h2></div>
             <div className="project-form-grid">
               <Field label="Название проекта"><input required maxLength={200} value={draft.name} onChange={(event) => edit({ name: event.target.value })} /></Field>
               <Field label="Статус проекта">
@@ -532,7 +623,7 @@ export default function AdminProjectsPage({ token, leads, onDirtyChange, initial
                   }} />
               </label>}
             </div>
-            <p className="project-muted">{selected ? "Договоры, счета, фото и чертежи. До 10 МБ на файл." : "Чтобы прикрепить файлы, сохраните проект и откройте его из списка."}</p>
+            <p className="project-muted">{selected ? "Договоры, счета, фото и чертежи. До 10 МБ на файл." : "Чтобы прикрепить файлы, сохраните проект и снова откройте редактирование из сводки."}</p>
             {selected?.documents.map((file) => <div className="project-document" key={file.id}>
               <span>{file.name}<small>{Math.ceil(file.size / 1024)} КБ</small></span>
               <button className="fa-outline-button project-icon" type="button" aria-label={`Скачать ${file.name}`} onClick={() => void downloadDocument(selected, file)}><Download size={16} /></button>
@@ -545,6 +636,5 @@ export default function AdminProjectsPage({ token, leads, onDirtyChange, initial
           </div>
         </fieldset>
       </form>}
-    </div>
   </div>;
 }
