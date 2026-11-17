@@ -4,7 +4,7 @@ import "./styles/admin-seasonality.css";
 
 // Сезонность спроса на дашборде админки.
 // Данные: /seasonality-data.json (public/), индексы по месяцам из Яндекс Вордстата.
-// Раз в месяц файл обновляет GitHub Action «Update CRM seasonality» (нужен секрет WORDSTAT_TOKEN).
+// Раз в месяц файл обновляет GitHub Action «Update CRM seasonality» (нужны секреты YANDEX_SEARCH_API_KEY и YANDEX_FOLDER_ID).
 // Дневная кривая — плавная интерполяция месячных индексов, поэтому «сегодня» сдвигается каждый день.
 
 type Series = { id: string; title: string; short?: string; note?: string; index: number[] };

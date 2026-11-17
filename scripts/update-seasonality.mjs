@@ -1,17 +1,21 @@
-// Обновляет crm/public/seasonality-data.json свежими цифрами из API Вордстата.
-// Запускается GitHub Action раз в месяц. Нужен секрет WORDSTAT_TOKEN (OAuth-токен с доступом wordstat:api).
-// Без токена ничего не меняет и завершается без ошибки.
+// Обновляет файлы сезонности свежими цифрами Вордстата через Yandex Search API (Yandex Cloud).
+// Старый api.wordstat.yandex.net закрыт: Вордстат API теперь живёт в Yandex Cloud.
+// Нужны секреты репозитория:
+//   YANDEX_SEARCH_API_KEY — API-ключ сервисного аккаунта с ролью search-api.webSearch.user (scope yc.search-api.execute);
+//   YANDEX_FOLDER_ID      — ID каталога в Yandex Cloud.
+// Без них ничего не меняет и завершается без ошибки. 4 запроса в месяц стоят копейки.
 import { readFileSync, writeFileSync } from "node:fs";
 import { seasonalIndex } from "./seasonality-lib.mjs";
 
 const FILE = new URL("../crm/public/seasonality-data.json", import.meta.url);
 // копия для дашборда админки на satorilabural.ru
 const SITE_FILE = new URL("../public/seasonality-data.json", import.meta.url);
-const TOKEN = process.env.WORDSTAT_TOKEN;
-const API = "https://api.wordstat.yandex.net/v1/dynamics";
+const API_KEY = process.env.YANDEX_SEARCH_API_KEY;
+const FOLDER_ID = process.env.YANDEX_FOLDER_ID;
+const API = "https://searchapi.api.cloud.yandex.net/v2/wordstat/dynamics";
 
-if (!TOKEN) {
-  console.log("WORDSTAT_TOKEN не задан — данные сезонности оставлены как есть.");
+if (!API_KEY || !FOLDER_ID) {
+  console.log("YANDEX_SEARCH_API_KEY или YANDEX_FOLDER_ID не заданы — данные сезонности оставлены как есть.");
   process.exit(0);
 }
 
@@ -27,16 +31,17 @@ async function dynamics(phrase) {
   for (let attempt = 1; attempt <= 3; attempt++) {
     const res = await fetch(API, {
       method: "POST",
-      headers: { "Content-Type": "application/json;charset=utf-8", Authorization: `Bearer ${TOKEN}` },
-      body: JSON.stringify({ phrase, period: "monthly", fromDate, toDate }),
+      headers: { "Content-Type": "application/json", Authorization: `Api-Key ${API_KEY}` },
+      body: JSON.stringify({ phrase, period: "PERIOD_MONTHLY", fromDate: `${fromDate}T00:00:00Z`, toDate: `${toDate}T23:59:59Z`, folderId: FOLDER_ID }),
     });
     if (res.ok) {
       const body = await res.json();
-      return new Map((body.dynamics || []).map((d) => [String(d.date).slice(0, 7), Number(d.count) || 0]));
+      const rows = body.results || body.dynamics || [];
+      return new Map(rows.map((d) => [String(d.date).slice(0, 7), Number(d.count) || 0]));
     }
     const text = await res.text();
-    if (res.status === 429 && attempt < 3) { await new Promise((r) => setTimeout(r, 2000 * attempt)); continue; }
-    throw new Error(`Вордстат ответил ${res.status} на «${phrase}»: ${text.slice(0, 300)}`);
+    if ((res.status === 429 || res.status >= 500) && attempt < 3) { await new Promise((r) => setTimeout(r, 2000 * attempt)); continue; }
+    throw new Error(`Search API ответил ${res.status} на «${phrase}»: ${text.slice(0, 300)}`);
   }
 }
 

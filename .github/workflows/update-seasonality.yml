@@ -1,8 +1,8 @@
 name: Update CRM seasonality
 
-# Раз в месяц берёт свежую динамику запросов из API Вордстата и обновляет
-# crm/public/seasonality-data.json. Сервер сам подтянет изменение из main.
-# Нужен секрет репозитория WORDSTAT_TOKEN; без него workflow ничего не меняет.
+# Раз в месяц берёт свежую динамику запросов Вордстата (Yandex Search API в Yandex Cloud)
+# и обновляет файлы сезонности для админки и CRM. Сервер сам подтянет изменение из main.
+# Нужны секреты YANDEX_SEARCH_API_KEY и YANDEX_FOLDER_ID; без них workflow ничего не меняет.
 on:
   schedule:
     - cron: "17 4 3 * *"
@@ -26,7 +26,8 @@ jobs:
           node-version: 20
       - name: Fetch Wordstat dynamics and recompute indices
         env:
-          WORDSTAT_TOKEN: ${{ secrets.WORDSTAT_TOKEN }}
+          YANDEX_SEARCH_API_KEY: ${{ secrets.YANDEX_SEARCH_API_KEY }}
+          YANDEX_FOLDER_ID: ${{ secrets.YANDEX_FOLDER_ID }}
         run: node scripts/update-seasonality.mjs
       - name: Commit if data changed
         run: |
