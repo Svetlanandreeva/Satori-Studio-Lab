@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { FormEvent, ReactNode } from "react";
 import { ArrowLeft, Download, Plus, Trash2, Upload } from "lucide-react";
 import "./styles/admin-projects.css";
+import ProjectShipment, { normalizeWaybill } from "./ProjectShipment";
 
 const endpoint = "/api/admin/projects";
 const rubles = new Intl.NumberFormat("ru-RU", {
@@ -38,6 +39,8 @@ type ProjectFields = {
   leadId: string;
   startDate: string;
   dueDate: string;
+  shipmentDate?: string;
+  waybill?: string;
   budget: number | null;
   price: number | null;
   expenses: Entry[];
@@ -46,7 +49,7 @@ type ProjectFields = {
 type DocumentFile = { id: string; name: string; size: number; createdAt?: string };
 export type Project = ProjectFields & { id: string; revision: number; documents: DocumentFile[] };
 type DraftEntry = Omit<Entry, "amount"> & { amount: string; key: string };
-type Draft = Omit<ProjectFields, "status" | "notes" | "steps" | "contacts" | "budget" | "price" | "expenses" | "payments"> & {
+type Draft = Omit<ProjectFields, "status" | "notes" | "steps" | "contacts" | "budget" | "price" | "expenses" | "payments" | "shipmentDate" | "waybill"> & {
   status: ProjectStatus;
   notes: string;
   steps: DraftStep[];
@@ -55,6 +58,8 @@ type Draft = Omit<ProjectFields, "status" | "notes" | "steps" | "contacts" | "bu
   price: string;
   expenses: DraftEntry[];
   payments: DraftEntry[];
+  shipmentDate: string;
+  waybill: string;
 };
 type ContactLead = { id: string; name?: string; company?: string; contact?: string; phone?: string; email?: string; isSpam?: boolean };
 
@@ -77,6 +82,8 @@ function toDraft(project?: Project): Draft {
     leadId: project?.leadId ?? "",
     startDate: project?.startDate ?? "",
     dueDate: project?.dueDate ?? "",
+    shipmentDate: project?.shipmentDate ?? "",
+    waybill: project?.waybill ?? "",
     budget: project?.budget != null ? String(project.budget / 100) : "",
     price: project?.price != null ? String(project.price / 100) : "",
     expenses: rows(project?.expenses ?? []),
@@ -329,6 +336,7 @@ export default function AdminProjectsPage({ token, leads, onDirtyChange, initial
     }));
     const payload = {
       ...draft,
+      waybill: normalizeWaybill(draft.waybill),
       contacts: draft.contacts.map(({ name, details }) => ({ name: name.trim(), details: details.trim() }))
         .filter(({ name, details }) => name || details),
       steps: draft.steps.map(({ name, status, notes }) => ({ name, status, notes })),
@@ -439,6 +447,7 @@ export default function AdminProjectsPage({ token, leads, onDirtyChange, initial
             </span>
             <span>{contact ? `${contact}${otherContacts.length ? ` +${otherContacts.length}` : ""}`
               : project.dueDate ? `До ${dateLabel(project.dueDate)}` : "Открыть проект"}</span>
+            {project.shipmentDate && <span>Отгрузка: {dateLabel(project.shipmentDate)}</span>}
           </button>;
         })}
       </section>
@@ -480,6 +489,8 @@ export default function AdminProjectsPage({ token, leads, onDirtyChange, initial
               </div>
             </div>
           </section>
+          <ProjectShipment key={selected?.id ?? "new"} token={token} date={draft.shipmentDate} waybill={draft.waybill}
+            savedWaybill={selected?.waybill ?? ""} onDate={(shipmentDate) => edit({ shipmentDate })} onWaybill={(waybill) => edit({ waybill })} />
           <WorkSteps steps={draft.steps} onChange={(steps) => edit({ steps })} />
           <section className="fa-card project-card">
             <div className="project-card-head">

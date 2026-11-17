@@ -4,6 +4,7 @@ import path from "node:path";
 import { randomUUID } from "node:crypto";
 import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { requireAdmin } from "./auth.js";
+import { normalizeWaybill, validWaybill } from "./dellinTracking.js";
 
 const maxFileSize = 10 * 1024 * 1024;
 const fileTypes = /\.(pdf|docx?|xlsx?|csv|txt|jpe?g|png|webp|heic|dwg|dxf|step|stp)$/i;
@@ -103,6 +104,8 @@ function projectFields(body, existing) {
     throw new ProjectError(400, "Срок проекта должен быть не раньше даты начала.");
   }
   const contacts = projectContacts(body, existing);
+  const waybill = normalizeWaybill(field(body.waybill === undefined ? existing?.waybill ?? "" : body.waybill, 64, "Номер накладной"));
+  if (waybill && !validWaybill(waybill)) throw new ProjectError(400, "Проверьте номер накладной.");
   return {
     name: field(body.name, 200, "Название проекта", true),
     contact: contacts[0]?.details || contacts[0]?.name || "",
@@ -111,6 +114,8 @@ function projectFields(body, existing) {
     leadId: field(body.leadId, 100, "Заявка"),
     startDate,
     dueDate,
+    shipmentDate: date(body.shipmentDate === undefined ? existing?.shipmentDate ?? "" : body.shipmentDate),
+    waybill,
     budget: body.budget === null ? null : amount(body.budget),
     price: body.price === null ? null : amount(body.price),
     expenses: entries(body.expenses, "Покупка"),

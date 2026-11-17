@@ -20,6 +20,7 @@ import { createImageResizeRoute } from "./imageResize.js";
 import { listPortfolio, savePortfolio } from "./portfolio.js";
 import { createProjectsRouter } from "./projects.js";
 import { createAdminAdvertisingRouter } from "./adminAdvertising.js";
+import { createDellinTrackingRouter } from "./dellinTracking.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 loadEnv({ path: path.join(__dirname, "..", ".env"), quiet: true });
@@ -46,6 +47,7 @@ app.use(cors());
 app.use("/api/admin/projects", createProjectsRouter(path.join(__dirname, "data")));
 app.use(express.json());
 app.use("/api/admin/advertising", createAdminAdvertisingRouter(path.join(__dirname, "data")));
+app.use("/api/admin/dellin-tracking", createDellinTrackingRouter(path.join(__dirname, "data")));
 app.get("/uploads/:file", createImageResizeRoute(UPLOADS_DIR));
 app.use("/uploads", express.static(UPLOADS_DIR, { maxAge: "1y", immutable: true }));
 

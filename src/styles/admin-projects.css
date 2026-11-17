@@ -276,3 +276,55 @@
     gap: 10px;
   }
 }
+
+.project-card .project-shipment-title,
+.project-shipment-actions,
+.project-shipment-status {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.project-shipment-actions,
+.project-tracking-setup,
+.project-tracker {
+  margin-top: 12px;
+}
+
+.project-shipment-actions:has(.project-field) {
+  align-items: end;
+}
+
+.project-shipment-actions a,
+.project-tracker a {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.project-shipment-status {
+  margin: 12px 0 0;
+  font-size: 13px;
+}
+
+.project-shipment-status strong {
+  padding: 5px 10px;
+  background: #e1f2e7;
+  color: #24583a;
+  border-radius: 999px;
+}
+
+.project-shipment-status span { color: var(--muted); }
+
+.project-tracker iframe {
+  display: block;
+  width: 100%;
+  height: 420px;
+  border: 0;
+}
+
+.project-tracker a {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
