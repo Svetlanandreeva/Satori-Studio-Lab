@@ -176,68 +176,59 @@
   }
 }
 
+@font-face {
+  font-family: "Marck Script";
+  src: url("fonts/marck-script.woff") format("woff");
+  font-weight: 400;
+  font-display: swap;
+}
+
 .studio-founder {
-  display: grid;
-  grid-template-columns: minmax(0, .75fr) minmax(0, 1fr);
-  align-items: start;
-  gap: clamp(18px, 5vw, 62px);
-  margin-top: clamp(30px, 6vw, 76px);
-  padding: clamp(24px, 5vw, 56px);
-  border: 1px solid #70263e28;
-  border-radius: 20px;
-  background: #f3e9e9;
+  --letter-gutter: clamp(32px, 8vw, 108px);
+  position: relative;
+  max-width: 1000px;
+  margin: clamp(32px, 6vw, 76px) auto 0;
+  padding: clamp(26px, 5vw, 62px) clamp(20px, 6vw, 80px) clamp(26px, 5vw, 62px) var(--letter-gutter);
+  border: 1px solid #ded0bc;
+  border-radius: 4px 2px 8px 3px;
+  background:
+    radial-gradient(ellipse at 0 0, #b98c4b19, transparent 65%),
+    linear-gradient(135deg, #fffaf0, #f7ecdb);
+  box-shadow: 0 5px 12px #3a261011, 0 16px 34px -20px #3a26104d;
 }
 
-.studio-founder-role {
-  margin-bottom: 12px;
-  color: var(--wine);
-  font-size: 14px;
+.studio-founder::before {
+  position: absolute;
+  inset: 0 auto 0 calc(var(--letter-gutter) - clamp(12px, 2.8vw, 34px));
+  width: 1px;
+  background: #a85d5538;
+  content: "";
+  pointer-events: none;
+}
+
+.studio-founder .studio-founder-title {
+  margin: 0 0 clamp(12px, 2vw, 24px);
+  color: #70263e;
+  font-size: clamp(12px, 1.5vw, 15px);
   font-weight: 650;
+  letter-spacing: .06em;
+  line-height: 1.45;
 }
-
-.studio-founder h2 { font-size: clamp(30px, 4vw, 50px); }
 
 .studio-founder-message {
-  max-width: 60ch;
-  color: var(--muted);
+  color: #392539;
+  font-family: "Marck Script", Georgia, serif;
+  font-size: clamp(22px, 3.4vw, 34px);
+  font-weight: 400;
+  line-height: 1.36;
+  overflow-wrap: break-word;
 }
 
-.studio-founder-message strong { color: var(--ink); }
-.studio-founder-message p + p { margin-top: 12px; }
+.studio-founder-message p + p { margin-top: .54em; }
+.studio-founder-message .studio-founder-signoff { margin-top: .76em; }
 
-@media (max-width: 680px) {
-  .studio-founder { grid-template-columns: 1fr; }
-}
-
-/* Burgundy accents for the Ural suppliers section */
-.studio-section .sourcing-panel.sourcing-spotlight {
-  position: relative;
-  border: 1px solid rgba(112, 38, 62, .23);
-  border-left: 4px solid var(--wine, #70263e);
-  background:
-    radial-gradient(ellipse at 94% 4%, rgba(153, 67, 95, .12), transparent 56%),
-    linear-gradient(124deg, #f7efec 0%, #f4ebe8 57%, #f1e6e3 100%);
-  box-shadow: 0 12px 36px rgba(60, 28, 39, .045);
-}
-.studio-section .sourcing-spotlight h2 {
-  color: #262020;
-}
-.studio-section .sourcing-title-accent {
-  color: var(--wine, #70263e);
-}
-.studio-section .sourcing-spotlight p {
-  color: #625b58;
-}
-.studio-section .sourcing-spotlight p strong {
-  color: var(--wine, #70263e);
-  font-weight: 750;
-}
-@media (prefers-reduced-motion: no-preference) {
-  .studio-section .sourcing-spotlight.studio-light-on strong {
-    animation-name: sourcing-burgundy-emphasis;
-  }
-  @keyframes sourcing-burgundy-emphasis {
-    0%, 100% { background-color: transparent; box-shadow: 0 0 0 transparent; }
-    36% { background-color: rgba(112, 38, 62, .13); box-shadow: 0 0 15px rgba(112, 38, 62, .18); }
-  }
+.studio-founder-signature {
+  color: #70263e;
+  font-size: 1.32em;
+  line-height: 1.12;
 }
