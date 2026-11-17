@@ -2,6 +2,7 @@ User-agent: *
 Allow: /
 Disallow: /admin
 Disallow: /api/
+Disallow: /promo/adm.html
 
 Host: satorilabural.ru
 Sitemap: https://satorilabural.ru/sitemap.xml

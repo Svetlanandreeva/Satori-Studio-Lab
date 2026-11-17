@@ -5,6 +5,7 @@
 #   server/  -> API (с перезапуском и откатом, если новая версия не стартует)
 #   src/     -> админка /admin (сборка на сервере; при ошибке остаётся прежняя версия)
 #   crm/     -> CRM на crm.satorilabural.ru
+#   scripts/server/nginx-redirects.conf -> 301 со старых адресов (с проверкой nginx -t и откатом)
 set -euo pipefail
 
 REPO="https://github.com/Svetlanandreeva/satori-studio-lab"
@@ -92,6 +93,30 @@ if [ -s "\$SRC/crm/server.js" ]; then
     [ -d "\$SRC/crm/node_modules" ] && ln -sfn "\$SRC/crm/node_modules" /var/www/satori/crm/node_modules
     ln -sfn /var/www/satori/backend /var/www/satori/server
     systemctl restart satori-crm 2>/dev/null || true
+  fi
+fi
+
+# ---------- NGINX: 301 со старых адресов магазина ----------
+RED_SRC="\$SRC/scripts/server/nginx-redirects.conf"
+RED_DST=/etc/nginx/snippets/satori-redirects.conf
+NCONF=/etc/nginx/sites-available/satori
+if [ -s "\$RED_SRC" ] && ! cmp -s "\$RED_SRC" "\$RED_DST"; then
+  mkdir -p /etc/nginx/snippets
+  [ -f "\$RED_DST" ] && cp "\$RED_DST" "\$RED_DST.prev" || : > "\$RED_DST.prev"
+  cp "\$RED_SRC" "\$RED_DST"
+  ADDED=no
+  if ! grep -q 'satori-redirects.conf' "\$NCONF"; then
+    cp "\$NCONF" "\$NCONF.bak-redirects"
+    sed -i '0,/client_max_body_size 64m;/{s|client_max_body_size 64m;|client_max_body_size 64m;\n    include /etc/nginx/snippets/satori-redirects.conf;|}' "\$NCONF"
+    ADDED=yes
+  fi
+  if nginx -t >/dev/null 2>&1; then
+    systemctl reload nginx
+  else
+    echo "nginx не принял редиректы — возвращаю как было"
+    cp "\$RED_DST.prev" "\$RED_DST"
+    [ "\$ADDED" = yes ] && cp "\$NCONF.bak-redirects" "\$NCONF"
+    nginx -t >/dev/null 2>&1 && systemctl reload nginx || true
   fi
 fi
 
