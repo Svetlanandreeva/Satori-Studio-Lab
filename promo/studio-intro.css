@@ -176,62 +176,35 @@
   }
 }
 
-@font-face {
-  font-family: "Marck Script";
-  src: url("fonts/marck-script.woff") format("woff");
-  font-weight: 400;
-  font-display: swap;
-}
-
 .studio-founder {
-  --letter-gutter: clamp(32px, 8vw, 108px);
-  position: relative;
-  max-width: 1000px;
+  max-width: 720px;
   margin: clamp(32px, 6vw, 76px) auto 0;
-  padding: clamp(26px, 5vw, 62px) clamp(20px, 6vw, 80px) clamp(26px, 5vw, 62px) var(--letter-gutter);
-  border: 1px solid #ded0bc;
-  border-radius: 4px 2px 8px 3px;
-  background:
-    radial-gradient(ellipse at 0 0, #b98c4b19, transparent 65%),
-    linear-gradient(135deg, #fffaf0, #f7ecdb);
-  box-shadow: 0 5px 12px #3a261011, 0 16px 34px -20px #3a26104d;
-}
-
-.studio-founder::before {
-  position: absolute;
-  inset: 0 auto 0 calc(var(--letter-gutter) - clamp(12px, 2.8vw, 34px));
-  width: 1px;
-  background: #a85d5538;
-  content: "";
-  pointer-events: none;
 }
 
 .studio-founder .studio-founder-title {
-  margin: 0 0 clamp(12px, 2vw, 24px);
-  color: #70263e;
-  font-size: clamp(12px, 1.5vw, 15px);
+  margin: 0 0 16px;
+  color: var(--wine, #70263e);
+  font-size: clamp(15px, 2vw, 19px);
   font-weight: 650;
-  letter-spacing: .06em;
+  letter-spacing: 0;
   line-height: 1.45;
 }
 
-.studio-founder-message {
-  color: #392539;
-  font-family: "Marck Script", Georgia, serif;
-  font-size: clamp(22px, 3.4vw, 34px);
-  font-weight: 400;
-  line-height: 1.36;
-  overflow-wrap: break-word;
+.studio-founder-image {
+  display: block;
+  width: 100%;
+  height: auto;
+  border-radius: 8px;
+  box-shadow: 0 12px 28px rgba(46, 29, 22, .12);
 }
 
-.studio-founder-message p + p { margin-top: .54em; }
-.studio-founder-message .studio-founder-signoff { margin-top: .76em; }
-
-.studio-founder-signature {
-  color: #70263e;
-  font-size: 1.32em;
-  line-height: 1.12;
+.studio-founder-transcript {
+  margin-top: 16px;
+  color: var(--muted);
 }
+
+.studio-founder-transcript p { margin: 12px 0 0; }
+
 /* Burgundy accents for the Ural suppliers section */
 .studio-section .sourcing-panel.sourcing-spotlight {
   position: relative;
