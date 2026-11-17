@@ -33,5 +33,6 @@ jobs:
           node --check crm/public/post-auth-loader.js
           node --check crm/public/sw.js
           node --check crm/public/pwa.js
+          node --check crm/public/seasonality-ui.js
       - name: Check CRM does not get trapped in DOM mutation feedback
-        run: node --test crm/tests/dom-feedback.test.cjs crm/tests/lead-cleanup.test.cjs
+        run: node --test crm/tests/dom-feedback.test.cjs crm/tests/lead-cleanup.test.cjs crm/tests/seasonality.test.cjs
