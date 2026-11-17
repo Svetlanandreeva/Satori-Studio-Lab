@@ -362,8 +362,7 @@
 }
 
 .project-shipment-actions,
-.project-tracking-setup,
-.project-tracker {
+.project-tracking-setup {
   margin-top: 12px;
 }
 
@@ -371,10 +370,24 @@
   align-items: end;
 }
 
-.project-shipment-actions a,
-.project-tracker a {
+.project-shipment-actions a:not(.project-tracker-link) {
   color: var(--muted);
   font-size: 13px;
+}
+
+.project-shipment-actions .project-tracker-link {
+  text-decoration: none;
+  color: var(--ink);
+  white-space: normal;
+}
+
+.projects-workspace .project-tracking-setup {
+  border: 0;
+  padding: 0;
+  background: transparent;
+  color: var(--muted);
+  font-size: 13px;
+  text-decoration: underline;
 }
 
 .project-shipment-status {
@@ -390,16 +403,3 @@
 }
 
 .project-shipment-status span { color: var(--muted); }
-
-.project-tracker iframe {
-  display: block;
-  width: 100%;
-  height: 420px;
-  border: 0;
-}
-
-.project-tracker a {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-}

@@ -3,14 +3,12 @@ import { Copy, ExternalLink, Truck } from "lucide-react";
 
 const endpoint = "/api/admin/dellin-tracking";
 const publicTracker = "https://www.dellin.ru/tracker/";
-const widget = "https://widgets.dellin.ru/tracker?info=0&delivery=0&extraparams=0&internal=1";
 
 type Tracking =
   | { status: "ok"; label: string; date: string }
   | { status: "access" | "setup" | "not-found" | "invalid" | "unavailable" };
 
 const messages = {
-  setup: "Для автоматического статуса подключите API-ключ Деловых Линий.",
   access: "Деловые Линии отклонили ключ. Проверьте подключение.",
   "not-found": "Перевозчик не нашёл отправление по этому номеру или нашёл несколько. Проверьте номер накладной.",
   invalid: "Проверьте номер накладной.",
@@ -40,7 +38,6 @@ export default function ProjectShipment({ token, date, waybill, savedWaybill, on
   const [lookup, setLookup] = useState({ number: savedWaybill, attempt: 0 });
   const [loading, setLoading] = useState(Boolean(savedWaybill));
   const [settings, setSettings] = useState(false);
-  const [showWidget, setShowWidget] = useState(false);
   const [key, setKey] = useState("");
   const [connecting, setConnecting] = useState(false);
   const [error, setError] = useState("");
@@ -49,6 +46,8 @@ export default function ProjectShipment({ token, date, waybill, savedWaybill, on
   const editable = Boolean(onDate && onWaybill);
   const status = result?.number === number ? result.tracking : null;
   const pending = loading && lookup.number === number;
+  const manualTracking = !status || status.status === "setup" || status.status === "access";
+  const canRefresh = result && result.tracking.status !== "setup" && result.tracking.status !== "access";
 
   useEffect(() => {
     if (!lookup.number) return;
@@ -97,7 +96,7 @@ export default function ProjectShipment({ token, date, waybill, savedWaybill, on
       await navigator.clipboard.writeText(number);
       setCopied(true);
     } catch {
-      setError("Не удалось скопировать номер автоматически. Выделите его в поле «Номер накладной».");
+      setError("Не удалось скопировать номер автоматически. Выделите и скопируйте его вручную.");
     }
   }
 
@@ -120,24 +119,23 @@ export default function ProjectShipment({ token, date, waybill, savedWaybill, on
     </dl>}
     {number && <>
       <div className="project-shipment-actions">
-        <button type="button" className="fa-outline-button" disabled={pending || connecting} onClick={() => {
+        <a className="fa-outline-button project-tracker-link" href={publicTracker} target="_blank" rel="noreferrer">
+          Отследить в Деловых Линиях <ExternalLink size={15} />
+        </a>
+        <button type="button" className="fa-outline-button" onClick={copy}><Copy size={15} /> {copied ? "Скопировано" : "Копировать номер"}</button>
+        {canRefresh && <button type="button" className="fa-outline-button" disabled={pending || connecting} onClick={() => {
           setError("");
           setLookup((current) => ({ number, attempt: current.attempt + 1 }));
-        }}>Обновить статус</button>
-        <button type="button" className="fa-outline-button" onClick={copy}><Copy size={15} /> {copied ? "Скопировано" : "Копировать номер"}</button>
-        <button type="button" className="fa-outline-button" aria-expanded={showWidget} onClick={() => setShowWidget((value) => !value)}>
-          {showWidget ? "Скрыть трекер" : "Открыть трекер"}
-        </button>
+        }}>Обновить статус</button>}
       </div>
+      {manualTracking && <p className="project-muted">Скопируйте номер накладной и вставьте его на сайте перевозчика.</p>}
       {pending && <p className="project-muted" role="status">Проверяем статус…</p>}
       {!pending && status?.status === "ok" && <p className="project-shipment-status" role="status">
         <strong>{status.label}</strong><span>{statusDate(status.date)}</span>
       </p>}
-      {!pending && status && status.status !== "ok" && <p className="project-muted" role="status">
-        {!editable && status.status === "setup" ? "Автоматический статус можно подключить при редактировании проекта." : messages[status.status]}
-      </p>}
-      {editable && (status?.status === "setup" || status?.status === "access") && <button type="button" className="fa-outline-button project-tracking-setup" aria-expanded={settings} onClick={() => setSettings((value) => !value)}>
-        {settings ? "Закрыть настройки" : "Подключить Деловые Линии"}
+      {!pending && status && status.status !== "ok" && status.status !== "setup" && <p className="project-muted" role="status">{messages[status.status]}</p>}
+      {editable && !canRefresh && <button type="button" className="project-tracking-setup" aria-expanded={settings} onClick={() => setSettings((value) => !value)}>
+        {settings ? "Закрыть настройки" : "Настроить автообновление статуса"}
       </button>}
       {editable && settings && <div className="project-shipment-actions">
         <label className="project-field"><span>API-ключ Деловых Линий</span>
@@ -148,11 +146,6 @@ export default function ProjectShipment({ token, date, waybill, savedWaybill, on
           {connecting ? "Проверяем ключ…" : "Сохранить подключение"}
         </button>
         <a href="https://dev.dellin.ru/registration/" target="_blank" rel="noreferrer">Получить API-ключ</a>
-      </div>}
-      {showWidget && <div className="project-tracker">
-        <p className="project-muted">Вставьте номер накладной в официальный трекер.</p>
-        <iframe title="Трекер Деловых Линий" src={widget} loading="lazy" />
-        <a href={publicTracker} target="_blank" rel="noreferrer">Открыть на сайте перевозчика <ExternalLink size={13} /></a>
       </div>}
       {error && <p className="fa-error" role="alert">{error}</p>}
     </>}
