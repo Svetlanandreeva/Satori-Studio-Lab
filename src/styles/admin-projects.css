@@ -1,0 +1,220 @@
+.admin-figma .projects-layout {
+  display: grid;
+  grid-template-columns: minmax(165px, 230px) minmax(0, 1fr);
+  gap: 16px;
+  align-items: start;
+}
+
+.admin-figma .project-card {
+  min-width: 0;
+  padding: 18px;
+}
+
+.project-card h2 {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 650;
+}
+
+.project-card-head,
+.project-save {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.project-muted,
+.project-notice {
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.project-card .project-muted {
+  margin: 10px 0 0;
+}
+
+.project-list-item {
+  width: 100%;
+  display: grid;
+  gap: 4px;
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: var(--paper);
+  color: var(--ink);
+  padding: 10px 12px;
+  text-align: left;
+  overflow-wrap: anywhere;
+  margin-top: 8px;
+}
+
+.project-list-item span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.project-list-item[aria-pressed="true"],
+.project-list-item[aria-pressed="true"] span {
+  background: var(--ink);
+  color: white;
+  border-color: var(--ink);
+}
+
+.project-editor,
+.project-fields {
+  display: grid;
+  gap: 12px;
+  margin: 0;
+  min-width: 0;
+}
+
+.project-fields {
+  border: 0;
+  padding: 0;
+}
+
+.project-metrics {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr));
+  gap: 8px;
+}
+
+.projects-workspace .project-metrics .fa-stat {
+  min-width: 0;
+  min-height: 88px;
+  padding: 12px;
+}
+
+.project-metrics .fa-stat b {
+  font-size: clamp(18px, 2.2vw, 25px);
+  overflow-wrap: anywhere;
+}
+
+.project-form-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
+
+.project-field {
+  min-width: 0;
+  display: grid;
+  gap: 5px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.project-field :is(input, select) {
+  min-width: 0;
+  width: 100%;
+  min-height: 42px;
+  padding: 6px 10px;
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  color: var(--ink);
+  background: var(--paper2);
+  font-size: 16px;
+}
+
+.project-entry,
+.project-document {
+  display: grid;
+  grid-template-columns: minmax(105px, 2fr) minmax(125px, 1fr) minmax(75px, 1fr) auto;
+  align-items: end;
+  gap: 8px;
+  border-top: 1px solid var(--line);
+  margin-top: 12px;
+  padding-top: 12px;
+}
+
+.project-document {
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  align-items: center;
+}
+
+.project-document > span {
+  overflow-wrap: anywhere;
+}
+
+.project-document small {
+  display: block;
+  margin-top: 3px;
+  color: var(--muted);
+}
+
+.projects-workspace .project-icon {
+  padding: 0;
+  width: 42px;
+  min-height: 42px;
+}
+
+.project-upload {
+  position: relative;
+  cursor: pointer;
+}
+
+.project-upload input {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  opacity: 0;
+  cursor: pointer;
+}
+
+.project-upload:focus-within {
+  outline: 2px solid var(--accent);
+  outline-offset: 3px;
+}
+
+.project-save {
+  justify-content: flex-end;
+}
+
+.project-empty {
+  min-height: 170px;
+  display: grid;
+  justify-items: center;
+  align-content: center;
+  gap: 8px;
+  text-align: center;
+  color: var(--muted);
+}
+
+.projects-workspace .fa-error button {
+  margin-left: 10px;
+}
+
+.projects-workspace :disabled {
+  cursor: default;
+}
+
+@media (max-width: 920px) {
+  .admin-figma .projects-layout {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+@media (max-width: 520px) {
+  .admin-figma .project-card {
+    padding: 14px;
+  }
+
+  .project-form-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .project-entry {
+    grid-template-columns: minmax(105px, 1fr) minmax(75px, 1fr) auto;
+  }
+
+  .project-entry > label:first-child {
+    grid-column: 1 / -1;
+  }
+
+  .projects-workspace .fa-page-head {
+    flex-wrap: wrap;
+    gap: 10px;
+  }
+}
