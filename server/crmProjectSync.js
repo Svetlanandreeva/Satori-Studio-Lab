@@ -3,12 +3,12 @@ import { readFile, mkdir, writeFile, rename, rm } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
-const base = (process.env.CRM_V2_INTERNAL_URL || 'http://127.0.0.1:3020').replace(/\/$/, '');
+const configuredBase = () => (process.env.CRM_V2_INTERNAL_URL || 'http://127.0.0.1:3020').replace(/\/$/, '');
 let connectionFile = path.join(path.dirname(fileURLToPath(import.meta.url)), 'data', 'crm-connection.json');
 export function configureCrmConnectionFile(filename) { connectionFile = filename; }
 async function connection() {
   try { return { ...JSON.parse(await readFile(connectionFile, 'utf8')), enabled: true }; }
-  catch (error) { if (error.code === 'ENOENT') return { url: base, enabled: Boolean(process.env.CRM_V2_INTERNAL_URL) }; throw error; }
+  catch (error) { if (error.code === 'ENOENT') return { url: configuredBase(), enabled: Boolean(process.env.CRM_V2_INTERNAL_URL) }; throw error; }
 }
 export async function crmConnectionInfo() {
   const current = await connection();
@@ -17,7 +17,7 @@ export async function crmConnectionInfo() {
 function validConnectionUrl(value) {
   let url;
   try { url = new URL(value); } catch { throw new Error('Укажите адрес основной CRM Satori.'); }
-  const allowed = new Set(['crm.satorilabural.online', 'crm.satorilabural.ru', 'crm.crmsatori.ru', new URL(base).hostname]);
+  const allowed = new Set(['crm.satorilabural.online', 'crm.satorilabural.ru', 'crm.crmsatori.ru', new URL(configuredBase()).hostname]);
   const local = ['127.0.0.1', 'localhost', '[::1]'].includes(url.hostname);
   if ((!local && (url.protocol !== 'https:' || (url.port && url.port !== '443'))) || (local && !['http:', 'https:'].includes(url.protocol))
     || !allowed.has(url.hostname) || url.username || url.password || url.search || url.hash || !['', '/'].includes(url.pathname)) {
