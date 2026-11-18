@@ -5,6 +5,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { getProduct } from "./products.js";
 import { getPayment } from "./yookassa.js";
+import { crmOrders, syncCrmProject } from "./crmProjectSync.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ORDERS_FILE = path.join(__dirname, "data", "orders.json");
@@ -55,11 +56,12 @@ async function enrichOrders(orders) {
     fulfillmentStatus: normalizeFulfillmentStatus(order.fulfillmentStatus),
     crmNumber: order.crmNumber || crmNumber(order.id),
     crmStatus: stages[order.id] || order.crmStatus || fallbackCrmStatus(order),
-    crmId: `web:${order.id}`,
+    crmId: order.crmDealId || order.crmId || `web:${order.id}`,
   }));
 }
 
 async function syncOrderToCrmV2(order) {
+  if (order.projectId || order.source === "crm" || order.source === "project") return;
   try {
     const response = await fetch(`${CRM_V2_INTERNAL_URL}/api/integrations/store-orders`, {
       method: "POST",
@@ -188,12 +190,37 @@ export async function listOrders() {
   for (const project of projects) {
     if (project.generatedOrderId) await ensureProjectOrder(project);
   }
-  return enrichOrders(await readOrders());
+  return (await listOrderOptions()).orders;
+}
+
+export async function listOrderOptions() {
+  const local = await enrichOrders(await readOrders());
+  try {
+    const remote = await crmOrders();
+    const orders = local.map((order) => {
+      const match = remote.find((item) => item.id === order.id || item.crmDealId === order.crmDealId);
+      return match ? { ...order, crmDealId: match.crmDealId, crmId: match.crmId, crmStatus: match.crmStatus } : order;
+    });
+    for (const order of remote) if (!orders.some((item) => item.id === order.id || item.crmDealId === order.crmDealId)) orders.push(order);
+    return { orders, crmAvailable: true };
+  } catch {
+    return { orders: local, crmAvailable: false, warning: "Не удалось загрузить сделки основной CRM. Доступны сохранённые заказы сайта. Повторите загрузку." };
+  }
 }
 
 export async function getOrder(id) {
   const orders = await readOrders();
-  return orders.find((o) => o.id === id) || null;
+  const existing = orders.find((o) => o.id === id);
+  if (existing) return existing;
+  if (!String(id).startsWith("crm:")) return null;
+  const remote = (await crmOrders()).find((order) => order.id === id);
+  if (!remote) return null;
+  return withWriteLock(async () => {
+    const latest = await readOrders();
+    const found = latest.find((order) => order.id === id);
+    if (found) return found;
+    latest.push(remote); await saveOrders(latest); return remote;
+  });
 }
 
 export async function findOrderByCode(code) {
@@ -275,5 +302,41 @@ export async function updateOrder(id, patch) {
     const shouldSync = orders[idx].status === "paid" || orders[idx].status === "canceled" || normalizedPatch.fulfillmentStatus !== undefined;
     if (shouldSync) void syncOrderToCrmV2(orders[idx]);
     return orders[idx];
+  });
+}
+
+export async function syncProjectOrder(project, options = {}) {
+  if (!project.orderId) return;
+  if (project.generatedOrderId === project.orderId) await ensureProjectOrder(project);
+  const order = await getOrder(project.orderId);
+  if (!order) throw new Error("Привязанный заказ не найден.");
+  const remote = await syncCrmProject(project, order, options);
+  return withWriteLock(async () => {
+    const orders = await readOrders();
+    const item = orders.find((entry) => entry.id === project.orderId);
+    if (!item) return;
+    for (const previous of orders) {
+      if (previous.id !== project.orderId && previous.projectId === project.id) {
+        delete previous.projectId; delete previous.projectName;
+      }
+    }
+    item.projectId = project.id;
+    item.projectName = project.name;
+    if (remote) {
+      item.crmDealId = remote.dealId; item.crmId = remote.dealId; item.crmStatus = remote.stageName;
+    }
+    if (item.source === "project" || item.source === "crm") {
+      item.amount = (project.price || 0) / 100;
+      item.subtotal = item.amount; item.discount = 0;
+      item.items = [{ name: project.name, qty: 1, price: item.amount }];
+      item.customer = { ...item.customer, name: project.contacts?.[0]?.name || item.customer?.name || project.name,
+        contactHandle: project.contacts?.map((entry) => [entry.name, entry.details].filter(Boolean).join(" · ")).join("; ") || "" };
+      const stages = { "in-progress": "В работе", done: "Выполнен", canceled: "Отменён", planned: "Новый" };
+      const remoteStages = { "В производстве": "В работе", "Готово": "Собран", "Доставка": "Отправлен клиенту", "Завершено": "Выполнен", "Отказ": "Отменён" };
+      item.fulfillmentStatus = remoteStages[remote?.stageName] || (project.shipmentDate && !["done", "canceled"].includes(project.status)
+        ? "Отправлен клиенту" : stages[project.status] || item.fulfillmentStatus);
+      item.trackingCode = project.waybill || "";
+    }
+    await saveOrders(orders);
   });
 }

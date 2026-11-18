@@ -27,7 +27,7 @@ type ProjectStatus = keyof typeof projectStatuses;
 type StepStatus = keyof typeof stepStatuses;
 type Step = { name: string; status: StepStatus; notes: string };
 type DraftStep = Step & { key: string };
-type Entry = { label: string; date: string; amount: number };
+type Entry = { label: string; date: string; amount: number; syncSource?: "crm" };
 type Contact = { name: string; details: string };
 type DraftContact = Contact & { key: string };
 type ProjectFields = {
@@ -48,7 +48,7 @@ type ProjectFields = {
   payments: Entry[];
 };
 type DocumentFile = { id: string; name: string; size: number; createdAt?: string };
-export type Project = ProjectFields & { id: string; revision: number; documents: DocumentFile[] };
+export type Project = ProjectFields & { id: string; revision: number; documents: DocumentFile[]; crmDealId?: string; crmSync?: { state: string; message?: string; at?: string } };
 type DraftEntry = Omit<Entry, "amount"> & { amount: string; key: string };
 type Draft = Omit<ProjectFields, "status" | "notes" | "steps" | "contacts" | "budget" | "price" | "expenses" | "payments" | "shipmentDate" | "waybill"> & {
   orderId: string;
@@ -63,7 +63,7 @@ type Draft = Omit<ProjectFields, "status" | "notes" | "steps" | "contacts" | "bu
   shipmentDate: string;
   waybill: string;
 };
-type ProjectOrder = { id: string; crmNumber?: string; customer?: { name?: string }; items?: { name?: string }[] };
+type ProjectOrder = { id: string; linkedProjectId?: string; linkedProjectName?: string; crmNumber?: string; customer?: { name?: string }; items?: { name?: string }[] };
 const orderLabel = (order: ProjectOrder) => [order.crmNumber || `#${order.id.slice(0, 8)}`, order.customer?.name, order.items?.map((item) => item.name).filter(Boolean).join(", ")].filter(Boolean).join(" · ");
 
 type ContactLead = { id: string; name?: string; company?: string; contact?: string; phone?: string; email?: string; isSpam?: boolean };
@@ -308,6 +308,10 @@ export default function AdminProjectsPage({ token, leads, orders, onOrderChanged
   initialProjectId?: string;
 }) {
   const [projects, setProjects] = useState<Project[]>([]);
+  const [orderOptions, setOrderOptions] = useState<ProjectOrder[]>(orders);
+  const [orderWarning, setOrderWarning] = useState("");
+  const [orderChoice, setOrderChoice] = useState("");
+  const [orderSearch, setOrderSearch] = useState("");
   const [selected, setSelected] = useState<Project | null>(null);
   const [draft, setDraft] = useState<Draft | null>(null);
   const [dirty, setDirty] = useState(false);
@@ -319,6 +323,7 @@ export default function AdminProjectsPage({ token, leads, orders, onOrderChanged
   const creationId = useRef(crypto.randomUUID());
   const view = draft ? "edit" : selected ? "summary" : "list";
   const projectId = selected?.id;
+  useEffect(() => { setOrderChoice(""); setOrderSearch(""); }, [projectId]);
 
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -360,6 +365,51 @@ export default function AdminProjectsPage({ token, leads, orders, onOrderChanged
     });
     return () => controller.abort();
   }, [token, reload, initialProjectId]);
+
+  async function loadOrderOptions() {
+    try {
+      const response = await request("/order-options");
+      const data = await response.json();
+      if (!Array.isArray(data.orders)) throw new Error("Не удалось загрузить заказы CRM.");
+      setOrderOptions(data.orders);
+      setOrderWarning(data.warning || "");
+    } catch (reason) { setOrderWarning(reason instanceof Error ? reason.message : "Не удалось загрузить заказы CRM."); }
+  }
+
+  useEffect(() => { void loadOrderOptions(); }, [token]);
+  useEffect(() => {
+    if (draft) return;
+    const controller = new AbortController();
+    let running = false;
+    async function refresh() {
+      if (running || document.visibilityState === "hidden") return;
+      running = true;
+      try {
+        const response = await request("", { signal: controller.signal });
+        const items: Project[] = await response.json();
+        if (!controller.signal.aborted && Array.isArray(items)) {
+          setProjects(items);
+          setSelected((current) => current ? items.find((item) => item.id === current.id) || current : null);
+        }
+      } catch {} finally { running = false; }
+    }
+    const timer = window.setInterval(refresh, 60_000);
+    document.addEventListener("visibilitychange", refresh);
+    return () => { controller.abort(); window.clearInterval(timer); document.removeEventListener("visibilitychange", refresh); };
+  }, [token, Boolean(draft)]);
+
+  async function linkOrder(event: FormEvent) {
+    event.preventDefault();
+    if (!selected || !orderChoice || busy) return;
+    await run(async () => {
+      const response = await request(`/${selected.id}/order`, { method: "PATCH", headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ revision: selected.revision, orderId: orderChoice }) });
+      const project: Project = await response.json();
+      replaceProject(project);
+      setOrderChoice(""); setOrderSearch("");
+      onOrderChanged(); void loadOrderOptions();
+    }, "Заказ привязан к проекту.");
+  }
 
   function markDirty(value: boolean) {
     setDirty(value);
@@ -428,8 +478,8 @@ export default function AdminProjectsPage({ token, leads, orders, onOrderChanged
   async function save(event: FormEvent) {
     event.preventDefault();
     if (!draft || busy) return;
-    const serializeRows = (rows: DraftEntry[]) => rows.map(({ label, date, amount }) => ({
-      label, date, amount: kopecks(amount),
+    const serializeRows = (rows: DraftEntry[]) => rows.map(({ label, date, amount, syncSource }) => ({
+      label, date, amount: kopecks(amount), ...(syncSource ? { syncSource } : {}),
     }));
     const payload = {
       ...draft,
@@ -459,7 +509,7 @@ export default function AdminProjectsPage({ token, leads, orders, onOrderChanged
       const project: Project = await response.json();
       updateProjectList(project);
       showList();
-      onOrderChanged();
+      onOrderChanged(); void loadOrderOptions();
     }, "Проект сохранён.");
   }
 
@@ -556,10 +606,34 @@ export default function AdminProjectsPage({ token, leads, orders, onOrderChanged
               : project.dueDate ? `До ${dateLabel(project.dueDate)}` : "Открыть проект"}</span>
             {project.shipmentDate && <span>Отгрузка: {dateLabel(project.shipmentDate)}</span>}
             <ProjectDeliveryStatus token={token} waybill={project.waybill ?? ""} />
+            {project.crmSync && <span>{project.crmSync.state === "ok" ? "Синхронизировано с CRM" : `Ожидает синхронизации: ${project.crmSync.message || "CRM недоступна"}`}</span>}
           </button>;
         })}
       </section>}
-      {selected && !draft && <ProjectSummary project={selected} orders={orders} token={token} busy={busy} download={(file) => void downloadDocument(selected, file)} />}
+      {selected && !draft && <>
+        <section className="fa-card project-card">
+          <div className="project-card-head"><h2>Связь с заказом</h2>
+            <button type="button" className="fa-outline-button" disabled={busy} onClick={() => void loadOrderOptions()}>Обновить заказы CRM</button>
+          </div>
+          {selected.crmSync && <p className="project-muted" role="status">{selected.crmSync.state === "ok" ? "Данные синхронизированы с CRM." : selected.crmSync.message}</p>}
+          <form onSubmit={linkOrder} className="project-form-grid">
+            <Field label="Найти заказ"><input value={orderSearch} onChange={(event) => setOrderSearch(event.target.value)} placeholder="Название, клиент или номер заказа" /></Field>
+            <Field label="Привязать существующий заказ">
+              <select value={orderChoice} required onChange={(event) => setOrderChoice(event.target.value)}>
+                <option value="">Выберите заказ сайта или сделку CRM</option>
+                {orderOptions.filter((order) => order.id === orderChoice || orderLabel(order).toLowerCase().includes(orderSearch.toLowerCase())).map((order) =>
+                  <option key={order.id} value={order.id} disabled={Boolean(order.linkedProjectId && order.linkedProjectId !== selected.id)}>
+                    {orderLabel(order)}{order.linkedProjectName ? ` · Проект: ${order.linkedProjectName}` : ""}
+                  </option>)}
+              </select>
+            </Field>
+            <p className="project-muted project-wide-field">При привязке название, сумма, статус и даты будут взяты из заказа CRM. Внесённые операции и документы проекта сохранятся.</p>
+            <button className="fa-primary" disabled={busy || !orderChoice || orderChoice === selected.orderId}>Привязать заказ</button>
+          </form>
+          {orderWarning && <p className="fa-error" role="alert">{orderWarning}</p>}
+        </section>
+        <ProjectSummary project={selected} orders={orderOptions} token={token} busy={busy} download={(file) => void downloadDocument(selected, file)} />
+      </>}
       {draft && <form className="project-editor" onSubmit={save}>
         <ProjectMetrics spent={sum(draft.expenses)} received={sum(draft.payments)}
           budget={draft.budget.trim() ? kopecks(draft.budget) : null} price={draft.price.trim() ? kopecks(draft.price) : null} />
@@ -576,10 +650,12 @@ export default function AdminProjectsPage({ token, leads, orders, onOrderChanged
               <Field label="Заказ">
                 <select value={draft.orderId} onChange={(event) => edit({ orderId: event.target.value })}>
                   <option value="">Создать новый заказ автоматически</option>
-                  {draft.orderId && !orders.some((order) => order.id === draft.orderId) && <option value={draft.orderId}>Привязанный заказ #{draft.orderId.slice(0, 8)}</option>}
-                  {orders.map((order) => <option key={order.id} value={order.id}>{orderLabel(order)}</option>)}
+                  {draft.orderId && !orderOptions.some((order) => order.id === draft.orderId) && <option value={draft.orderId}>Привязанный заказ #{draft.orderId.slice(0, 8)}</option>}
+                  {orderOptions.map((order) => <option key={order.id} value={order.id} disabled={Boolean(order.linkedProjectId && order.linkedProjectId !== selected?.id)}>{orderLabel(order)}{order.linkedProjectName ? ` · ${order.linkedProjectName}` : ""}</option>)}
                 </select>
                 <small>Выберите существующий заказ или оставьте автоматическое создание при сохранении.</small>
+                <button type="button" className="fa-outline-button" onClick={() => void loadOrderOptions()}>Обновить заказы CRM</button>
+                {orderWarning && <small role="alert">{orderWarning}</small>}
               </Field>
               <Field label="Заявка с сайта">
                 <select value={draft.leadId} onChange={(event) => linkLead(event.target.value, draft.contacts)}>

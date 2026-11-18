@@ -152,14 +152,14 @@ function ProductEditor({ initial, token, onCancel, onSaved, onDelete }: {
 }
 
 function Dashboard({ token, onLogout }: { token: string; onLogout: () => void }) {
-  const [tab,setTab]=useState<AdminTab>("overview"); const [mobileMenu,setMobileMenu]=useState(false);
+  const [tab,setTab]=useState<AdminTab>(()=>new URLSearchParams(window.location.search).get("project") ? "projects" : "overview"); const [mobileMenu,setMobileMenu]=useState(false);
   const [products,setProducts]=useState<Product[]>([]); const [orders,setOrders]=useState<Order[]>([]); const [leads,setLeads]=useState<Lead[]>([]);
   const [gallery,setGallery]=useState<GalleryItem[]>([]); const [hero,setHero]=useState<{type?:string|null;url?:string|null;slides?:HeroSlide[]}>({slides:[]}); const [promos,setPromos]=useState<Promo[]>([]);
   const [loading,setLoading]=useState(true); const [error,setError]=useState(""); const [editing,setEditing]=useState<Product|"new"|null>(null);
   const [selectedOrder,setSelectedOrder]=useState<string>(""); const [selectedLead,setSelectedLead]=useState<string>("");
   const [portfolioDirty,setPortfolioDirty]=useState(false);
   const [projectsDirty, setProjectsDirty] = useState(false);
-  const [initialProjectId, setInitialProjectId] = useState<string>();
+  const [initialProjectId, setInitialProjectId] = useState<string>(()=>new URLSearchParams(window.location.search).get("project") || undefined);
   const [orderSearch,setOrderSearch]=useState(""); const [leadSearch,setLeadSearch]=useState(""); const [productSearch,setProductSearch]=useState(""); const [productCategory,setProductCategory]=useState("Все");
   const auth={Authorization:`Bearer ${token}`,"Content-Type":"application/json"};
   const authOnly={Authorization:`Bearer ${token}`};

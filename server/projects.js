@@ -5,7 +5,7 @@ import { randomUUID } from "node:crypto";
 import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { requireAdmin } from "./auth.js";
 import { normalizeWaybill, validWaybill } from "./dellinTracking.js";
-import { ensureProjectOrder, getOrder } from "./orders.js";
+import { ensureProjectOrder, getOrder, listOrderOptions, syncProjectOrder } from "./orders.js";
 
 const maxFileSize = 10 * 1024 * 1024;
 const fileTypes = /\.(pdf|docx?|xlsx?|csv|txt|jpe?g|png|webp|heic|dwg|dxf|step|stp)$/i;
@@ -51,6 +51,7 @@ function entries(rows, kind) {
     label: field(row?.label, 200, kind, kind === "Покупка"),
     date: date(row?.date),
     amount: amount(row?.amount, 1),
+    ...(row?.syncSource === "crm" ? { syncSource: "crm" } : {}),
   }));
 }
 
@@ -192,20 +193,64 @@ export function createProjectsRouter(dataDir) {
     next();
   });
 
-  router.get("/", route(async (_req, res) => {
+  router.get("/order-options", route(async (_req, res) => {
+    const result = await listOrderOptions();
     const projects = await readProjects();
-    for (const project of projects) {
-      if (project.generatedOrderId) await ensureProjectOrder(project);
-    }
+    res.json({ ...result, orders: result.orders.map((order) => {
+      const linked = projects.find((project) => project.orderId === order.id || (order.crmDealId && project.crmDealId === order.crmDealId));
+      return { ...order, linkedProjectId: linked?.id, linkedProjectName: linked?.name };
+    }) });
+  }));
+
+  async function synchronize(project, options) {
+    try { await syncProjectOrder(project, options); }
+    catch { project.crmSync = { ...project.crmSync, state: "pending", message: "Не удалось синхронизировать заказ с CRM. Повторим при следующем обновлении." }; }
+  }
+
+  router.get("/", route(async (_req, res) => {
+    const projects = await change(async (projects) => {
+      for (const project of projects) {
+        if (!project.orderId) continue;
+        const before = JSON.stringify(project);
+        const fields = JSON.stringify({ ...project, crmSync: undefined });
+        await synchronize(project, { push: project.crmSync?.state === "pending" });
+        if (fields !== JSON.stringify({ ...project, crmSync: undefined })) project.revision++;
+        if (before !== JSON.stringify(project)) await saveProjects(projects);
+      }
+      return projects;
+    });
     res.json(projects.map((project) => ({ ...project, contacts: savedContacts(project) })));
+  }));
+
+  function availableOrder(projects, orderId, projectId, dealId) {
+    const other = projects.find((project) => project.id !== projectId && (project.orderId === orderId || (dealId && project.crmDealId === dealId)));
+    if (other) throw new ProjectError(409, `Заказ уже привязан к проекту «${other.name}».`);
+  }
+
+  router.patch("/:id/order", route(async (req, res) => {
+    const project = await change(async (projects) => {
+      const item = getProject(projects, req.params.id);
+      if (item.revision !== req.body?.revision) throw new ProjectError(409, "Проект изменился. Обновите страницу перед привязкой заказа.");
+      const link = await orderLink(req.body, item);
+      availableOrder(projects, link.orderId || item.orderId, item.id, link.orderId ? link.crmDealId : item.crmDealId);
+      const linking = link.orderId !== item.orderId;
+      Object.assign(item, link, { revision: item.revision + 1 });
+      if (linking) { delete item.crmSync; delete item.crmDealId; }
+      await saveProjects(projects);
+      await synchronize(item, { linking, push: true });
+      await saveProjects(projects);
+      return item;
+    });
+    res.json(project);
   }));
 
   async function orderLink(body, existing) {
     if (body.orderId === undefined && existing) return {};
     const orderId = field(body.orderId ?? "", 100, "Заказ");
     if (orderId) {
-      if (!await getOrder(orderId)) throw new ProjectError(400, "Выбранный заказ не найден.");
-      return { orderId };
+      const order = await getOrder(orderId);
+      if (!order) throw new ProjectError(400, "Выбранный заказ не найден.");
+      return { orderId, ...(order.crmDealId ? { crmDealId: order.crmDealId } : {}) };
     }
     const generatedOrderId = existing?.generatedOrderId || randomUUID();
     return { generatedOrderId, orderId: generatedOrderId };
@@ -225,8 +270,10 @@ export function createProjectsRouter(dataDir) {
       }
       const item = { ...fields, ...await orderLink(req.body), id: randomUUID(), requestId,
         createdAt: new Date().toISOString(), revision: 1, documents: [] };
+      availableOrder(projects, item.orderId, item.id, item.crmDealId);
       await saveProjects([item, ...projects]);
-      if (item.generatedOrderId) await ensureProjectOrder(item);
+      await synchronize(item, { linking: Boolean(req.body.orderId), push: true });
+      await saveProjects([item, ...projects]);
       return item;
     });
     res.status(201).json(project);
@@ -240,9 +287,13 @@ export function createProjectsRouter(dataDir) {
       }
       const fields = projectFields(req.body, item);
       const link = await orderLink(req.body, item);
+      availableOrder(projects, link.orderId || item.orderId, item.id, link.orderId ? link.crmDealId : item.crmDealId);
+      const linking = Boolean(link.orderId && link.orderId !== item.orderId);
       Object.assign(item, fields, link, { revision: item.revision + 1 });
+      if (linking) { delete item.crmSync; delete item.crmDealId; }
       await saveProjects(projects);
-      if (item.generatedOrderId) await ensureProjectOrder(item);
+      await synchronize(item, { linking, push: true });
+      await saveProjects(projects);
       return item;
     });
     res.json(project);
