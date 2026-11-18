@@ -109,10 +109,51 @@ function ConnectionCard({ service, token }: { service: Service; token: string })
   </section>;
 }
 
+function MainCrmConnection({ token }: { token: string }) {
+  const [url, setUrl] = useState("https://crm.satorilabural.online");
+  const [password, setPassword] = useState("");
+  const [login, setLogin] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [notice, setNotice] = useState("");
+  const [error, setError] = useState("");
+  useEffect(() => {
+    const controller = new AbortController();
+    fetch("/api/admin/projects/crm-connection", { headers: { Authorization: `Bearer ${token}` }, signal: controller.signal, cache: "no-store" })
+      .then(async (response) => { if (!response.ok) throw new Error(); const data = await response.json(); if (!controller.signal.aborted) setUrl(data.url || "https://crm.satorilabural.online"); })
+      .catch(() => { if (!controller.signal.aborted) setError("Не удалось получить настройки основной CRM."); });
+    return () => controller.abort();
+  }, [token]);
+  async function save(event: FormEvent) {
+    event.preventDefault(); if (busy) return;
+    setBusy(true); setError(""); setNotice("");
+    try {
+      const response = await fetch("/api/admin/projects/crm-connection", { method: "PUT", headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" }, body: JSON.stringify({ url, login, password }) });
+      const data = await response.json();
+      if (!response.ok) throw new Error(data.error || "Не удалось подключить основную CRM.");
+      setPassword(""); setNotice(data.notice); setUrl(data.url);
+    } catch (reason) { setError(reason instanceof Error ? reason.message : "Не удалось подключить CRM."); }
+    finally { setBusy(false); }
+  }
+  return <section className="fa-card project-card settings-connection">
+    <div className="project-card-head"><h2>Основная CRM</h2></div>
+    <p className="project-muted">Клиенты, их отдельные заказы и синхронизация проектов.</p>
+    <form onSubmit={save} className="settings-connection-form"><fieldset disabled={busy}>
+      <label className="project-field"><span>Адрес основной CRM</span><input type="url" required value={url} onChange={(event) => setUrl(event.target.value)} placeholder="https://crm.satorilabural.online" /></label>
+      <label className="project-field"><span>Логин владельца (если используется)</span><input value={login} onChange={(event) => setLogin(event.target.value)} maxLength={200} autoComplete="off" /></label>
+      <label className="project-field"><span>Пароль владельца CRM</span><input type="password" value={password} onChange={(event) => setPassword(event.target.value)} maxLength={512} autoComplete="off" placeholder="Укажите при подключении или обновлении доступа" /></label>
+      <p className="project-muted">Если CRM открывается по отдельному адресу, укажите его и пароль владельца. Пароль не сохраняется.</p>
+      <button className="fa-primary">{busy ? "Проверяем подключение…" : "Проверить и подключить CRM"}</button>
+    </fieldset></form>
+    {notice && <p className="project-notice" role="status">{notice}</p>}
+    {error && <p className="fa-error" role="alert">{error}</p>}
+  </section>;
+}
+
 export default function AdminSettings({ token }: { token: string }) {
   return <div className="projects-workspace">
     <div className="fa-page-head"><div><h1><Settings size={28} /> Настройки</h1><p>Подключения сервисов CRM.</p></div></div>
     <div className="settings-connections">
+      <MainCrmConnection token={token} />
       {services.map((service) => <ConnectionCard key={service.id} service={service} token={token} />)}
     </div>
   </div>;

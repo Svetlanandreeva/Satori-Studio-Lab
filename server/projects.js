@@ -5,6 +5,7 @@ import { randomUUID } from "node:crypto";
 import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { requireAdmin } from "./auth.js";
 import { normalizeWaybill, validWaybill } from "./dellinTracking.js";
+import { configureCrmConnectionFile, crmConnectionInfo, saveCrmConnection } from "./crmProjectSync.js";
 import { ensureProjectOrder, resolveProjectOrder, listOrderOptions, syncProjectOrder } from "./orders.js";
 
 const maxFileSize = 10 * 1024 * 1024;
@@ -138,6 +139,7 @@ function route(handler) {
 
 export function createProjectsRouter(dataDir) {
   const router = Router();
+  configureCrmConnectionFile(path.join(dataDir, "crm-connection.json"));
   const projectsFile = path.join(dataDir, "projects.json");
   const documentsDir = path.join(dataDir, "project-documents");
   let queue = Promise.resolve();
@@ -193,6 +195,12 @@ export function createProjectsRouter(dataDir) {
     next();
   });
 
+  router.get("/crm-connection", route(async (_req, res) => { res.json(await crmConnectionInfo()); }));
+  router.put("/crm-connection", route(async (req, res) => {
+    try { res.json(await saveCrmConnection(req.body)); }
+    catch (error) { res.status(400).json({ error: error.message || "Не удалось подключить основную CRM." }); }
+  }));
+
   router.get("/order-options", route(async (_req, res) => {
     const result = await listOrderOptions();
     const projects = await readProjects();
@@ -231,6 +239,31 @@ export function createProjectsRouter(dataDir) {
     const project = await change(async (projects) => {
       const item = getProject(projects, req.params.id);
       if (item.revision !== req.body?.revision) throw new ProjectError(409, "Проект изменился. Обновите страницу перед привязкой заказа.");
+      if (req.body.action === "customer") {
+        const sourceId = field(req.body.orderId, 100, "Заказ клиента", true);
+        const source = await resolveProjectOrder(sourceId);
+        if (!source) throw new ProjectError(400, "Заказ клиента не найден.");
+        item.customerId = source.customerId || (source.crmContactId ? `crm:${source.crmContactId}` : `customer:${source.id}`);
+        item.crmContactId = source.crmContactId;
+        item.customerSourceDealId = source.crmDealId;
+        const sourceProject = projects.find((project) => project.id !== item.id && project.orderId === source.id);
+        if (sourceProject && !sourceProject.customerId) sourceProject.customerId = item.customerId;
+        item.customer = { ...source.customer };
+        const details = [source.customer?.phone, source.customer?.email, source.customer?.contactHandle].filter(Boolean).join(" · ");
+        if (!(item.contacts || []).some((contact) => contact.name === (source.customer?.name || "") && contact.details === details)) {
+          item.contacts = [...(item.contacts || []), { name: source.customer?.name || "", details }].filter((contact) => contact.name || contact.details);
+        }
+        const ownOrder = item.generatedOrderId && item.orderId === item.generatedOrderId;
+        if (!ownOrder) { item.generatedOrderId = randomUUID(); item.orderId = item.generatedOrderId; delete item.crmDealId; }
+        item.customerChangePending = true;
+        delete item.crmSync;
+        item.revision++;
+        await saveProjects(projects);
+        await synchronize(item, { push: true });
+        await saveProjects(projects);
+        return item;
+      }
+      if (req.body.action !== undefined && req.body.action !== "order") throw new ProjectError(400, "Выберите действие с заказом.");
       const link = await orderLink(req.body, item);
       availableOrder(projects, link.orderId || item.orderId, item.id, link.orderId ? link.crmDealId : item.crmDealId);
       const linking = link.orderId !== item.orderId;

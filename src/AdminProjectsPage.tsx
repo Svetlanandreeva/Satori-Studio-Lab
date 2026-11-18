@@ -311,6 +311,7 @@ export default function AdminProjectsPage({ token, leads, orders, onOrderChanged
   const [orderOptions, setOrderOptions] = useState<ProjectOrder[]>(orders);
   const [orderWarning, setOrderWarning] = useState("");
   const [orderChoice, setOrderChoice] = useState("");
+  const [linkMode, setLinkMode] = useState<"order" | "customer">("order");
   const [orderSearch, setOrderSearch] = useState("");
   const [selected, setSelected] = useState<Project | null>(null);
   const [draft, setDraft] = useState<Draft | null>(null);
@@ -323,7 +324,7 @@ export default function AdminProjectsPage({ token, leads, orders, onOrderChanged
   const creationId = useRef(crypto.randomUUID());
   const view = draft ? "edit" : selected ? "summary" : "list";
   const projectId = selected?.id;
-  useEffect(() => { setOrderChoice(""); setOrderSearch(""); }, [projectId]);
+  useEffect(() => { setOrderChoice(""); setOrderSearch(""); setLinkMode("order"); }, [projectId]);
 
   useEffect(() => {
     window.scrollTo(0, 0);
@@ -403,12 +404,12 @@ export default function AdminProjectsPage({ token, leads, orders, onOrderChanged
     if (!selected || !orderChoice || busy) return;
     await run(async () => {
       const response = await request(`/${selected.id}/order`, { method: "PATCH", headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ revision: selected.revision, orderId: orderChoice }) });
+        body: JSON.stringify({ revision: selected.revision, orderId: orderChoice, action: linkMode }) });
       const project: Project = await response.json();
       replaceProject(project);
       setOrderChoice(""); setOrderSearch("");
       onOrderChanged(); void loadOrderOptions();
-    }, "Заказ привязан к проекту.");
+    }, linkMode === "customer" ? "Для клиента создан отдельный заказ. Данные проекта сохранены." : "Заказ привязан к проекту.");
   }
 
   function markDirty(value: boolean) {
@@ -617,20 +618,28 @@ export default function AdminProjectsPage({ token, leads, orders, onOrderChanged
           </div>
           {selected.crmSync && <p className="project-muted" role="status">{selected.crmSync.state === "ok" ? "Данные синхронизированы с CRM." : selected.crmSync.message}</p>}
           <form onSubmit={linkOrder} className="project-form-grid">
+            <Field label="Действие">
+              <select value={linkMode} onChange={(event) => { setLinkMode(event.target.value as "order" | "customer"); setOrderChoice(""); }}>
+                <option value="order">Привязать существующий заказ</option>
+                <option value="customer">Новый заказ для клиента из другого заказа</option>
+              </select>
+            </Field>
             <Field label="Найти заказ"><input value={orderSearch} onChange={(event) => setOrderSearch(event.target.value)} placeholder="Название, клиент или номер заказа" /></Field>
-            <Field label="Привязать существующий заказ">
+            <Field label={linkMode === "customer" ? "Взять клиента из заказа" : "Привязать существующий заказ"}>
               <select value={orderChoice} required onChange={(event) => setOrderChoice(event.target.value)}>
                 <option value="">Выберите заказ сайта или сделку CRM</option>
                 {orderOptions.filter((order) => order.id === orderChoice || orderLabel(order).toLowerCase().includes(orderSearch.toLowerCase())).map((order) =>
-                  <option key={order.id} value={order.id} disabled={Boolean(order.linkedProjectId && order.linkedProjectId !== selected.id)}>
+                  <option key={order.id} value={order.id} disabled={linkMode === "order" && Boolean(order.linkedProjectId && order.linkedProjectId !== selected.id)}>
                     {orderLabel(order)}{order.linkedProjectName ? ` · Проект: ${order.linkedProjectName}` : ""}
                   </option>)}
               </select>
             </Field>
-            <p className="project-muted project-wide-field">При привязке название, сумма, статус и даты будут взяты из заказа CRM. Внесённые операции и документы проекта сохранятся.</p>
-            <button className="fa-primary" disabled={busy || !orderChoice || orderChoice === selected.orderId}>Привязать заказ</button>
+            <p className="project-muted project-wide-field">{linkMode === "customer"
+              ? "У одного клиента может быть несколько заказов. Возьмём только контакты клиента. Название, сумма, оплаты, этапы и доставка этого проекта сохранятся отдельно."
+              : "При привязке название, сумма, статус и даты будут взяты из заказа CRM. Внесённые операции и документы проекта сохранятся. Для второго заказа того же клиента выберите действие «Новый заказ для клиента»."}</p>
+            <button className="fa-primary" disabled={busy || !orderChoice || (linkMode === "order" && orderChoice === selected.orderId)}>{linkMode === "customer" ? "Создать заказ для клиента" : "Привязать заказ"}</button>
           </form>
-          {orderWarning && <p className="fa-error" role="alert">{orderWarning}</p>}
+          {orderWarning && <p className="fa-error" role="alert">{orderWarning} <a href="/admin?settings=crm">Настроить подключение основной CRM</a></p>}
         </section>
         <ProjectSummary project={selected} orders={orderOptions} token={token} busy={busy} download={(file) => void downloadDocument(selected, file)} />
       </>}

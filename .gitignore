@@ -6,3 +6,4 @@ server/data/leads.json
 server/data/promocodes.json
 server/uploads
 .context/
+server/data/crm-connection.json

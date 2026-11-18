@@ -106,8 +106,10 @@ export async function ensureProjectOrder(project) {
       projectId: project.id,
       source: "project",
       projectName: project.name,
+      customerId: project.customerId,
+      crmContactId: project.crmContactId,
       createdAt: project.createdAt || new Date().toISOString(),
-      customer: { name: contact?.name || project.name, contactHandle: contact?.details || "" },
+      customer: project.customer ? { ...project.customer } : { name: contact?.name || project.name, contactHandle: contact?.details || "" },
       items: [{ name: project.name, qty: 1, price: value }],
       amount: value,
       subtotal: value,
@@ -199,12 +201,12 @@ export async function listOrderOptions() {
     const remote = await crmOrders();
     const orders = local.map((order) => {
       const match = remote.find((item) => item.id === order.id || item.crmDealId === order.crmDealId);
-      return match ? { ...order, crmDealId: match.crmDealId, crmId: match.crmId, crmStatus: match.crmStatus } : order;
+      return match ? { ...order, crmDealId: match.crmDealId, crmContactId: match.crmContactId, customerId: match.customerId || order.customerId, crmId: match.crmId, crmStatus: match.crmStatus } : order;
     });
     for (const order of remote) if (!orders.some((item) => item.id === order.id || item.crmDealId === order.crmDealId)) orders.push(order);
     return { orders, crmAvailable: true };
-  } catch {
-    return { orders: local, crmAvailable: false, warning: "Не удалось загрузить сделки основной CRM. Доступны сохранённые заказы сайта. Повторите загрузку." };
+  } catch (error) {
+    return { orders: local, crmAvailable: false, warning: `${error.message || "Не удалось загрузить сделки основной CRM."} Доступны сохранённые заказы сайта.` };
   }
 }
 
@@ -332,7 +334,9 @@ export async function syncProjectOrder(project, options = {}) {
       item.amount = (project.price || 0) / 100;
       item.subtotal = item.amount; item.discount = 0;
       item.items = [{ name: project.name, qty: 1, price: item.amount }];
-      item.customer = { ...item.customer, name: project.contacts?.[0]?.name || item.customer?.name || project.name,
+      item.customerId = project.customerId || item.customerId;
+      item.crmContactId = project.crmContactId || item.crmContactId;
+      item.customer = project.customer ? { ...project.customer } : { ...item.customer, name: project.contacts?.[0]?.name || item.customer?.name || project.name,
         contactHandle: project.contacts?.map((entry) => [entry.name, entry.details].filter(Boolean).join(" · ")).join("; ") || "" };
       const stages = { "in-progress": "В работе", done: "Выполнен", canceled: "Отменён", planned: "Новый" };
       const remoteStages = { "В производстве": "В работе", "Готово": "Собран", "Доставка": "Отправлен клиенту", "Завершено": "Выполнен", "Отказ": "Отменён" };
