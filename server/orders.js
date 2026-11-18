@@ -209,10 +209,13 @@ export async function listOrderOptions() {
 }
 
 export async function getOrder(id) {
+  return (await readOrders()).find((order) => order.id === id) || null;
+}
+
+export async function resolveProjectOrder(id) {
   const orders = await readOrders();
   const existing = orders.find((o) => o.id === id);
   if (existing) return existing;
-  if (!String(id).startsWith("crm:")) return null;
   const remote = (await crmOrders()).find((order) => order.id === id);
   if (!remote) return null;
   return withWriteLock(async () => {
@@ -226,7 +229,7 @@ export async function getOrder(id) {
 export async function findOrderByCode(code) {
   const orders = await readOrders();
   const lower = code.toLowerCase();
-  return orders.find((o) => o.id.toLowerCase().startsWith(lower)) || null;
+  return orders.find((o) => !["crm", "project"].includes(o.source) && o.id.toLowerCase().startsWith(lower)) || null;
 }
 
 export async function createOrder(order) {
@@ -308,7 +311,7 @@ export async function updateOrder(id, patch) {
 export async function syncProjectOrder(project, options = {}) {
   if (!project.orderId) return;
   if (project.generatedOrderId === project.orderId) await ensureProjectOrder(project);
-  const order = await getOrder(project.orderId);
+  const order = await resolveProjectOrder(project.orderId);
   if (!order) throw new Error("Привязанный заказ не найден.");
   const remote = await syncCrmProject(project, order, options);
   return withWriteLock(async () => {

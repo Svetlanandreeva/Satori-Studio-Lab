@@ -5,7 +5,7 @@ import { randomUUID } from "node:crypto";
 import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { requireAdmin } from "./auth.js";
 import { normalizeWaybill, validWaybill } from "./dellinTracking.js";
-import { ensureProjectOrder, getOrder, listOrderOptions, syncProjectOrder } from "./orders.js";
+import { ensureProjectOrder, resolveProjectOrder, listOrderOptions, syncProjectOrder } from "./orders.js";
 
 const maxFileSize = 10 * 1024 * 1024;
 const fileTypes = /\.(pdf|docx?|xlsx?|csv|txt|jpe?g|png|webp|heic|dwg|dxf|step|stp)$/i;
@@ -248,7 +248,7 @@ export function createProjectsRouter(dataDir) {
     if (body.orderId === undefined && existing) return {};
     const orderId = field(body.orderId ?? "", 100, "Заказ");
     if (orderId) {
-      const order = await getOrder(orderId);
+      const order = await resolveProjectOrder(orderId);
       if (!order) throw new ProjectError(400, "Выбранный заказ не найден.");
       return { orderId, ...(order.crmDealId ? { crmDealId: order.crmDealId } : {}) };
     }

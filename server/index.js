@@ -183,7 +183,7 @@ app.post("/api/checkout", async (req, res) => {
 app.get("/api/orders/:id/status", async (req, res) => {
   try {
     const order = await getOrder(req.params.id);
-    if (!order) return res.status(404).json({ error: "Заказ не найден" });
+    if (!order || ["crm", "project"].includes(order.source)) return res.status(404).json({ error: "Заказ не найден" });
 
     if (order.paymentId && order.status === "pending_payment") {
       const payment = await getPayment(order.paymentId);
