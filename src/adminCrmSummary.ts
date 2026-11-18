@@ -7,6 +7,9 @@ type SiteOrder = {
   crmNumber?: string;
   crmId?: string;
   customer?: { name?: string };
+  projectId?: string;
+  projectName?: string;
+  items?: Array<{ name?: string }>;
 };
 
 type SiteLead = {
@@ -28,6 +31,7 @@ type SummaryRow = {
   code: string;
   crmNumber: string;
   crmId: string;
+  projectId?: string;
 };
 
 const TOKEN_KEY = "satori_admin_token";
@@ -96,7 +100,7 @@ function ensureContainer(main: HTMLElement) {
 }
 
 function rowsSignature(rows: SummaryRow[], page: "orders" | "leads") {
-  return `${page}:${rows.map((row) => [row.id, row.name, row.date, row.status, row.code, row.crmNumber].join("|")).join(";")}`;
+  return `${page}:${rows.map((row) => [row.id, row.name, row.date, row.status, row.code, row.crmNumber, row.projectId].join("|")).join(";")}`;
 }
 
 function renderRows(container: HTMLElement, rows: SummaryRow[], page: "orders" | "leads") {
@@ -107,19 +111,19 @@ function renderRows(container: HTMLElement, rows: SummaryRow[], page: "orders" |
   container.innerHTML = `
     <div class="fa-crm-summary-head">
       <div><span>SATORI / CRM</span><b>${noun}: ${rows.length}</b></div>
-      <a class="fa-crm-open-all" href="${esc(CRM_BASE)}" target="_blank" rel="noreferrer">Открыть CRM ↗</a>
+      <a class="fa-crm-open-all" href="/admin?section=projects">К проектам →</a>
     </div>
     <div class="fa-crm-summary-table-wrap">
       <table class="fa-crm-summary-table">
-        <thead><tr><th>ИМЯ</th><th>ДАТА</th><th>СТАТУС</th><th>КОД ПРИМЕНЁН</th><th>№ В CRM</th><th></th></tr></thead>
+        <thead><tr><th>КЛИЕНТ — ПРОЕКТ</th><th>ДАТА</th><th>СТАТУС</th><th>КОД ПРИМЕНЁН</th><th>№ В CRM</th><th></th></tr></thead>
         <tbody>${rows.map((row) => `
           <tr>
-            <td data-label="Имя"><b>${esc(row.name)}</b></td>
+            <td data-label="Клиент — проект"><b>${esc(row.name)}</b></td>
             <td data-label="Дата">${esc(row.date)}</td>
             <td data-label="Статус"><span class="fa-crm-status">${esc(row.status)}</span></td>
             <td data-label="Код">${row.code !== "—" ? `<code>${esc(row.code)}</code>` : "—"}</td>
             <td data-label="№ в CRM"><b class="fa-crm-number">${esc(row.crmNumber)}</b></td>
-            <td><a class="fa-crm-row-open" href="${esc(crmUrl(row.crmId))}" target="_blank" rel="noreferrer">Открыть ↗</a></td>
+            <td><a class="fa-crm-row-open" href="${esc(row.projectId ? `/admin?project=${encodeURIComponent(row.projectId)}` : crmUrl(row.crmId))}" ${row.projectId ? "" : 'target="_blank" rel="noreferrer"'}>${row.projectId ? "Открыть проект →" : "Открыть ↗"}</a></td>
           </tr>`).join("") || `<tr><td colspan="6" class="fa-crm-empty">Пока нет записей</td></tr>`}</tbody>
       </table>
     </div>`;
@@ -130,7 +134,8 @@ async function loadRows(page: "orders" | "leads") {
     const orders = await api<SiteOrder[]>("/api/admin/orders");
     return orders.map((order): SummaryRow => ({
       id: order.id,
-      name: order.customer?.name || "Клиент",
+      name: [order.customer?.name || "Клиент", order.projectName || order.items?.map((item) => item.name).filter(Boolean).join(", ") || "Заказ"].join(" — "),
+      projectId: order.projectId,
       date: fmtDate(order.createdAt),
       status: order.crmStatus || order.fulfillmentStatus || "Новый запрос",
       code: order.promoCode || "—",

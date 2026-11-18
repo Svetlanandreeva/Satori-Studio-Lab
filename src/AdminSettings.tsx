@@ -119,7 +119,7 @@ function MainCrmConnection({ token }: { token: string }) {
   useEffect(() => {
     const controller = new AbortController();
     fetch("/api/admin/projects/crm-connection", { headers: { Authorization: `Bearer ${token}` }, signal: controller.signal, cache: "no-store" })
-      .then(async (response) => { if (!response.ok) throw new Error(); const data = await response.json(); if (!controller.signal.aborted) setUrl(data.url || "https://crm.satorilabural.online"); })
+      .then(async (response) => { if (!response.ok) throw new Error(); const data = await response.json(); if (!controller.signal.aborted) { setUrl(data.url || "https://crm.satorilabural.online"); if (data.enabled === false) setNotice("Сейчас используется встроенная CRM. Отдельное подключение не требуется для заказов и проектов сайта."); } })
       .catch(() => { if (!controller.signal.aborted) setError("Не удалось получить настройки основной CRM."); });
     return () => controller.abort();
   }, [token]);
@@ -135,7 +135,7 @@ function MainCrmConnection({ token }: { token: string }) {
     finally { setBusy(false); }
   }
   return <section className="fa-card project-card settings-connection">
-    <div className="project-card-head"><h2>Основная CRM</h2></div>
+    <div className="project-card-head"><h2>Внешняя CRM (необязательно)</h2></div>
     <p className="project-muted">Клиенты, их отдельные заказы и синхронизация проектов.</p>
     <form onSubmit={save} className="settings-connection-form"><fieldset disabled={busy}>
       <label className="project-field"><span>Адрес основной CRM</span><input type="url" required value={url} onChange={(event) => setUrl(event.target.value)} placeholder="https://crm.satorilabural.online" /></label>

@@ -7,12 +7,12 @@ const base = (process.env.CRM_V2_INTERNAL_URL || 'http://127.0.0.1:3020').replac
 let connectionFile = path.join(path.dirname(fileURLToPath(import.meta.url)), 'data', 'crm-connection.json');
 export function configureCrmConnectionFile(filename) { connectionFile = filename; }
 async function connection() {
-  try { return JSON.parse(await readFile(connectionFile, 'utf8')); }
-  catch (error) { if (error.code === 'ENOENT') return { url: base }; throw error; }
+  try { return { ...JSON.parse(await readFile(connectionFile, 'utf8')), enabled: true }; }
+  catch (error) { if (error.code === 'ENOENT') return { url: base, enabled: Boolean(process.env.CRM_V2_INTERNAL_URL) }; throw error; }
 }
 export async function crmConnectionInfo() {
   const current = await connection();
-  return { url: current.url, authenticated: Boolean(current.cookie) };
+  return { url: current.url, enabled: current.enabled, authenticated: Boolean(current.cookie) };
 }
 function validConnectionUrl(value) {
   let url;
@@ -65,6 +65,7 @@ const same = (a, b) => JSON.stringify(a) === JSON.stringify(b);
 
 export async function crmRequest(url, method = 'GET', body) {
   const config = await connection();
+  if (!config.enabled) throw new Error('Внешняя CRM не подключена. Заказы сайта доступны во встроенной CRM.');
   let response;
   try { response = await fetch(config.url + url, { method, headers: { 'Content-Type': 'application/json', ...(config.cookie ? { Cookie: config.cookie } : {}) },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }), signal: AbortSignal.timeout(8000), redirect: 'error' }); }
@@ -179,6 +180,13 @@ async function findOrCreateDeal(project, order) {
 // edits to the same field are reported instead of silently overwriting CRM data.
 export async function syncCrmProject(project, order, { linking = false, push = false } = {}) {
   try {
+    const config = await connection();
+    if (!config.enabled) {
+      project.crmSync = order.source === 'crm' || order.crmDealId
+        ? { ...project.crmSync, state: 'pending', message: 'Этот заказ связан с внешней CRM. Подключите её в настройках для обмена данными.' }
+        : { state: 'local', at: new Date().toISOString() };
+      return null;
+    }
     const dealId = await findOrCreateDeal(project, order);
     project.crmDealId = dealId;
     let remote = await remoteState(dealId);

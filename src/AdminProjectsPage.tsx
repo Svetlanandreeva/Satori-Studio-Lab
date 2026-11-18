@@ -607,7 +607,7 @@ export default function AdminProjectsPage({ token, leads, orders, onOrderChanged
               : project.dueDate ? `До ${dateLabel(project.dueDate)}` : "Открыть проект"}</span>
             {project.shipmentDate && <span>Отгрузка: {dateLabel(project.shipmentDate)}</span>}
             <ProjectDeliveryStatus token={token} waybill={project.waybill ?? ""} />
-            {project.crmSync && <span>{project.crmSync.state === "ok" ? "Синхронизировано с CRM" : `Ожидает синхронизации: ${project.crmSync.message || "CRM недоступна"}`}</span>}
+            {project.crmSync && <span>{project.crmSync.state === "local" ? "Связано с заказом во встроенной CRM" : project.crmSync.state === "ok" ? "Синхронизировано с CRM" : `Ожидает синхронизации: ${project.crmSync.message || "CRM недоступна"}`}</span>}
           </button>;
         })}
       </section>}
@@ -616,7 +616,7 @@ export default function AdminProjectsPage({ token, leads, orders, onOrderChanged
           <div className="project-card-head"><h2>Связь с заказом</h2>
             <button type="button" className="fa-outline-button" disabled={busy} onClick={() => void loadOrderOptions()}>Обновить заказы CRM</button>
           </div>
-          {selected.crmSync && <p className="project-muted" role="status">{selected.crmSync.state === "ok" ? "Данные синхронизированы с CRM." : selected.crmSync.message}</p>}
+          {selected.crmSync && <p className="project-muted" role="status">{selected.crmSync.state === "local" ? "Данные проекта связаны с заказом во встроенной CRM." : selected.crmSync.state === "ok" ? "Данные синхронизированы с CRM." : selected.crmSync.message}</p>}
           <form onSubmit={linkOrder} className="project-form-grid">
             <Field label="Действие">
               <select value={linkMode} onChange={(event) => { setLinkMode(event.target.value as "order" | "customer"); setOrderChoice(""); }}>

@@ -5,7 +5,7 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { getProduct } from "./products.js";
 import { getPayment } from "./yookassa.js";
-import { crmOrders, syncCrmProject } from "./crmProjectSync.js";
+import { crmOrders, syncCrmProject, crmConnectionInfo } from "./crmProjectSync.js";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ORDERS_FILE = path.join(__dirname, "data", "orders.json");
@@ -55,7 +55,7 @@ async function enrichOrders(orders) {
     ...order,
     fulfillmentStatus: normalizeFulfillmentStatus(order.fulfillmentStatus),
     crmNumber: order.crmNumber || crmNumber(order.id),
-    crmStatus: stages[order.id] || order.crmStatus || fallbackCrmStatus(order),
+    crmStatus: order.crmSyncState === "local" ? fallbackCrmStatus(order) : stages[order.id] || order.crmStatus || fallbackCrmStatus(order),
     crmId: order.crmDealId || order.crmId || `web:${order.id}`,
   }));
 }
@@ -192,12 +192,17 @@ export async function listOrders() {
   for (const project of projects) {
     if (project.generatedOrderId) await ensureProjectOrder(project);
   }
-  return (await listOrderOptions()).orders;
+  const orders = (await listOrderOptions()).orders;
+  return orders.map((order) => {
+    const project = projects.find((item) => item.orderId === order.id || (order.crmDealId && item.crmDealId === order.crmDealId));
+    return project ? { ...order, projectId: project.id, projectName: project.name } : order;
+  });
 }
 
 export async function listOrderOptions() {
   const local = await enrichOrders(await readOrders());
   try {
+    if (!(await crmConnectionInfo()).enabled) return { orders: local, crmAvailable: false, crmEnabled: false };
     const remote = await crmOrders();
     const orders = local.map((order) => {
       const match = remote.find((item) => item.id === order.id || item.crmDealId === order.crmDealId);
@@ -327,6 +332,9 @@ export async function syncProjectOrder(project, options = {}) {
     }
     item.projectId = project.id;
     item.projectName = project.name;
+    item.crmSyncState = project.crmSync?.state;
+    item.receivedAmount = (project.payments || []).reduce((total, row) => total + row.amount, 0) / 100;
+    item.projectExpenses = (project.expenses || []).reduce((total, row) => total + row.amount, 0) / 100;
     if (remote) {
       item.crmDealId = remote.dealId; item.crmId = remote.dealId; item.crmStatus = remote.stageName;
     }
