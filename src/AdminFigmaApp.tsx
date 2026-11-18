@@ -163,6 +163,16 @@ function Dashboard({ token, onLogout }: { token: string; onLogout: () => void })
   const [orderSearch,setOrderSearch]=useState(""); const [leadSearch,setLeadSearch]=useState(""); const [productSearch,setProductSearch]=useState(""); const [productCategory,setProductCategory]=useState("Все");
   const auth={Authorization:`Bearer ${token}`,"Content-Type":"application/json"};
   const authOnly={Authorization:`Bearer ${token}`};
+  async function refreshProjectOrders() {
+    try {
+      const response = await fetch("/api/admin/orders", { headers: authOnly, cache: "no-store" });
+      if (authFail(response)) return;
+      if (!response.ok) throw new Error();
+      setOrders(await response.json());
+    } catch {
+      setError("Проект сохранён. Не удалось обновить список заказов — обновите страницу.");
+    }
+  }
   function authFail(res:Response){ if(res.status===401){localStorage.removeItem(TOKEN_KEY);onLogout();return true;} return false; }
   async function reload(){ setLoading(true); setError(""); try { const [pr,or,lr,gr,hr,cr]=await Promise.all([fetch("/api/products"),fetch("/api/admin/orders",{headers:auth}),fetch("/api/admin/leads",{headers:auth}),fetch("/api/gallery"),fetch("/api/hero"),fetch("/api/admin/promocodes",{headers:auth})]); if(authFail(or)||authFail(lr)||authFail(cr))return; if(!lr.ok)throw new Error("Не удалось загрузить заявки"); const [p,o,l,g,h,c]=await Promise.all([pr.json(),or.json(),lr.json(),gr.json(),hr.json(),cr.json()]); setProducts(p);setOrders(o);setLeads(l);setGallery(g);setHero(h);setPromos(c);setSelectedOrder(x=>x||o[0]?.id||"");setSelectedLead(x=>x||l[0]?.id||""); } catch(e){setError(e instanceof Error?e.message:"Не удалось загрузить данные");} finally{setLoading(false);} }
   useEffect(()=>{void reload();},[]);
@@ -197,7 +207,7 @@ function Dashboard({ token, onLogout }: { token: string; onLogout: () => void })
       {tab==="orders"&&<OrdersPage orders={orders} selectedId={selectedOrder} setSelectedId={setSelectedOrder} search={orderSearch} setSearch={setOrderSearch} token={token} onChanged={reload}/>} 
       {tab==="settings"&&<AdminSettings token={token}/>}
       {tab==="overview"&&<AdminOverview token={token} unread={unread} newOrders={newOrders} go={go} openProject={(id)=>go("projects",id)} openSettings={()=>go("settings")}/>}
-      {tab==="projects"&&<AdminProjectsPage token={token} leads={leads} initialProjectId={initialProjectId} onDirtyChange={setProjectsDirty}/>}
+      {tab==="projects"&&<AdminProjectsPage token={token} leads={leads} orders={orders} onOrderChanged={()=>void refreshProjectOrders()} initialProjectId={initialProjectId} onDirtyChange={setProjectsDirty}/>}
       {tab==="portfolio"&&<PortfolioAdminPage token={token} onDirtyChange={setPortfolioDirty}/>} 
       {tab==="leads"&&<LeadsPage leads={leads} selectedId={selectedLead} setSelectedId={setSelectedLead} search={leadSearch} setSearch={setLeadSearch} token={token} onChanged={reload} onUpdated={updated=>setLeads(prev=>prev.map(lead=>lead.id===updated.id?{...lead,...updated}:lead))} onDeleted={id=>setLeads(prev=>prev.filter(lead=>lead.id!==id))}/>} 
       {tab==="products"&&<ProductsPage products={products} search={productSearch} setSearch={setProductSearch} category={productCategory} setCategory={setProductCategory} onEdit={setEditing}/>} 

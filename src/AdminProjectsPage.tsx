@@ -37,6 +37,7 @@ type ProjectFields = {
   steps?: Step[];
   contacts: Contact[];
   leadId: string;
+  orderId?: string;
   startDate: string;
   dueDate: string;
   shipmentDate?: string;
@@ -50,6 +51,7 @@ type DocumentFile = { id: string; name: string; size: number; createdAt?: string
 export type Project = ProjectFields & { id: string; revision: number; documents: DocumentFile[] };
 type DraftEntry = Omit<Entry, "amount"> & { amount: string; key: string };
 type Draft = Omit<ProjectFields, "status" | "notes" | "steps" | "contacts" | "budget" | "price" | "expenses" | "payments" | "shipmentDate" | "waybill"> & {
+  orderId: string;
   status: ProjectStatus;
   notes: string;
   steps: DraftStep[];
@@ -61,6 +63,9 @@ type Draft = Omit<ProjectFields, "status" | "notes" | "steps" | "contacts" | "bu
   shipmentDate: string;
   waybill: string;
 };
+type ProjectOrder = { id: string; crmNumber?: string; customer?: { name?: string }; items?: { name?: string }[] };
+const orderLabel = (order: ProjectOrder) => [order.crmNumber || `#${order.id.slice(0, 8)}`, order.customer?.name, order.items?.map((item) => item.name).filter(Boolean).join(", ")].filter(Boolean).join(" · ");
+
 type ContactLead = { id: string; name?: string; company?: string; contact?: string; phone?: string; email?: string; isSpam?: boolean };
 
 function draftContact(contact: Contact = { name: "", details: "" }): DraftContact {
@@ -80,6 +85,7 @@ function toDraft(project?: Project): Draft {
     steps: (project?.steps ?? []).map((step) => ({ ...step, key: crypto.randomUUID() })),
     contacts: (project?.contacts ?? []).map(draftContact),
     leadId: project?.leadId ?? "",
+    orderId: project?.orderId ?? "",
     startDate: project?.startDate ?? "",
     dueDate: project?.dueDate ?? "",
     shipmentDate: project?.shipmentDate ?? "",
@@ -145,8 +151,8 @@ function EntryHistory({ title, entries }: { title: string; entries: Entry[] }) {
   </details>;
 }
 
-function ProjectSummary({ project, token, busy, download }: {
-  project: Project; token: string; busy: boolean; download: (file: DocumentFile) => void;
+function ProjectSummary({ project, orders, token, busy, download }: {
+  project: Project; orders: ProjectOrder[]; token: string; busy: boolean; download: (file: DocumentFile) => void;
 }) {
   const steps = project.steps ?? [];
   const contacts = project.contacts ?? [];
@@ -162,6 +168,7 @@ function ProjectSummary({ project, token, busy, download }: {
           <span className="project-status" data-status={project.status || "unset"}>{projectStatuses[project.status ?? ""]}</span>
         </div>
         <dl className="project-summary-details">
+          <div><dt>Заказ</dt><dd>{project.orderId ? orderLabel(orders.find((order) => order.id === project.orderId) ?? { id: project.orderId }) : "Пока не привязан"}</dd></div>
           <div><dt>Дата начала</dt><dd>{dateLabel(project.startDate)}</dd></div>
           <div><dt>Срок сдачи</dt><dd>{dateLabel(project.dueDate)}</dd></div>
           <div><dt>Бюджет расходов</dt><dd>{project.budget == null ? "—" : money(project.budget)}</dd></div>
@@ -292,9 +299,11 @@ function Entries({ kind, entries, onChange }: {
   </section>;
 }
 
-export default function AdminProjectsPage({ token, leads, onDirtyChange, initialProjectId }: {
+export default function AdminProjectsPage({ token, leads, orders, onOrderChanged, onDirtyChange, initialProjectId }: {
   token: string;
   leads: ContactLead[];
+  orders: ProjectOrder[];
+  onOrderChanged: () => void;
   onDirtyChange: (dirty: boolean) => void;
   initialProjectId?: string;
 }) {
@@ -307,6 +316,7 @@ export default function AdminProjectsPage({ token, leads, onDirtyChange, initial
   const [notice, setNotice] = useState("");
   const [reload, setReload] = useState(0);
   const heading = useRef<HTMLHeadingElement>(null);
+  const creationId = useRef(crypto.randomUUID());
   const view = draft ? "edit" : selected ? "summary" : "list";
   const projectId = selected?.id;
 
@@ -367,6 +377,7 @@ export default function AdminProjectsPage({ token, leads, onDirtyChange, initial
   }, [dirty]);
 
   function startEditing(project?: Project) {
+    if (!project) creationId.current = crypto.randomUUID();
     setDraft(toDraft(project));
     markDirty(false);
     setError("");
@@ -431,6 +442,7 @@ export default function AdminProjectsPage({ token, leads, onDirtyChange, initial
       expenses: serializeRows(draft.expenses),
       payments: serializeRows(draft.payments),
       revision: selected?.revision,
+      requestId: selected ? undefined : creationId.current,
     };
     if ((payload.budget !== null && !Number.isSafeInteger(payload.budget))
       || (payload.price !== null && !Number.isSafeInteger(payload.price))
@@ -447,6 +459,7 @@ export default function AdminProjectsPage({ token, leads, onDirtyChange, initial
       const project: Project = await response.json();
       updateProjectList(project);
       showList();
+      onOrderChanged();
     }, "Проект сохранён.");
   }
 
@@ -545,7 +558,7 @@ export default function AdminProjectsPage({ token, leads, onDirtyChange, initial
           </button>;
         })}
       </section>}
-      {selected && !draft && <ProjectSummary project={selected} token={token} busy={busy} download={(file) => void downloadDocument(selected, file)} />}
+      {selected && !draft && <ProjectSummary project={selected} orders={orders} token={token} busy={busy} download={(file) => void downloadDocument(selected, file)} />}
       {draft && <form className="project-editor" onSubmit={save}>
         <ProjectMetrics spent={sum(draft.expenses)} received={sum(draft.payments)}
           budget={draft.budget.trim() ? kopecks(draft.budget) : null} price={draft.price.trim() ? kopecks(draft.price) : null} />
@@ -558,6 +571,14 @@ export default function AdminProjectsPage({ token, leads, onDirtyChange, initial
                 <select value={draft.status} onChange={(event) => edit({ status: event.target.value as ProjectStatus })}>
                   {Object.entries(projectStatuses).map(([value, label]) => <option value={value} key={value}>{label}</option>)}
                 </select>
+              </Field>
+              <Field label="Заказ">
+                <select value={draft.orderId} onChange={(event) => edit({ orderId: event.target.value })}>
+                  <option value="">Создать новый заказ автоматически</option>
+                  {draft.orderId && !orders.some((order) => order.id === draft.orderId) && <option value={draft.orderId}>Привязанный заказ #{draft.orderId.slice(0, 8)}</option>}
+                  {orders.map((order) => <option key={order.id} value={order.id}>{orderLabel(order)}</option>)}
+                </select>
+                <small>Выберите существующий заказ или оставьте автоматическое создание при сохранении.</small>
               </Field>
               <Field label="Заявка с сайта">
                 <select value={draft.leadId} onChange={(event) => linkLead(event.target.value, draft.contacts)}>

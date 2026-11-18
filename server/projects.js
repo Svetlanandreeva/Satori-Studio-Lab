@@ -5,6 +5,7 @@ import { randomUUID } from "node:crypto";
 import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
 import { requireAdmin } from "./auth.js";
 import { normalizeWaybill, validWaybill } from "./dellinTracking.js";
+import { ensureProjectOrder, getOrder } from "./orders.js";
 
 const maxFileSize = 10 * 1024 * 1024;
 const fileTypes = /\.(pdf|docx?|xlsx?|csv|txt|jpe?g|png|webp|heic|dwg|dxf|step|stp)$/i;
@@ -192,14 +193,40 @@ export function createProjectsRouter(dataDir) {
   });
 
   router.get("/", route(async (_req, res) => {
-    res.json((await readProjects()).map((project) => ({ ...project, contacts: savedContacts(project) })));
+    const projects = await readProjects();
+    for (const project of projects) {
+      if (project.generatedOrderId) await ensureProjectOrder(project);
+    }
+    res.json(projects.map((project) => ({ ...project, contacts: savedContacts(project) })));
   }));
+
+  async function orderLink(body, existing) {
+    if (body.orderId === undefined && existing) return {};
+    const orderId = field(body.orderId ?? "", 100, "Заказ");
+    if (orderId) {
+      if (!await getOrder(orderId)) throw new ProjectError(400, "Выбранный заказ не найден.");
+      return { orderId };
+    }
+    const generatedOrderId = existing?.generatedOrderId || randomUUID();
+    return { generatedOrderId, orderId: generatedOrderId };
+  }
 
   router.post("/", route(async (req, res) => {
     const fields = projectFields(req.body);
+    const requestId = req.body.requestId;
+    if (requestId !== undefined && (typeof requestId !== "string" || !uuid.test(requestId))) {
+      throw new ProjectError(400, "Некорректный идентификатор создания проекта.");
+    }
     const project = await change(async (projects) => {
-      const item = { ...fields, id: randomUUID(), revision: 1, documents: [] };
+      const previous = requestId && projects.find((item) => item.requestId === requestId);
+      if (previous) {
+        if (previous.generatedOrderId) await ensureProjectOrder(previous);
+        return previous;
+      }
+      const item = { ...fields, ...await orderLink(req.body), id: randomUUID(), requestId,
+        createdAt: new Date().toISOString(), revision: 1, documents: [] };
       await saveProjects([item, ...projects]);
+      if (item.generatedOrderId) await ensureProjectOrder(item);
       return item;
     });
     res.status(201).json(project);
@@ -211,8 +238,11 @@ export function createProjectsRouter(dataDir) {
       if (item.revision !== req.body?.revision) {
         throw new ProjectError(409, "Проект изменился в другой вкладке. Обновите страницу перед повторным сохранением.");
       }
-      Object.assign(item, projectFields(req.body, item), { revision: item.revision + 1 });
+      const fields = projectFields(req.body, item);
+      const link = await orderLink(req.body, item);
+      Object.assign(item, fields, link, { revision: item.revision + 1 });
       await saveProjects(projects);
+      if (item.generatedOrderId) await ensureProjectOrder(item);
       return item;
     });
     res.json(project);

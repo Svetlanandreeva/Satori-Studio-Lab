@@ -1,4 +1,5 @@
-import { readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, rename, rm, writeFile } from "node:fs/promises";
+import { randomUUID } from "node:crypto";
 import { existsSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -64,6 +65,7 @@ async function syncOrderToCrmV2(order) {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(order),
+      signal: AbortSignal.timeout(10000),
     });
     if (!response.ok) {
       const detail = await response.text().catch(() => "");
@@ -77,6 +79,46 @@ async function syncOrderToCrmV2(order) {
 function withWriteLock(fn) {
   writeQueue = writeQueue.then(fn, fn);
   return writeQueue;
+}
+
+async function saveOrders(orders) {
+  await mkdir(path.dirname(ORDERS_FILE), { recursive: true });
+  const temporary = `${ORDERS_FILE}.${randomUUID()}.tmp`;
+  try {
+    await writeFile(temporary, JSON.stringify(orders, null, 2), { mode: 0o600 });
+    await rename(temporary, ORDERS_FILE);
+  } finally {
+    await rm(temporary, { force: true });
+  }
+}
+
+export async function ensureProjectOrder(project) {
+  return withWriteLock(async () => {
+    const orders = await readOrders();
+    const existing = orders.find((order) => order.id === project.generatedOrderId);
+    if (existing) return existing;
+    const contact = project.contacts?.[0];
+    const value = (project.price ?? 0) / 100;
+    const order = {
+      id: project.generatedOrderId,
+      projectId: project.id,
+      source: "project",
+      projectName: project.name,
+      createdAt: project.createdAt || new Date().toISOString(),
+      customer: { name: contact?.name || project.name, contactHandle: contact?.details || "" },
+      items: [{ name: project.name, qty: 1, price: value }],
+      amount: value,
+      subtotal: value,
+      discount: 0,
+      status: "pending_payment",
+      fulfillmentStatus: "Новый",
+      crmNumber: crmNumber(project.generatedOrderId),
+    };
+    orders.push(order);
+    await saveOrders(orders);
+    void syncOrderToCrmV2(order);
+    return order;
+  });
 }
 
 function hasCompleteDeliveryAddress(customer) {
@@ -136,6 +178,16 @@ async function verifyPaidTransition(order, patch) {
 }
 
 export async function listOrders() {
+  let projects;
+  try {
+    projects = JSON.parse(await readFile(path.join(__dirname, "data", "projects.json"), "utf8"));
+  } catch (error) {
+    if (error.code !== "ENOENT") throw error;
+    projects = [];
+  }
+  for (const project of projects) {
+    if (project.generatedOrderId) await ensureProjectOrder(project);
+  }
   return enrichOrders(await readOrders());
 }
 
@@ -177,7 +229,7 @@ export async function createOrder(order) {
       crmNumber: order.crmNumber || crmNumber(order.id),
     };
     orders.push(linkedOrder);
-    await writeFile(ORDERS_FILE, JSON.stringify(orders, null, 2), "utf-8");
+    await saveOrders(orders);
     return linkedOrder;
   });
 }
@@ -218,7 +270,7 @@ export async function updateOrder(id, patch) {
       fulfillmentStatus: nextFulfillment,
       crmNumber: orders[idx].crmNumber || crmNumber(id),
     };
-    await writeFile(ORDERS_FILE, JSON.stringify(orders, null, 2), "utf-8");
+    await saveOrders(orders);
 
     const shouldSync = orders[idx].status === "paid" || orders[idx].status === "canceled" || normalizedPatch.fulfillmentStatus !== undefined;
     if (shouldSync) void syncOrderToCrmV2(orders[idx]);
