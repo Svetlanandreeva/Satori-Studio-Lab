@@ -6,10 +6,13 @@ const publicTracker = "https://www.dellin.ru/tracker/";
 
 type Tracking =
   | { status: "ok"; label: string; date: string }
-  | { status: "access" | "setup" | "not-found" | "invalid" | "unavailable" };
+  | { status: "access" | "forbidden" | "authorization" | "blocked" | "setup" | "not-found" | "invalid" | "unavailable"; message?: string };
 
 const messages = {
-  access: "Деловые Линии отклонили ключ. Проверьте подключение.",
+  access: "Деловые Линии сообщили, что ключ недействителен или заблокирован. Проверьте подключение.",
+  forbidden: "У ключа нет доступа к истории статусов. Обратитесь в api_support@dellin.ru.",
+  authorization: "Перевозчик запросил дополнительную авторизацию. Проверьте доступ к API в настройках.",
+  blocked: "Доступ к API перевозчика с сервера сайта ограничен. Обратитесь в api_support@dellin.ru.",
   "not-found": "Перевозчик не нашёл отправление по этому номеру или нашёл несколько. Проверьте номер накладной.",
   invalid: "Проверьте номер накладной.",
   unavailable: "Не удалось получить статус. Попробуйте ещё раз или откройте трекер.",
@@ -108,7 +111,7 @@ export default function ProjectShipment({ token, date, waybill, savedWaybill, on
       {!pending && status?.status === "ok" && <p className="project-shipment-status" role="status">
         <strong>{status.label}</strong><span>{statusDate(status.date)}</span>
       </p>}
-      {!pending && status && status.status !== "ok" && status.status !== "setup" && <p className="project-muted" role="status">{messages[status.status]}</p>}
+      {!pending && status && status.status !== "ok" && status.status !== "setup" && <p className="project-muted" role="status">{status.message || messages[status.status]}</p>}
       {status?.status === "setup" && <p className="project-muted">Автообновление подключается в разделе «Настройки» CRM.</p>}
       {error && <p className="fa-error" role="alert">{error}</p>}
     </>}

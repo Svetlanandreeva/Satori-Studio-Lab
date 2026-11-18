@@ -71,9 +71,10 @@ function ConnectionCard({ service, token }: { service: Service; token: string })
         const result = await response.json().catch(() => null);
         throw new Error(result?.error || "Не удалось сохранить подключение.");
       }
+      const result = response.status === 204 ? {} : await response.json();
       form.reset();
       setConfigured(true);
-      setNotice("Подключение сохранено.");
+      setNotice(result.notice || "Подключение сохранено.");
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "Не удалось сохранить подключение.");
     } finally {
@@ -89,11 +90,11 @@ function ConnectionCard({ service, token }: { service: Service; token: string })
     <form onSubmit={save} className="settings-connection-form">
       <fieldset disabled={saving}>
         <label className="project-field"><span>{service.label}</span>
-          <input type="password" name="secret" required autoComplete="off" spellCheck={false} maxLength={service.id === "dellin" ? 36 : 512}
+          <input type="password" name="secret" required autoComplete="off" spellCheck={false} maxLength={service.id === "dellin" ? 128 : 512}
             placeholder={configured ? "Введите новый ключ для замены" : "Вставьте ключ"} />
         </label>
-        {service.id === "dellin" && <label className="project-field"><span>Номер накладной для проверки подключения</span>
-          <input type="text" name="waybill" required maxLength={64} />
+        {service.id === "dellin" && <label className="project-field"><span>Номер накладной для проверки (необязательно)</span>
+          <input type="text" name="waybill" maxLength={64} />
         </label>}
         <div className="project-view-actions">
           <button type="submit" className="fa-primary">{saving ? "Проверяем…" : configured ? "Заменить ключ" : "Сохранить подключение"}</button>

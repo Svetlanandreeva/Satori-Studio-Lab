@@ -16,6 +16,27 @@ export function validWaybill(value) {
   return value.length <= 64 && /\d/.test(value) && numberPattern.test(value);
 }
 
+function accessError(payload, httpStatus) {
+  const codes = Array.isArray(payload?.errors) ? payload.errors.map((error) => Number(error?.code)) : [];
+  const code = codes.find((value) => [100004, 101001, 101002, 101003, 101004, 101005, 101006, 101007].includes(value));
+  if ([101001, 101002, 101007].includes(code)) return {
+    status: "access", code,
+    message: code === 101007 ? "API-ключ заблокирован Деловыми Линиями. Обратитесь в поддержку перевозчика."
+      : "Деловые Линии сообщили, что API-ключ недействителен. Скопируйте ключ приложения целиком из письма.",
+  };
+  if (code === 100004) return { status: "forbidden", code,
+    message: "Для этого ключа не открыт доступ к истории статусов. Обратитесь в api_support@dellin.ru и попросите доступ к методу /v3/orders/statuses_history.json (код 100004)." };
+  if ([101003, 101004, 101005, 101006].includes(code)) return { status: "authorization", code,
+    message: "API перевозчика запросил дополнительную авторизацию. Это не означает, что ключ приложения неверный. Уточните доступ к истории статусов в api_support@dellin.ru." };
+  const status = Number(payload?.metadata?.status ?? httpStatus);
+  if ([401, 403].includes(httpStatus) || [401, 403].includes(status)) return {
+    status: payload ? "authorization" : "blocked",
+    message: payload ? "API перевозчика отказал в доступе без уточнения причины. Обратитесь в api_support@dellin.ru."
+      : "Сервер Деловых Линий ограничил доступ к API и вернул страницу блокировки. Проверка ключа не выполнена. Обратитесь в api_support@dellin.ru для проверки доступа с IP сервера сайта.",
+  };
+  return null;
+}
+
 async function trackingStatus(appkey, waybill) {
   try {
     const response = await fetch(endpoint, {
@@ -27,7 +48,8 @@ async function trackingStatus(appkey, waybill) {
     });
     const payload = await response.json().catch(() => null);
     const code = Number(payload?.metadata?.status ?? response.status);
-    if ([401, 403].includes(response.status) || [401, 403].includes(code)) return { status: "access" };
+    const access = accessError(payload, response.status);
+    if (access) return access;
     if (Array.isArray(payload?.errors) && payload.errors.some((error) => Number(error?.code) === 130002)) return { status: "not-found" };
     if (!response.ok || code !== 200 || !payload?.data) return { status: "unavailable" };
     const history = payload.data.statusHistory?.[waybill];
@@ -85,21 +107,25 @@ export function createDellinTrackingRouter(dataDir) {
   });
 
   router.put("/connection", async (req, res) => {
-    const key = typeof req.body?.key === "string" ? req.body.key.trim() : "";
+    const key = typeof req.body?.key === "string" ? req.body.key.trim().replace(/[\u200B-\u200D\uFEFF]/g, "").replace(/[‐‑‒–—−]/g, "-") : "";
     const waybill = typeof req.body?.waybill === "string" ? normalizeWaybill(req.body.waybill) : "";
     if (!appKeyPattern.test(key)) return res.status(400).json({ error: "Проверьте формат API-ключа." });
-    if (!validWaybill(waybill)) return res.status(400).json({ error: "Введите номер накладной для проверки подключения." });
+    if (waybill && !validWaybill(waybill)) return res.status(400).json({ error: "Проверьте номер накладной." });
 
-    const result = await trackingStatus(key, waybill);
-    if (result.status === "access") return res.status(400).json({ error: "Перевозчик отклонил API-ключ. Проверьте его и права доступа." });
-    if (result.status === "unavailable") return res.status(502).json({ error: "Не удалось проверить ключ у перевозчика. Попробуйте ещё раз." });
+    const result = waybill ? await trackingStatus(key, waybill) : { status: "unverified" };
+    if (result.status === "access") return res.status(400).json({ error: result.message, code: result.code });
+    const verified = ["ok", "not-found"].includes(result.status);
+    const notice = result.status === "ok" ? "Подключение сохранено. Статус отправления получен."
+      : result.status === "not-found" ? "Ключ принят перевозчиком и сохранён. Отправление по указанному номеру не найдено или номер неоднозначен."
+      : result.status === "unverified" ? "Ключ сохранён. Проверим подключение, когда в проекте будет указан номер накладной."
+      : `Ключ сохранён, но подключение пока не проверено. ${result.message || "Перевозчик временно не отвечает. Повторите проверку позже."}`;
 
     const temporary = `${keyFile}.${randomUUID()}.tmp`;
     try {
       await mkdir(dataDir, { recursive: true });
       await writeFile(temporary, key, { mode: 0o600, flag: "wx" });
       await rename(temporary, keyFile);
-      res.json(result);
+      res.json({ ...result, configured: true, verified, notice });
     } catch {
       res.status(500).json({ error: "Не удалось сохранить подключение." });
     } finally {
