@@ -3,10 +3,11 @@ import type { ChangeEvent, FormEvent } from "react";
 import PortfolioAdminPage from "./PortfolioAdminPage";
 import AdminProjectsPage from "./AdminProjectsPage";
 import AdminOverview from "./AdminOverview";
+import AdminSettings from "./AdminSettings";
 import {
   ArrowLeft, ChevronDown, Copy, ExternalLink, Home, Inbox, LogOut, Menu,
   PackageSearch, Pencil, Plus, Save, Search, Tag, Trash2, Upload, X,
-  ClipboardList, FolderOpen, LayoutDashboard, Image as ImageIcon, Film, Check,
+  ClipboardList, FolderOpen, LayoutDashboard, Settings, Image as ImageIcon, Film, Check,
 } from "lucide-react";
 
 const TOKEN_KEY = "satori_admin_token";
@@ -14,7 +15,7 @@ const CATEGORIES = ["Декор", "Лампы", "Украшения"];
 const FULFILLMENT_STATUSES = ["Новый", "В работе", "Собран", "Отправлен", "Выполнен", "Отменён"];
 const LEAD_STATUSES = ["Новая", "Связаться", "В работе", "Ожидаем ответ", "Завершена", "Отказ"] as const;
 
-type AdminTab = "overview" | "orders" | "leads" | "projects" | "portfolio" | "products" | "home" | "promocodes";
+type AdminTab = "settings" | "overview" | "orders" | "leads" | "projects" | "portfolio" | "products" | "home" | "promocodes";
 type HeroSlide = { type: "image" | "video"; url: string };
 type GalleryItem = { id: string; url: string };
 
@@ -169,7 +170,7 @@ function Dashboard({ token, onLogout }: { token: string; onLogout: () => void })
   async function saveProduct(data:Partial<Product>, current:Product|"new"){const url=current==="new"?"/api/admin/products":`/api/admin/products/${current.id}`;const res=await fetch(url,{method:current==="new"?"POST":"PUT",headers:auth,body:JSON.stringify(data)});if(authFail(res))return;if(!res.ok)throw new Error("Не удалось сохранить товар");await reload();setEditing(null);}
   async function deleteProduct(p:Product){if(!confirm(`Удалить «${p.name}»?`))return;const res=await fetch(`/api/admin/products/${p.id}`,{method:"DELETE",headers:auth});if(authFail(res))return;await reload();setEditing(null);}
 
-  const nav:[AdminTab,string,any][]=[["overview","Дашборд",LayoutDashboard],["leads","Заявки",Inbox],["orders","Заказы",ClipboardList],["projects","Проекты",FolderOpen],["products","Товары",PackageSearch],["home","Главная",Home],["promocodes","Промокоды",Tag]];
+  const nav:[AdminTab,string,any][]=[["overview","Дашборд",LayoutDashboard],["leads","Заявки",Inbox],["orders","Заказы",ClipboardList],["projects","Проекты",FolderOpen],["products","Товары",PackageSearch],["home","Главная",Home],["promocodes","Промокоды",Tag],["settings","Настройки",Settings]];
   const newOrders=orders.filter(o=>(o.fulfillmentStatus??"Новый")==="Новый").length;
   const unread=leads.filter(l=>!l.read&&!l.isSpam).length;
   const countFor=(t:AdminTab)=>t==="orders"?orders.length:t==="leads"?unread:t==="products"?products.length:t==="promocodes"?promos.filter(p=>p.active).length:0;
@@ -194,7 +195,8 @@ function Dashboard({ token, onLogout }: { token: string; onLogout: () => void })
   return <div className="admin-figma"><Shell tab={tab} nav={nav} countFor={countFor} go={go} onLogout={onLogout} mobileMenu={mobileMenu} setMobileMenu={setMobileMenu}>
     {loading?<div className="fa-loading">Загрузка…</div>:<>{error&&<div className="fa-error">{error}</div>}
       {tab==="orders"&&<OrdersPage orders={orders} selectedId={selectedOrder} setSelectedId={setSelectedOrder} search={orderSearch} setSearch={setOrderSearch} token={token} onChanged={reload}/>} 
-      {tab==="overview"&&<AdminOverview token={token} unread={unread} newOrders={newOrders} go={go} openProject={(id)=>go("projects",id)}/>}
+      {tab==="settings"&&<AdminSettings token={token}/>}
+      {tab==="overview"&&<AdminOverview token={token} unread={unread} newOrders={newOrders} go={go} openProject={(id)=>go("projects",id)} openSettings={()=>go("settings")}/>}
       {tab==="projects"&&<AdminProjectsPage token={token} leads={leads} initialProjectId={initialProjectId} onDirtyChange={setProjectsDirty}/>}
       {tab==="portfolio"&&<PortfolioAdminPage token={token} onDirtyChange={setPortfolioDirty}/>} 
       {tab==="leads"&&<LeadsPage leads={leads} selectedId={selectedLead} setSelectedId={setSelectedLead} search={leadSearch} setSearch={setLeadSearch} token={token} onChanged={reload} onUpdated={updated=>setLeads(prev=>prev.map(lead=>lead.id===updated.id?{...lead,...updated}:lead))} onDeleted={id=>setLeads(prev=>prev.filter(lead=>lead.id!==id))}/>} 

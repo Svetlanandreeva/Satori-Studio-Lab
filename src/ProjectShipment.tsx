@@ -37,9 +37,6 @@ export default function ProjectShipment({ token, date, waybill, savedWaybill, on
   const [result, setResult] = useState<{ number: string; tracking: Tracking } | null>(null);
   const [lookup, setLookup] = useState({ number: savedWaybill, attempt: 0 });
   const [loading, setLoading] = useState(Boolean(savedWaybill));
-  const [settings, setSettings] = useState(false);
-  const [key, setKey] = useState("");
-  const [connecting, setConnecting] = useState(false);
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
   const number = normalizeWaybill(waybill);
@@ -68,28 +65,6 @@ export default function ProjectShipment({ token, date, waybill, savedWaybill, on
     });
     return () => controller.abort();
   }, [lookup, token]);
-
-  async function connect() {
-    if (!key.trim() || !number || connecting) return;
-    setConnecting(true);
-    setError("");
-    try {
-      const response = await fetch(`${endpoint}/connection`, {
-        method: "PUT",
-        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ key: key.trim(), waybill: number }),
-      });
-      const data = await response.json();
-      if (!response.ok) throw new Error(data.error || "Не удалось подключить Деловые Линии.");
-      setResult({ number, tracking: data });
-      setKey("");
-      setSettings(false);
-    } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "Не удалось подключить Деловые Линии.");
-    } finally {
-      setConnecting(false);
-    }
-  }
 
   async function copy() {
     try {
@@ -123,7 +98,7 @@ export default function ProjectShipment({ token, date, waybill, savedWaybill, on
           Отследить в Деловых Линиях <ExternalLink size={15} />
         </a>
         <button type="button" className="fa-outline-button" onClick={copy}><Copy size={15} /> {copied ? "Скопировано" : "Копировать номер"}</button>
-        {canRefresh && <button type="button" className="fa-outline-button" disabled={pending || connecting} onClick={() => {
+        {canRefresh && <button type="button" className="fa-outline-button" disabled={pending} onClick={() => {
           setError("");
           setLookup((current) => ({ number, attempt: current.attempt + 1 }));
         }}>Обновить статус</button>}
@@ -134,19 +109,7 @@ export default function ProjectShipment({ token, date, waybill, savedWaybill, on
         <strong>{status.label}</strong><span>{statusDate(status.date)}</span>
       </p>}
       {!pending && status && status.status !== "ok" && status.status !== "setup" && <p className="project-muted" role="status">{messages[status.status]}</p>}
-      {editable && !canRefresh && <button type="button" className="project-tracking-setup" aria-expanded={settings} onClick={() => setSettings((value) => !value)}>
-        {settings ? "Закрыть настройки" : "Настроить автообновление статуса"}
-      </button>}
-      {editable && settings && <div className="project-shipment-actions">
-        <label className="project-field"><span>API-ключ Деловых Линий</span>
-          <input type="password" value={key} maxLength={36} autoComplete="off" onChange={(event) => setKey(event.target.value)}
-            onKeyDown={(event) => { if (event.key === "Enter") event.preventDefault(); }} />
-        </label>
-        <button type="button" className="fa-primary" disabled={connecting || !key.trim()} onClick={connect}>
-          {connecting ? "Проверяем ключ…" : "Сохранить подключение"}
-        </button>
-        <a href="https://dev.dellin.ru/registration/" target="_blank" rel="noreferrer">Получить API-ключ</a>
-      </div>}
+      {status?.status === "setup" && <p className="project-muted">Автообновление подключается в разделе «Настройки» CRM.</p>}
       {error && <p className="fa-error" role="alert">{error}</p>}
     </>}
   </section>;

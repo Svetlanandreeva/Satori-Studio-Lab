@@ -134,6 +134,16 @@ export function createAdminAdvertisingRouter(dataDir) {
     next();
   });
 
+  router.get("/connections", async (_req, res) => {
+    try {
+      const metrika = await readToken(tokenFile, process.env.YANDEX_METRIKA_REPORT_TOKEN || process.env.YANDEX_METRIKA_TOKEN);
+      const direct = await readToken(directTokenFile, process.env.YANDEX_DIRECT_BALANCE_TOKEN);
+      res.json({ metrika: Boolean(metrika), direct: Boolean(direct) });
+    } catch {
+      res.status(500).json({ error: "Не удалось проверить настройки подключений." });
+    }
+  });
+
   router.get("/", async (req, res) => {
     const period = req.query.period ?? "7";
     const start = periods.get(period);

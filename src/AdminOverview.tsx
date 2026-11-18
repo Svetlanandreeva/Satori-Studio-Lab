@@ -64,12 +64,13 @@ function Schedule({ projects, today, open }: { projects: Project[]; today: strin
   </section>;
 }
 
-export default function AdminOverview({ token, unread, newOrders, go, openProject }: {
+export default function AdminOverview({ token, unread, newOrders, go, openProject, openSettings }: {
   token: string;
   unread: number;
   newOrders: number;
   go: (destination: Destination) => void;
   openProject: (id: string) => void;
+  openSettings: () => void;
 }) {
   const [projects, setProjects] = useState<Project[] | null>(null);
   const [error, setError] = useState("");
@@ -125,7 +126,7 @@ export default function AdminOverview({ token, unread, newOrders, go, openProjec
         <strong>{newOrders}</strong>
       </button>
     </div>
-    <AdminAdvertising token={token} />
+    <AdminAdvertising token={token} openSettings={openSettings} />
     <AdminSeasonality token={token} />
     {error && <div className="fa-error overview-error" role="alert">{error}<button type="button" className="fa-outline-button" onClick={() => retry((number) => number + 1)}>Повторить</button></div>}
     {!projects && !error && <p className="overview-empty" role="status">Загрузка проектов…</p>}

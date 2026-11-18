@@ -403,3 +403,29 @@
 }
 
 .project-shipment-status span { color: var(--muted); }
+
+.settings-connections {
+  display: grid;
+  gap: 14px;
+}
+
+.settings-connection-form {
+  margin-top: 14px;
+}
+
+.settings-connection-form fieldset {
+  display: grid;
+  gap: 12px;
+  border: 0;
+  padding: 0;
+  margin: 0;
+}
+
+.settings-connection-form .project-view-actions {
+  align-items: center;
+}
+
+.settings-connection-form a {
+  color: var(--muted);
+  font-size: 13px;
+}

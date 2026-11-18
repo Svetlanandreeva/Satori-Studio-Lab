@@ -65,6 +65,14 @@ export function createDellinTrackingRouter(dataDir) {
     next();
   });
 
+  router.get("/connection", async (_req, res) => {
+    try {
+      res.json({ configured: Boolean(await getKey()) });
+    } catch {
+      res.status(500).json({ error: "Не удалось проверить подключение перевозчика." });
+    }
+  });
+
   router.get("/", async (req, res) => {
     const waybill = typeof req.query.waybill === "string" ? normalizeWaybill(req.query.waybill) : "";
     if (!validWaybill(waybill)) return res.status(400).json({ status: "invalid" });
