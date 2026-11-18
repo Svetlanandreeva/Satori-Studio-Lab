@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import type { FormEvent, ReactNode } from "react";
 import { ArrowLeft, Download, Pencil, Plus, Trash2, Upload } from "lucide-react";
 import "./styles/admin-projects.css";
-import ProjectShipment, { normalizeWaybill } from "./ProjectShipment";
+import ProjectShipment, { normalizeWaybill, ProjectDeliveryStatus } from "./ProjectShipment";
 
 const endpoint = "/api/admin/projects";
 const rubles = new Intl.NumberFormat("ru-RU", {
@@ -555,6 +555,7 @@ export default function AdminProjectsPage({ token, leads, orders, onOrderChanged
             <span>{contact ? `${contact}${otherContacts.length ? ` +${otherContacts.length}` : ""}`
               : project.dueDate ? `До ${dateLabel(project.dueDate)}` : "Открыть проект"}</span>
             {project.shipmentDate && <span>Отгрузка: {dateLabel(project.shipmentDate)}</span>}
+            <ProjectDeliveryStatus token={token} waybill={project.waybill ?? ""} />
           </button>;
         })}
       </section>}

@@ -29,24 +29,15 @@ function statusDate(date: string) {
   }).format(value) : "";
 }
 
-export default function ProjectShipment({ token, date, waybill, onDate, onWaybill }: {
-  token: string;
-  date: string;
-  waybill: string;
-  onDate?: (date: string) => void;
-  onWaybill?: (waybill: string) => void;
-}) {
+function useShipmentTracking(token: string, waybill: string, editable = false) {
   const [result, setResult] = useState<{
     number: string; tracking: Tracking; checkedAt: string;
     lastSuccess?: { label: string; date: string };
   } | null>(null);
   const [attempt, setAttempt] = useState(0);
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-  const [copied, setCopied] = useState(false);
   const number = normalizeWaybill(waybill);
   const validNumber = number.length <= 64 && /\d/.test(number) && /^[\p{L}\d]+(?:-[\p{L}\d]+)*$/u.test(number);
-  const editable = Boolean(onDate && onWaybill);
   const current = result?.number === number ? result : null;
   const status = current?.tracking;
   const latest = status?.status === "ok" ? status : current?.lastSuccess;
@@ -100,6 +91,44 @@ export default function ProjectShipment({ token, date, waybill, onDate, onWaybil
     };
   }, [number, validNumber, token, attempt, editable]);
 
+  return { current, status, latest, number, validNumber, loading, refresh: () => setAttempt((value) => value + 1) };
+}
+
+export function ProjectDeliveryStatus({ token, waybill }: { token: string; waybill: string }) {
+  const { current, status, latest, number, validNumber, loading } = useShipmentTracking(token, waybill);
+  const problem = status && status.status !== "ok"
+    ? status.status === "setup" ? "Подключите Деловые Линии в настройках CRM." : status.message || messages[status.status] : "";
+  const short = status?.status === "setup" ? "Не подключено"
+    : status?.status === "not-found" ? "Отправление не найдено"
+    : status?.status === "access" ? "Проверьте ключ"
+    : status?.status === "forbidden" || status?.status === "authorization" || status?.status === "blocked" ? "Доступ к API ограничен"
+    : "Статус временно недоступен";
+  return <span className="project-list-delivery" role="status"
+    title={[problem, current && `Последняя проверка: ${statusDate(current.checkedAt)}`].filter(Boolean).join(" ")}>
+    <Truck size={14} aria-hidden="true" />
+    <span>Доставка:</span>
+    <span className="project-delivery-label" data-state={latest ? "ok" : "pending"}>
+      {!number ? "Накладная не указана" : !validNumber ? "Проверьте номер накладной"
+        : latest ? latest.label : loading || !status ? "Получаем статус…" : short}
+    </span>
+    {latest && <span>{statusDate(latest.date)}{status?.status !== "ok" ? " · последний полученный статус" : ""}</span>}
+    {number && <span>Накладная {number}</span>}
+    {latest && problem && <span>{short}</span>}
+  </span>;
+}
+
+export default function ProjectShipment({ token, date, waybill, onDate, onWaybill }: {
+  token: string;
+  date: string;
+  waybill: string;
+  onDate?: (date: string) => void;
+  onWaybill?: (waybill: string) => void;
+}) {
+  const editable = Boolean(onDate && onWaybill);
+  const { current, status, latest, number, validNumber, loading, refresh } = useShipmentTracking(token, waybill, editable);
+  const [error, setError] = useState("");
+  const [copied, setCopied] = useState(false);
+
   async function copy() {
     try {
       await navigator.clipboard.writeText(number);
@@ -130,7 +159,7 @@ export default function ProjectShipment({ token, date, waybill, onDate, onWaybil
       <div className="project-shipment-actions">
         <button type="button" className="fa-outline-button" disabled={loading || !validNumber} onClick={() => {
           setError("");
-          setAttempt((value) => value + 1);
+          refresh();
         }}><RefreshCw size={15} /> {loading ? "Обновляем…" : "Обновить статус"}</button>
         <button type="button" className="fa-outline-button" onClick={copy}><Copy size={15} /> {copied ? "Скопировано" : "Копировать номер"}</button>
       </div>

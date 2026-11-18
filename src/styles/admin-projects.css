@@ -429,3 +429,30 @@
   color: var(--muted);
   font-size: 13px;
 }
+
+.project-list-delivery {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 8px;
+  margin-top: 4px;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.project-list-delivery svg {
+  flex-shrink: 0;
+}
+
+.project-list-delivery .project-delivery-label {
+  border-radius: 8px;
+  background: #eef0f3;
+  color: #505667;
+  padding: 2px 7px;
+  font-weight: 600;
+}
+
+.project-list-delivery .project-delivery-label[data-state="ok"] {
+  background: #e7effe;
+  color: #28497c;
+}
