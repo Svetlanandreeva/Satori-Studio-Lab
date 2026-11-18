@@ -177,7 +177,7 @@ function ProjectSummary({ project, orders, token, busy, download }: {
         {project.notes && <p className="project-summary-notes">{project.notes}</p>}
       </section>
       <ProjectShipment key={project.id} token={token} date={project.shipmentDate ?? ""}
-        waybill={project.waybill ?? ""} savedWaybill={project.waybill ?? ""} />
+        waybill={project.waybill ?? ""} />
       <section className="fa-card project-card">
         <div className="project-card-head"><h2>Этапы работы</h2>{steps.length > 0 && <small>Готово {done} из {steps.length}</small>}</div>
         {steps.length ? <ul className="project-summary-rows">{steps.map((step, index) => <li key={index}>
@@ -602,7 +602,7 @@ export default function AdminProjectsPage({ token, leads, orders, onOrderChanged
             </div>
           </section>
           <ProjectShipment key={selected?.id ?? "new"} token={token} date={draft.shipmentDate} waybill={draft.waybill}
-            savedWaybill={selected?.waybill ?? ""} onDate={(shipmentDate) => edit({ shipmentDate })} onWaybill={(waybill) => edit({ waybill })} />
+            onDate={(shipmentDate) => edit({ shipmentDate })} onWaybill={(waybill) => edit({ waybill })} />
           <WorkSteps steps={draft.steps} onChange={(steps) => edit({ steps })} />
           <section className="fa-card project-card">
             <div className="project-card-head">

@@ -1,8 +1,8 @@
 import { useEffect, useState } from "react";
-import { Copy, ExternalLink, Truck } from "lucide-react";
+import { Copy, RefreshCw, Truck } from "lucide-react";
 
 const endpoint = "/api/admin/dellin-tracking";
-const publicTracker = "https://www.dellin.ru/tracker/";
+const refreshInterval = 60_000;
 
 type Tracking =
   | { status: "ok"; label: string; date: string }
@@ -15,7 +15,7 @@ const messages = {
   blocked: "Доступ к API перевозчика с сервера сайта ограничен. Обратитесь в api_support@dellin.ru.",
   "not-found": "Перевозчик не нашёл отправление по этому номеру или нашёл несколько. Проверьте номер накладной.",
   invalid: "Проверьте номер накладной.",
-  unavailable: "Не удалось получить статус. Попробуйте ещё раз или откройте трекер.",
+  unavailable: "Не удалось получить статус. Статус будет запрошен повторно автоматически.",
 };
 
 export function normalizeWaybill(value: string) {
@@ -29,45 +29,76 @@ function statusDate(date: string) {
   }).format(value) : "";
 }
 
-export default function ProjectShipment({ token, date, waybill, savedWaybill, onDate, onWaybill }: {
+export default function ProjectShipment({ token, date, waybill, onDate, onWaybill }: {
   token: string;
   date: string;
   waybill: string;
-  savedWaybill: string;
   onDate?: (date: string) => void;
   onWaybill?: (waybill: string) => void;
 }) {
-  const [result, setResult] = useState<{ number: string; tracking: Tracking } | null>(null);
-  const [lookup, setLookup] = useState({ number: savedWaybill, attempt: 0 });
-  const [loading, setLoading] = useState(Boolean(savedWaybill));
+  const [result, setResult] = useState<{
+    number: string; tracking: Tracking; checkedAt: string;
+    lastSuccess?: { label: string; date: string };
+  } | null>(null);
+  const [attempt, setAttempt] = useState(0);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
   const [copied, setCopied] = useState(false);
   const number = normalizeWaybill(waybill);
+  const validNumber = number.length <= 64 && /\d/.test(number) && /^[\p{L}\d]+(?:-[\p{L}\d]+)*$/u.test(number);
   const editable = Boolean(onDate && onWaybill);
-  const status = result?.number === number ? result.tracking : null;
-  const pending = loading && lookup.number === number;
-  const manualTracking = !status || status.status === "setup" || status.status === "access";
-  const canRefresh = result && result.tracking.status !== "setup" && result.tracking.status !== "access";
+  const current = result?.number === number ? result : null;
+  const status = current?.tracking;
+  const latest = status?.status === "ok" ? status : current?.lastSuccess;
 
   useEffect(() => {
-    if (!lookup.number) return;
+    if (!validNumber) { setLoading(false); return; }
     const controller = new AbortController();
+    let timer: ReturnType<typeof setTimeout>;
+    let inFlight = false;
+
+    async function update() {
+      if (controller.signal.aborted || inFlight) return;
+      clearTimeout(timer);
+      if (document.visibilityState === "hidden") {
+        timer = setTimeout(update, refreshInterval);
+        return;
+      }
+      inFlight = true;
+      setLoading(true);
+      let tracking: Tracking;
+      try {
+        const response = await fetch(`${endpoint}?waybill=${encodeURIComponent(number)}`, {
+          headers: { Authorization: `Bearer ${token}` }, cache: "no-store", signal: controller.signal,
+        });
+        if (!response.ok) throw new Error();
+        tracking = await response.json() as Tracking;
+        if (!tracking?.status) throw new Error();
+      } catch {
+        tracking = { status: "unavailable" };
+      }
+      inFlight = false;
+      if (controller.signal.aborted) return;
+      setResult((previous) => ({ number, tracking, checkedAt: new Date().toISOString(),
+        lastSuccess: tracking.status === "ok" ? { label: tracking.label, date: tracking.date }
+          : previous?.number === number ? previous.lastSuccess : undefined,
+      }));
+      setLoading(false);
+      timer = setTimeout(update, refreshInterval);
+    }
+
+    function visible() {
+      if (document.visibilityState !== "hidden") void update();
+    }
     setLoading(true);
-    fetch(`${endpoint}?waybill=${encodeURIComponent(lookup.number)}`, {
-      headers: { Authorization: `Bearer ${token}` },
-      cache: "no-store",
-      signal: controller.signal,
-    }).then(async (response) => {
-      const data = await response.json() as Tracking;
-      if (!data?.status) throw new Error();
-      if (!controller.signal.aborted) setResult({ number: lookup.number, tracking: data });
-    }).catch(() => {
-      if (!controller.signal.aborted) setResult({ number: lookup.number, tracking: { status: "unavailable" } });
-    }).finally(() => {
-      if (!controller.signal.aborted) setLoading(false);
-    });
-    return () => controller.abort();
-  }, [lookup, token]);
+    timer = setTimeout(update, editable ? 700 : 0);
+    document.addEventListener("visibilitychange", visible);
+    return () => {
+      controller.abort();
+      clearTimeout(timer);
+      document.removeEventListener("visibilitychange", visible);
+    };
+  }, [number, validNumber, token, attempt, editable]);
 
   async function copy() {
     try {
@@ -97,22 +128,24 @@ export default function ProjectShipment({ token, date, waybill, savedWaybill, on
     </dl>}
     {number && <>
       <div className="project-shipment-actions">
-        <a className="fa-outline-button project-tracker-link" href={publicTracker} target="_blank" rel="noreferrer">
-          Отследить в Деловых Линиях <ExternalLink size={15} />
-        </a>
-        <button type="button" className="fa-outline-button" onClick={copy}><Copy size={15} /> {copied ? "Скопировано" : "Копировать номер"}</button>
-        {canRefresh && <button type="button" className="fa-outline-button" disabled={pending} onClick={() => {
+        <button type="button" className="fa-outline-button" disabled={loading || !validNumber} onClick={() => {
           setError("");
-          setLookup((current) => ({ number, attempt: current.attempt + 1 }));
-        }}>Обновить статус</button>}
+          setAttempt((value) => value + 1);
+        }}><RefreshCw size={15} /> {loading ? "Обновляем…" : "Обновить статус"}</button>
+        <button type="button" className="fa-outline-button" onClick={copy}><Copy size={15} /> {copied ? "Скопировано" : "Копировать номер"}</button>
       </div>
-      {manualTracking && <p className="project-muted">Скопируйте номер накладной и вставьте его на сайте перевозчика.</p>}
-      {pending && <p className="project-muted" role="status">Проверяем статус…</p>}
-      {!pending && status?.status === "ok" && <p className="project-shipment-status" role="status">
-        <strong>{status.label}</strong><span>{statusDate(status.date)}</span>
+      {!validNumber && <p className="project-muted" role="status">Проверьте номер накладной.</p>}
+      {loading && !latest && <p className="project-muted" role="status">Получаем статус Деловых Линий…</p>}
+      {latest && <div className="project-shipment-status" role="status">
+        {status?.status !== "ok" && <small>Последний полученный статус</small>}
+        <strong>{latest.label}</strong><span>{statusDate(latest.date)}</span>
+      </div>}
+      {!loading && status && status.status !== "ok" && status.status !== "setup" && <p className="project-muted" role="status">{status.message || messages[status.status]}</p>}
+      {status?.status === "setup" && <p className="project-muted">Сохраните ключ Деловых Линий в разделе «Настройки» CRM. После подключения статус появится здесь автоматически.</p>}
+      {validNumber && <p className="project-muted">
+        Автообновление каждую минуту, пока карточка открыта.
+        {current && ` Последняя проверка: ${statusDate(current.checkedAt)}.`}
       </p>}
-      {!pending && status && status.status !== "ok" && status.status !== "setup" && <p className="project-muted" role="status">{status.message || messages[status.status]}</p>}
-      {status?.status === "setup" && <p className="project-muted">Автообновление подключается в разделе «Настройки» CRM.</p>}
       {error && <p className="fa-error" role="alert">{error}</p>}
     </>}
   </section>;
