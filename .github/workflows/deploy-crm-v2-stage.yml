@@ -197,6 +197,8 @@ jobs:
           Environment=HOSTNAME=127.0.0.1
           Environment=CRM_DB_PATH=/var/lib/satori-auto-crm/crm.db
           Environment=NEXT_TELEMETRY_DISABLED=1
+          # Signed inbound orders from the separate SATORI HOME website; store the key outside Git.
+          EnvironmentFile=-/etc/satori-home-crm.env
           NoNewPrivileges=true
           PrivateTmp=true
 
