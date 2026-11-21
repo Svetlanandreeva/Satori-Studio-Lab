@@ -84,7 +84,7 @@ export function syncHomeOrder(order: HomeOrder) {
   })();
   let savedFiles = 0;
   let failedFiles = 0;
-  if (!result.skipped && Array.isArray(order.files)) for (const file of order.files.slice(0, 3)) {
+  if (Array.isArray(order.files)) for (const [fileIndex, file] of order.files.slice(0, 3).entries()) {
     try {
       const name = field(file.name, 150);
       const mime = field(file.type, 100);
@@ -92,7 +92,7 @@ export function syncHomeOrder(order: HomeOrder) {
       if (!allowed.test(mime) || typeof file.data !== "string" || !/^[A-Za-z0-9+/]*={0,2}$/.test(file.data)) throw new Error("invalid-file");
       const bytes = Buffer.from(file.data, "base64");
       if (bytes.length > 3 * 1024 * 1024) throw new Error("file-too-large");
-      saveClientDocument({ contactId: result.contactId, name, mimeType: mime, bytes: new Uint8Array(bytes), sourceChannel: "website" });
+      saveClientDocument({ contactId: result.contactId, name, mimeType: mime, bytes: new Uint8Array(bytes), sourceChannel: "satori_home", sourceMessageId: id, sourceAttachmentId: String(fileIndex) });
       savedFiles++;
     } catch { failedFiles++; }
   }
