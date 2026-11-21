@@ -16,6 +16,7 @@ export type DealRow = {
   isLead?: boolean;
   ownerName?: string | null;
   ownerId?: string | null;
+  brand?: "home" | "studio";
 };
 type StageLite = { id: string; name: string; color: string; isWon: boolean; isLost: boolean };
 
@@ -30,6 +31,7 @@ export function DealsTable({ rows, stages, members = [], meId = null, isOwner = 
   const [q, setQ] = useState("");
   const [scope, setScope] = useState<Scope>("active");
   const [stage, setStage] = useState("");
+  const [brand, setBrand] = useState<"all" | "home" | "studio">("all");
   // Ответственный: "" — все; "mine" — мои; "none" — без ответственного; иначе id сотрудника.
   const [who, setWho] = useState<string>(isOwner ? "" : "mine");
   const [selected, setSelected] = useState<Set<string>>(new Set());
@@ -50,6 +52,7 @@ export function DealsTable({ rows, stages, members = [], meId = null, isOwner = 
   useEffect(() => {
     const initial = new URLSearchParams(window.location.search).get("q");
     if (initial) { setQ(initial); setScope("all"); }
+    if (new URLSearchParams(window.location.search).get("brand") === "home") { setBrand("home"); setScope("all"); }
   }, []);
   const [mergeIds, setMergeIds] = useState<string[] | null>(null);
   const [keepId, setKeepId] = useState("");
@@ -100,6 +103,7 @@ export function DealsTable({ rows, stages, members = [], meId = null, isOwner = 
       if (scope === "won" && !r.isWon) return false;
       if (scope === "lost" && !r.isLost) return false;
       if (stage && r.stageId !== stage) return false;
+      if (brand !== "all" && r.brand !== brand) return false;
       if (who === "mine" && r.ownerId !== meId) return false;
       if (who === "none" && r.ownerId) return false;
       if (who && who !== "mine" && who !== "none" && r.ownerId !== who) return false;
@@ -107,7 +111,7 @@ export function DealsTable({ rows, stages, members = [], meId = null, isOwner = 
       return [r.title, r.contactName].some((v) => String(v || "").toLowerCase().includes(needle)) ||
         (digits.length >= 3 && String(r.contactPhone || "").replace(/\D/g, "").includes(digits));
     });
-  }, [rows, q, scope, stage]);
+  }, [rows, q, scope, stage, brand, who, meId]);
 
   const total = filtered.reduce((n, r) => n + Math.max(0, Number(r.value) || 0), 0);
   const allChecked = filtered.length > 0 && filtered.every((r) => selected.has(r.id));
@@ -160,6 +164,11 @@ export function DealsTable({ rows, stages, members = [], meId = null, isOwner = 
               {([["mine", "Мои"], ["", "Все"]] as const).map(([v, l]) => <button key={v} type="button" onClick={() => setWho(v)} className={`rounded-lg px-3 py-1 font-medium ${who === v ? "bg-white text-slate-900 shadow-sm dark:bg-white/[.12] dark:text-white" : "text-slate-500"}`}>{l}</button>)}
             </div>
           )}
+          <select value={brand} onChange={(e) => setBrand(e.target.value as "all" | "home" | "studio")} aria-label="Бренд" className="h-9 rounded-xl border border-slate-200 bg-white px-3 text-[13px] text-slate-600 outline-none dark:border-white/[.08] dark:bg-transparent dark:text-slate-300">
+            <option value="all">Оба бренда</option>
+            <option value="studio">Satori Studio</option>
+            <option value="home">Satori Home</option>
+          </select>
           <select value={stage} onChange={(e) => setStage(e.target.value)} className="h-9 rounded-xl border border-slate-200 bg-white px-3 text-[13px] text-slate-600 outline-none dark:border-white/[.08] dark:bg-transparent dark:text-slate-300">
             <option value="">Все этапы</option>
             {stages.map((s) => <option key={s.id} value={s.id}>{s.name}</option>)}
@@ -196,8 +205,8 @@ export function DealsTable({ rows, stages, members = [], meId = null, isOwner = 
             <div key={d.id} className={`group grid grid-cols-[28px_minmax(0,1fr)_auto] items-center gap-3 px-4 py-2.5 transition hover:bg-slate-50 dark:hover:bg-white/[.03] md:grid-cols-[36px_minmax(0,1fr)_170px_120px_90px_40px] ${selected.has(d.id) ? "bg-violet-50/60 dark:bg-violet-500/10" : ""}`}>
               <input type="checkbox" checked={selected.has(d.id)} onChange={() => toggle(d.id)} aria-label="Выбрать" className="h-4 w-4 accent-slate-900" />
               <Link href={`/deals/${d.id}`} className="min-w-0">
-                <div className="truncate text-[14px] font-medium text-slate-900 group-hover:underline dark:text-white">{d.title || "Без названия"}</div>
-                <div className="truncate text-[12px] text-slate-500">{d.contactName || "Без клиента"}{d.contactPhone ? ` · ${d.contactPhone}` : ""}{d.ownerName ? <span className="ml-1.5 rounded bg-slate-100 px-1.5 py-0.5 text-[11px] text-slate-600 dark:bg-white/[.06] dark:text-slate-300">{d.ownerName}</span> : null}{d.contactId && (openByContact.get(d.contactId) || 0) > 1 && !d.isWon && !d.isLost ? <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); setQ(d.contactName || ""); setScope("all"); }} className="ml-2 rounded bg-amber-50 px-1.5 py-0.5 text-[11px] font-medium text-amber-800 hover:bg-amber-100">у клиента {openByContact.get(d.contactId)} открытых — дубли?</button> : null}</div>
+                <div className="truncate text-[14px] font-medium text-slate-900 group-hover:underline dark:text-white">{d.title || "Без названия"}{d.brand === "home" ? <span className="ml-2 rounded bg-rose-100 px-1.5 py-0.5 text-[10px] font-semibold text-rose-800">HOME</span> : null}</div>
+                <div className="truncate text-[12px] text-slate-500">{d.contactName || "Без клиента"}{d.contactPhone ? ` · ${d.contactPhone}` : ""}{d.ownerName ? <span className="ml-1.5 rounded bg-slate-100 px-1.5 py-0.5 text-[11px] text-slate-600 dark:bg-white/[.06] dark:text-slate-300">{d.ownerName}</span> : null}{d.contactId && (openByContact.get(d.contactId) || 0) > 1 && !d.isWon && !d.isLost ? <button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); setQ(d.contactName || ""); setScope("all"); }} className="ml-2 rounded bg-amber-50 px-1.5 py-0.5 text-[11px] font-medium text-amber-800 hover:bg-amber-100">у клиента {openByContact.get(d.contactId)} открытых заказов</button> : null}</div>
               </Link>
               <div className="hidden md:block"><span className="inline-flex max-w-full items-center gap-1.5 truncate rounded-full bg-slate-100 px-2.5 py-1 text-[12px] text-slate-700 dark:bg-white/[.06] dark:text-slate-300"><span className="h-2 w-2 shrink-0 rounded-full" style={{ background: d.stageColor || "#94a3b8" }} />{d.stageName || "Без этапа"}</span></div>
               <div className="text-right text-[14px] font-semibold tabular-nums text-slate-900 dark:text-white">{money(d.value)}<div className="text-[11px] font-normal text-slate-400 md:hidden">{d.stageName}</div></div>
