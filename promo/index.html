@@ -4,6 +4,33 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <script>
+// Route only /home to the standalone HOME landing while preserving the public URL.
+// The existing Studio homepage and every other route remain untouched.
+// This is a static-host fallback; replace it with a server-level exact route later.
+if (/^\/home\/?$/.test(location.pathname)) {
+  document.documentElement.style.visibility = "hidden";
+  (async () => {
+    try {
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 7000);
+      let response;
+      try { response = await fetch("/promo/home/index.html", { cache: "no-store", signal: controller.signal }); }
+      finally { clearTimeout(timeout); }
+      if (!response.ok) throw new Error("Home page unavailable");
+      const html = await response.text();
+      if (!html.includes("<title>SATORI HOME")) throw new Error("Unexpected home page");
+      document.open();
+      document.write(html);
+      document.close();
+    } catch (error) {
+      document.documentElement.style.visibility = "visible";
+      // Explicit fallback is a real static path, never an error-looking blank page.
+      location.replace("/promo/home/index.html");
+    }
+  })();
+}
+</script>
+<script>
   // Compatibility for hosts that still route /adm to the promo HTML fallback.
   // Go directly to the ONE admin app, never to the old standalone editor.
   if (location.pathname === '/adm' || location.pathname === '/adm/') {
