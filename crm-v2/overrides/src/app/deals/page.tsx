@@ -38,6 +38,7 @@ export default async function DealsPage() {
     isLead: Boolean(firstStageId && r.stageId === firstStageId),
     ownerName: r.ownerName,
     ownerId: r.ownerId,
+    brand: String(r.notes || "").includes("[satori-home-order:") ? "home" : "studio",
   }));
 
   return <div className="mx-auto max-w-[1400px] pb-10"><DealsTable meId={actor.id} isOwner={actor.role === "owner"} rows={data} stages={stages} members={actor.role === "owner" ? db.select({ id: teamMembers.id, name: teamMembers.name, active: teamMembers.active }).from(teamMembers).all().filter((m) => m.active && m.id !== "owner").map(({ id, name }) => ({ id, name })) : []} /></div>;
